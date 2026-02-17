@@ -16,7 +16,7 @@ media3 = "1.9.2"
 palette = "1.0.0"
 
 # UI 相关依赖版本
-coil = "2.6.0"
+coil = "2.7.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
