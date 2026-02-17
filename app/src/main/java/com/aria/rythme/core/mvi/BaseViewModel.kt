@@ -192,6 +192,13 @@ abstract class BaseViewModel<I : UserIntent, S : UiState, A : InternalAction, E 
     val state: StateFlow<S> = _state.asStateFlow()
 
     /**
+     * 当前状态值
+     * 用于在 ViewModel 内部获取当前状态
+     */
+    protected val currentState: S
+        get() = _state.value
+
+    /**
      * 内部的副作用通道
      * 使用 Channel 而非 StateFlow，确保每个 Effect 只被消费一次
      * Channel.BUFFERED 允许缓冲多个事件，避免事件丢失

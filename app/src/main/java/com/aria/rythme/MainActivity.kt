@@ -1,17 +1,31 @@
 package com.aria.rythme
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aria.rythme.feature.player.presentation.PlayerScreen
+import com.aria.rythme.feature.player.presentation.PlaylistScreen
+import com.aria.rythme.feature.player.presentation.components.MiniPlayer
+import com.aria.rythme.feature.player.presentation.components.MiniPlayerScaffold
 import com.aria.rythme.ui.theme.RythmeTheme
+import org.koin.androidx.compose.koinViewModel
 
 /**
  * 主 Activity
@@ -208,34 +222,135 @@ import com.aria.rythme.ui.theme.RythmeTheme
  * - 示例目录结构：`feature/.gitkeep`
  */
 class MainActivity : ComponentActivity() {
+
+    /**
+     * 权限请求启动器
+     */
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // 权限已授予，刷新歌曲列表
+            Toast.makeText(this, "权限已授予", Toast.LENGTH_SHORT).show()
+        } else {
+            // 权限被拒绝
+            Toast.makeText(this, "需要音频权限才能播放音乐", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 检查并请求权限
+        checkAndRequestPermission()
+
         setContent {
             RythmeTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MainScreen()
+            }
+        }
+    }
+
+    /**
+     * 检查并请求音频权限
+     */
+    private fun checkAndRequestPermission() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        when {
+            ContextCompat.checkSelfPermission(this, permission) ==
+                    PackageManager.PERMISSION_GRANTED -> {
+                // 权限已授予
+            }
+            shouldShowRequestPermissionRationale(permission) -> {
+                // 显示权限说明
+                Toast.makeText(this, "需要音频权限来扫描本地音乐", Toast.LENGTH_LONG).show()
+                permissionLauncher.launch(permission)
+            }
+            else -> {
+                // 直接请求权限
+                permissionLauncher.launch(permission)
             }
         }
     }
 }
 
+/**
+ * 主屏幕
+ *
+ * 包含播放列表和迷你播放器
+ */
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
+fun MainScreen() {
+    var showPlayer by remember { mutableStateOf(false) }
+
+    if (showPlayer) {
+        // 显示完整播放器
+        PlayerScreenWithBack { showPlayer = false }
+    } else {
+        // 显示播放列表和迷你播放器
+        PlaylistWithMiniPlayer { showPlayer = true }
+    }
+}
+
+/**
+ * 播放列表与迷你播放器组合
+ */
+@Composable
+fun PlaylistWithMiniPlayer(
+    onExpandPlayer: () -> Unit
+) {
+    MiniPlayerScaffold(
+        modifier = Modifier.fillMaxSize(),
+        content = {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                topBar = {
+                    // 可以添加顶部标题栏
+                }
+            ) { innerPadding ->
+                PlaylistScreen()
+            }
+        },
+        miniPlayer = {
+            val viewModel: com.aria.rythme.feature.player.presentation.PlayerViewModel = koinViewModel()
+            val state by viewModel.state.collectAsStateWithLifecycle()
+        
+            MiniPlayer(
+                song = state.currentSong,
+                isPlaying = state.isPlaying,
+                progress = state.progress,
+                onClick = onExpandPlayer,
+                onPlayPauseClick = {
+                    viewModel.sendIntent(
+                        com.aria.rythme.feature.player.presentation.PlayerIntent.TogglePlayPause
+                    )
+                },
+                onNextClick = {
+                    viewModel.sendIntent(
+                        com.aria.rythme.feature.player.presentation.PlayerIntent.Next
+                    )
+                }
+            )
+        }
     )
 }
 
-@Preview(showBackground = true)
+/**
+ * 播放器页面（带返回）
+ */
 @Composable
-fun GreetingPreview() {
-    RythmeTheme {
-        Greeting("Android")
+fun PlayerScreenWithBack(
+    onBack: () -> Unit
+) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize()
+    ) { innerPadding ->
+        PlayerScreen(onBack = onBack)
     }
 }

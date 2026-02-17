@@ -69,6 +69,10 @@ dependencies {
     implementation(libs.androidx.media3.ui)                   // UI 组件
     implementation(libs.androidx.palette)                     // 调色板（提取封面主题色）
     
+    // UI 依赖
+    implementation(libs.androidx.compose.material.icons)      // Material Icons
+    implementation(libs.coil.compose)                         // Coil 图片加载
+    
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

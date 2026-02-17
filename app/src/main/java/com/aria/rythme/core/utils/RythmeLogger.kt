@@ -266,6 +266,58 @@ object RythmeLogger {
         val tag = "$TAG_PREFIX-$viewModelName"
         log(tag, "💬 $message", LogLevel.VERBOSE)
     }
+    
+    // ==================== 通用日志方法 ====================
+    
+    /**
+     * 记录 Debug 级别日志
+     *
+     * @param tag 日志标签
+     * @param message 日志信息
+     */
+    fun d(tag: String, message: String) {
+        if (!isEnabled) return
+        log("$TAG_PREFIX-$tag", message, LogLevel.DEBUG)
+    }
+    
+    /**
+     * 记录 Info 级别日志
+     *
+     * @param tag 日志标签
+     * @param message 日志信息
+     */
+    fun i(tag: String, message: String) {
+        if (!isEnabled) return
+        log("$TAG_PREFIX-$tag", message, LogLevel.INFO)
+    }
+    
+    /**
+     * 记录 Warning 级别日志
+     *
+     * @param tag 日志标签
+     * @param message 日志信息
+     */
+    fun w(tag: String, message: String) {
+        if (!isEnabled) return
+        log("$TAG_PREFIX-$tag", message, LogLevel.WARN)
+    }
+    
+    /**
+     * 记录 Error 级别日志
+     *
+     * @param tag 日志标签
+     * @param message 日志信息
+     * @param throwable 异常对象（可选）
+     */
+    fun e(tag: String, message: String, throwable: Throwable? = null) {
+        if (!isEnabled) return
+        val fullMessage = if (throwable != null) {
+            "$message\n${throwable.stackTraceToString()}"
+        } else {
+            message
+        }
+        log("$TAG_PREFIX-$tag", fullMessage, LogLevel.ERROR)
+    }
 
     /**
      * 记录性能指标
