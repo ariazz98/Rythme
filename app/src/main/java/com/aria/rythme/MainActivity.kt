@@ -25,24 +25,24 @@ import com.aria.rythme.ui.theme.RythmeTheme
  *
  * ### 核心组件
  * 1. **Intent（用户意图）**: 用户的所有交互行为
- *    - 位置：`core/mvi/MviIntent.kt`
+ *    - 位置：`core/mvi/UserIntent.kt`
  *    - 示例：OnButtonClick, OnTextChanged
  *
  * 2. **State（UI 状态）**: 界面的完整状态快照
- *    - 位置：`core/mvi/MviState.kt`
+ *    - 位置：`core/mvi/UiState.kt`
  *    - 示例：data class MyState(val isLoading: Boolean, val data: List<Item>)
  *
  * 3. **Action（内部动作）**: ViewModel 内部处理的中间动作
- *    - 位置：`core/mvi/MviAction.kt`
+ *    - 位置：`core/mvi/InternalAction.kt`
  *    - 示例：LoadSuccess, LoadFailure
  *
  * 4. **Effect（副作用）**: 一次性事件
- *    - 位置：`core/mvi/MviEffect.kt`
+ *    - 位置：`core/mvi/SideEffect.kt`
  *    - 示例：ShowToast, NavigateToHome
  *
- * 5. **BaseViewModel**: MVI ViewModel 基类
+ * 5. **BaseViewModel**: ViewModel 基类
  *    - 位置：`core/mvi/BaseViewModel.kt`
- *    - 提供完整的 MVI 数据流处理能力
+ *    - 提供完整的单向数据流处理能力
  *
  * ### 数据流向
  * ```
@@ -68,7 +68,7 @@ import com.aria.rythme.ui.theme.RythmeTheme
  * #### 2. 定义契约（Contract.kt）
  * ```kotlin
  * // 用户意图
- * sealed interface MyFeatureIntent : MviIntent {
+ * sealed interface MyFeatureIntent : UserIntent {
  *     data object OnButtonClick : MyFeatureIntent
  *     data class OnTextChanged(val text: String) : MyFeatureIntent
  * }
@@ -77,16 +77,16 @@ import com.aria.rythme.ui.theme.RythmeTheme
  * data class MyFeatureState(
  *     val text: String = "",
  *     val isLoading: Boolean = false
- * ) : MviState
+ * ) : UiState
  *
  * // 内部动作
- * sealed interface MyFeatureAction : MviAction {
+ * sealed interface MyFeatureAction : InternalAction {
  *     data object StartLoading : MyFeatureAction
  *     data class UpdateText(val text: String) : MyFeatureAction
  * }
  *
  * // 副作用
- * sealed interface MyFeatureEffect : MviEffect {
+ * sealed interface MyFeatureEffect : SideEffect {
  *     data class ShowToast(val message: String) : MyFeatureEffect
  * }
  * ```
@@ -106,13 +106,13 @@ import com.aria.rythme.ui.theme.RythmeTheme
  *         when (intent) {
  *             is MyFeatureIntent.OnButtonClick -> {
  *                 viewModelScope.launch {
- *                     reduce(MyFeatureAction.StartLoading)
+ *                     reduceAndUpdate(MyFeatureAction.StartLoading)
  *                     // 执行业务逻辑
  *                     sendEffect(MyFeatureEffect.ShowToast("Success"))
  *                 }
  *             }
  *             is MyFeatureIntent.OnTextChanged -> {
- *                 reduce(MyFeatureAction.UpdateText(intent.text))
+ *                 reduceAndUpdate(MyFeatureAction.UpdateText(intent.text))
  *             }
  *         }
  *     }
@@ -176,24 +176,19 @@ import com.aria.rythme.ui.theme.RythmeTheme
  *
  * #### Compose 扩展函数
  * - 位置：`core/extensions/MviComposeExt.kt`
- * - `collectAsMviState()`: 收集状态
- * - `collectAsMviEffect()`: 收集副作用
- * - `collectMvi()`: 同时收集状态和副作用
+ * - `collectAsUiState()`: 收集状态
+ * - `collectAsEffect()`: 收集副作用
+ * - `collectUi()`: 同时收集状态和副作用
  *
  * #### 日志工具
- * - 位置：`core/utils/MviLogger.kt`
+ * - 位置：`core/utils/RythmeLogger.kt`
  * - 自动记录 Intent、Action、State、Effect
  * - 支持性能分析和错误追踪
- *
- * #### 测试工具
- * - 位置：`core/testing/MviTestUtils.kt`
- * - 提供状态断言、副作用收集等测试辅助功能
- * - 支持协程测试
  *
  * #### 协程调度器
  * - 位置：`core/utils/DispatchersProvider.kt`
  * - 统一管理协程调度器
- * - 便于单元测试时替换为测试调度器
+ * - 便于管理和替换调度器
  *
  * ### 最佳实践
  *
@@ -202,8 +197,8 @@ import com.aria.rythme.ui.theme.RythmeTheme
  * 3. **纯函数 Reducer**: Reducer 不应该包含副作用
  * 4. **副作用隔离**: 使用 Effect 处理一次性事件
  * 5. **依赖注入**: 使用 Koin 注入依赖，便于测试
- * 6. **日志记录**: 在关键节点使用 MviLogger 记录日志
- * 7. **单元测试**: 为 ViewModel 和 Reducer 编写单元测试
+ * 6. **日志记录**: 在关键节点使用 RythmeLogger 记录日志
+ * 7. **单元测试**: 为 ViewModel 和 Reducer 编写单元测试（可选）
  *
  * ### 参考资源
  *
