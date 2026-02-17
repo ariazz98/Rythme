@@ -1,10 +1,10 @@
 package com.aria.rythme.core.mvi
 
 /**
- * MVI 架构 - 用户意图接口
+ * 用户意图接口
  *
- * Intent 代表用户在界面上的所有交互行为和操作意图。
- * 这是 MVI 单向数据流的起点，所有用户行为都应该被封装为一个 Intent。
+ * 代表用户在界面上的所有交互行为和操作意图。
+ * 这是单向数据流的起点，所有用户行为都应该被封装为一个 Intent。
  *
  * ## 设计原则
  * 1. **语义化命名**：Intent 名称应该清晰表达用户意图（如：OnLoginClick、OnTextChanged）
@@ -15,7 +15,7 @@ package com.aria.rythme.core.mvi
  * ## 使用示例
  * ```kotlin
  * // 定义具体功能的 Intent
- * sealed interface LoginIntent : MviIntent {
+ * sealed interface LoginIntent : UserIntent {
  *     data class OnUsernameChanged(val username: String) : LoginIntent
  *     data class OnPasswordChanged(val password: String) : LoginIntent
  *     data object OnLoginClick : LoginIntent
@@ -31,8 +31,8 @@ package com.aria.rythme.core.mvi
  * User Action → Intent → ViewModel → Action → State → UI Update
  * ```
  *
- * @see MviState UI 状态的表示
- * @see MviAction 内部处理动作
- * @see MviEffect 副作用事件
+ * @see UiState UI 状态的表示
+ * @see InternalAction 内部处理动作
+ * @see SideEffect 副作用事件
  */
-interface MviIntent
+interface UserIntent

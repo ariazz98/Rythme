@@ -10,9 +10,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 /**
- * MVI 架构 - 基础 ViewModel 抽象类
+ * 基础 ViewModel 抽象类
  *
- * BaseViewModel 是所有 MVI 架构 ViewModel 的基类，提供了完整的 MVI 数据流处理能力。
+ * BaseViewModel 是所有架构 ViewModel 的基类，提供了完整的单向数据流处理能力。
  * 它实现了 Intent → Action → State → Effect 的单向数据流，并提供了线程安全的状态管理。
  *
  * ## 核心职责
@@ -23,15 +23,15 @@ import kotlinx.coroutines.launch
  * 5. **状态暴露**：向 UI 层暴露可观察的 State 和 Effect
  *
  * ## 泛型参数
- * @param I [MviIntent] 该功能模块的用户意图类型
- * @param S [MviState] 该功能模块的 UI 状态类型
- * @param A [MviAction] 该功能模块的内部动作类型
- * @param E [MviEffect] 该功能模块的副作用事件类型
+ * @param I [UserIntent] 该功能模块的用户意图类型
+ * @param S [UiState] 该功能模块的 UI 状态类型
+ * @param A [InternalAction] 该功能模块的内部动作类型
+ * @param E [SideEffect] 该功能模块的副作用事件类型
  *
  * ## 使用示例
  * ```kotlin
  * // 1. 定义契约（Contract）
- * sealed interface LoginIntent : MviIntent {
+ * sealed interface LoginIntent : UserIntent {
  *     data class OnUsernameChanged(val username: String) : LoginIntent
  *     data object OnLoginClick : LoginIntent
  * }
@@ -39,14 +39,14 @@ import kotlinx.coroutines.launch
  * data class LoginState(
  *     val username: String = "",
  *     val isLoading: Boolean = false
- * ) : MviState
+ * ) : UiState
  *
- * sealed interface LoginAction : MviAction {
+ * sealed interface LoginAction : InternalAction {
  *     data object StartLoading : LoginAction
  *     data class LoginSuccess(val user: User) : LoginAction
  * }
  *
- * sealed interface LoginEffect : MviEffect {
+ * sealed interface LoginEffect : SideEffect {
  *     data class ShowToast(val message: String) : LoginEffect
  *     data object NavigateToHome : LoginEffect
  * }
@@ -165,12 +165,12 @@ import kotlinx.coroutines.launch
  * 4. **业务逻辑在 handleIntent 中**：复杂的业务逻辑应该提取到 UseCase 中
  * 5. **初始状态合理**：[createInitialState] 应该返回合理的默认状态
  *
- * @see MviIntent 用户意图接口
- * @see MviState UI 状态接口
- * @see MviAction 内部动作接口
- * @see MviEffect 副作用事件接口
+ * @see UserIntent 用户意图接口
+ * @see UiState UI 状态接口
+ * @see InternalAction 内部动作接口
+ * @see SideEffect 副作用事件接口
  */
-abstract class BaseViewModel<I : MviIntent, S : MviState, A : MviAction, E : MviEffect> : ViewModel() {
+abstract class BaseViewModel<I : UserIntent, S : UiState, A : InternalAction, E : SideEffect> : ViewModel() {
 
     /**
      * 内部可变的状态流

@@ -1,9 +1,9 @@
 package com.aria.rythme.core.mvi
 
 /**
- * MVI 架构 - 内部动作接口
+ * 内部动作接口
  *
- * Action 代表 ViewModel 内部处理的中间动作或业务逻辑结果。
+ * 代表 ViewModel 内部处理的中间动作或业务逻辑结果。
  * 它是 Intent 和 State 之间的桥梁，将用户意图转化为具体的状态变化。
  *
  * ## 设计原则
@@ -38,7 +38,7 @@ package com.aria.rythme.core.mvi
  * ## 使用示例
  * ```kotlin
  * // 定义具体功能的 Action
- * sealed interface LoginAction : MviAction {
+ * sealed interface LoginAction : InternalAction {
  *     // 加载动作
  *     data object StartLoading : LoginAction
  *     
@@ -53,22 +53,22 @@ package com.aria.rythme.core.mvi
  * }
  *
  * // 在 ViewModel 中处理 Intent 并生成 Action
- * override fun handleIntent(intent: MviIntent) {
+ * override fun handleIntent(intent: UserIntent) {
  *     when (intent) {
  *         is LoginIntent.OnLoginClick -> {
  *             viewModelScope.launch {
  *                 // 1. 发送开始加载的 Action
- *                 reduce(LoginAction.StartLoading)
+ *                 reduceAndUpdate(LoginAction.StartLoading)
  *                 
  *                 // 2. 执行业务逻辑
  *                 try {
  *                     val result = loginUseCase(username, password)
  *                     // 3. 成功后发送成功 Action
- *                     reduce(LoginAction.LoginSuccess(result.user, result.token))
+ *                     reduceAndUpdate(LoginAction.LoginSuccess(result.user, result.token))
  *                     sendEffect(LoginEffect.NavigateToHome)
  *                 } catch (e: Exception) {
  *                     // 4. 失败后发送失败 Action
- *                     reduce(LoginAction.LoginFailure(e))
+ *                     reduceAndUpdate(LoginAction.LoginFailure(e))
  *                     sendEffect(LoginEffect.ShowToast("登录失败"))
  *                 }
  *             }
@@ -79,7 +79,7 @@ package com.aria.rythme.core.mvi
  *
  * ## Reducer 处理 Action
  * ```kotlin
- * override fun reduce(action: MviAction) {
+ * override fun reduce(action: InternalAction): UiState {
  *     val newState = when (action) {
  *         is LoginAction.StartLoading -> {
  *             currentState.copy(isLoading = true, errorMessage = null)
@@ -117,9 +117,9 @@ package com.aria.rythme.core.mvi
  *                              [Effect Handler] → Effect → UI Side Effect
  * ```
  *
- * @see MviIntent 用户意图
- * @see MviState UI 状态
- * @see MviEffect 副作用事件
+ * @see UserIntent 用户意图
+ * @see UiState UI 状态
+ * @see SideEffect 副作用事件
  * @see StateReducer 状态归约器
  */
-interface MviAction
+interface InternalAction

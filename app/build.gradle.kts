@@ -63,18 +63,6 @@ dependencies {
     implementation(libs.koin.android)                         // Koin for Android
     implementation(libs.koin.androidx.compose)                // Koin for Compose
     
-    // 单元测试
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)          // 协程测试
-    testImplementation(libs.koin.test)                        // Koin 测试
-    
-    // Android 测试
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

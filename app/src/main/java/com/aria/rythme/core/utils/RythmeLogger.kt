@@ -1,16 +1,15 @@
 package com.aria.rythme.core.utils
 
 import android.util.Log
-import com.aria.rythme.BuildConfig
-import com.aria.rythme.core.mvi.MviAction
-import com.aria.rythme.core.mvi.MviEffect
-import com.aria.rythme.core.mvi.MviIntent
-import com.aria.rythme.core.mvi.MviState
+import com.aria.rythme.core.mvi.InternalAction
+import com.aria.rythme.core.mvi.SideEffect
+import com.aria.rythme.core.mvi.UserIntent
+import com.aria.rythme.core.mvi.UiState
 
 /**
- * MVI 架构日志工具
+ * 日志工具
  *
- * 提供统一的 MVI 事件日志记录功能，帮助开发者追踪和调试 MVI 数据流。
+ * 提供统一的事件日志记录功能，帮助开发者追踪和调试数据流。
  * 支持不同级别的日志输出，便于在开发和生产环境中灵活使用。
  *
  * ## 功能特性
@@ -34,25 +33,25 @@ import com.aria.rythme.core.mvi.MviState
  *
  *     override fun handleIntent(intent: LoginIntent) {
  *         // 记录 Intent
- *         MviLogger.logIntent("LoginViewModel", intent)
+ *         RythmeLogger.logIntent("LoginViewModel", intent)
  *
  *         when (intent) {
  *             is LoginIntent.OnLoginClick -> {
  *                 viewModelScope.launch {
  *                     // 记录 Action
- *                     MviLogger.logAction("LoginViewModel", LoginAction.StartLoading)
- *                     reduce(LoginAction.StartLoading)
+ *                     RythmeLogger.logAction("LoginViewModel", LoginAction.StartLoading)
+ *                     reduceAndUpdate(LoginAction.StartLoading)
  *
  *                     try {
  *                         val user = loginUseCase()
- *                         MviLogger.logAction("LoginViewModel", LoginAction.LoginSuccess(user))
- *                         reduce(LoginAction.LoginSuccess(user))
+ *                         RythmeLogger.logAction("LoginViewModel", LoginAction.LoginSuccess(user))
+ *                         reduceAndUpdate(LoginAction.LoginSuccess(user))
  *
  *                         // 记录 Effect
- *                         MviLogger.logEffect("LoginViewModel", LoginEffect.NavigateToHome)
+ *                         RythmeLogger.logEffect("LoginViewModel", LoginEffect.NavigateToHome)
  *                         sendEffect(LoginEffect.NavigateToHome)
  *                     } catch (e: Exception) {
- *                         MviLogger.logError("LoginViewModel", "Login failed", e)
+ *                         RythmeLogger.logError("LoginViewModel", "Login failed", e)
  *                     }
  *                 }
  *             }
@@ -65,7 +64,7 @@ import com.aria.rythme.core.mvi.MviState
  *             // ...
  *         }
  *         // 记录状态变化
- *         MviLogger.logStateChange("LoginViewModel", oldState, newState)
+ *         RythmeLogger.logStateChange("LoginViewModel", oldState, newState)
  *         return newState
  *     }
  * }
@@ -73,19 +72,19 @@ import com.aria.rythme.core.mvi.MviState
  *
  * ## 自定义日志行为
  * ```kotlin
- * // 设置是否启用日志（默认在 Debug 模式下启用）
- * MviLogger.isEnabled = BuildConfig.DEBUG
+ * // 设置是否启用日志（建议在 Application 中初始化）
+ * RythmeLogger.isEnabled = BuildConfig.DEBUG
  *
  * // 设置日志级别
- * MviLogger.logLevel = MviLogger.LogLevel.VERBOSE
+ * RythmeLogger.logLevel = RythmeLogger.LogLevel.VERBOSE
  *
  * // 自定义日志处理器（如：写入文件、上报到服务器）
- * MviLogger.setCustomLogger { tag, message ->
+ * RythmeLogger.setCustomLogger { tag, message ->
  *     // 自定义日志处理
  * }
  * ```
  */
-object MviLogger {
+object RythmeLogger {
 
     /**
      * 日志级别枚举
@@ -100,9 +99,19 @@ object MviLogger {
 
     /**
      * 是否启用日志
-     * 默认在 Debug 构建时启用，Release 构建时禁用
+     * 建议在 Application 中根据 BuildConfig.DEBUG 初始化
+     *
+     * 初始化示例：
+     * ```kotlin
+     * class MyApplication : Application() {
+     *     override fun onCreate() {
+     *         super.onCreate()
+     *         RythmeLogger.isEnabled = BuildConfig.DEBUG
+     *     }
+     * }
+     * ```
      */
-    var isEnabled: Boolean = BuildConfig.DEBUG
+    var isEnabled: Boolean = true
 
     /**
      * 当前日志级别
@@ -117,9 +126,9 @@ object MviLogger {
     private var customLogger: ((tag: String, message: String) -> Unit)? = null
 
     /**
-     * MVI 日志标签前缀
+     * 日志标签前缀
      */
-    private const val TAG_PREFIX = "MVI"
+    private const val TAG_PREFIX = "Rythme"
 
     /**
      * 设置自定义日志处理器
@@ -138,7 +147,7 @@ object MviLogger {
      * @param viewModelName ViewModel 的名称
      * @param intent 用户发起的意图
      */
-    fun <I : MviIntent> logIntent(viewModelName: String, intent: I) {
+    fun <I : UserIntent> logIntent(viewModelName: String, intent: I) {
         if (!isEnabled) return
 
         val tag = "$TAG_PREFIX-$viewModelName"
@@ -154,7 +163,7 @@ object MviLogger {
      * @param viewModelName ViewModel 的名称
      * @param action 内部处理的动作
      */
-    fun <A : MviAction> logAction(viewModelName: String, action: A) {
+    fun <A : InternalAction> logAction(viewModelName: String, action: A) {
         if (!isEnabled) return
 
         val tag = "$TAG_PREFIX-$viewModelName"
@@ -172,7 +181,7 @@ object MviLogger {
      * @param oldState 变化前的状态
      * @param newState 变化后的状态
      */
-    fun <S : MviState> logStateChange(viewModelName: String, oldState: S, newState: S) {
+    fun <S : UiState> logStateChange(viewModelName: String, oldState: S, newState: S) {
         if (!isEnabled) return
 
         val tag = "$TAG_PREFIX-$viewModelName"
@@ -180,7 +189,7 @@ object MviLogger {
             appendLine("📊 State Changed:")
             appendLine("  Old: $oldState")
             appendLine("  New: $newState")
-            
+
             // 计算并显示变化的字段（如果状态是 data class）
             if (oldState != newState) {
                 appendLine("  Changed fields: ${getChangedFields(oldState, newState)}")
@@ -197,7 +206,7 @@ object MviLogger {
      * @param viewModelName ViewModel 的名称
      * @param effect 副作用事件
      */
-    fun <E : MviEffect> logEffect(viewModelName: String, effect: E) {
+    fun <E : SideEffect> logEffect(viewModelName: String, effect: E) {
         if (!isEnabled) return
 
         val tag = "$TAG_PREFIX-$viewModelName"
@@ -308,7 +317,7 @@ object MviLogger {
      * @param newState 新状态
      * @return 变化的字段列表
      */
-    private fun <S : MviState> getChangedFields(oldState: S, newState: S): String {
+    private fun <S : UiState> getChangedFields(oldState: S, newState: S): String {
         return try {
             val changes = mutableListOf<String>()
             val oldClass = oldState::class.java
@@ -341,31 +350,31 @@ object MviLogger {
 /**
  * 记录 Intent 的便捷方法
  */
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> 
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect>
     com.aria.rythme.core.mvi.BaseViewModel<I, S, A, E>.logIntent(intent: I) {
-    MviLogger.logIntent(this::class.simpleName ?: "Unknown", intent)
+    RythmeLogger.logIntent(this::class.simpleName ?: "Unknown", intent)
 }
 
 /**
  * 记录 Action 的便捷方法
  */
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> 
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect>
     com.aria.rythme.core.mvi.BaseViewModel<I, S, A, E>.logAction(action: A) {
-    MviLogger.logAction(this::class.simpleName ?: "Unknown", action)
+    RythmeLogger.logAction(this::class.simpleName ?: "Unknown", action)
 }
 
 /**
  * 记录 Effect 的便捷方法
  */
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> 
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect>
     com.aria.rythme.core.mvi.BaseViewModel<I, S, A, E>.logEffect(effect: E) {
-    MviLogger.logEffect(this::class.simpleName ?: "Unknown", effect)
+    RythmeLogger.logEffect(this::class.simpleName ?: "Unknown", effect)
 }
 
 /**
  * 记录错误的便捷方法
  */
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> 
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect>
     com.aria.rythme.core.mvi.BaseViewModel<I, S, A, E>.logError(message: String, throwable: Throwable? = null) {
-    MviLogger.logError(this::class.simpleName ?: "Unknown", message, throwable)
+    RythmeLogger.logError(this::class.simpleName ?: "Unknown", message, throwable)
 }

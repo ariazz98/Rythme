@@ -6,14 +6,13 @@ import kotlinx.coroutines.Dispatchers
 /**
  * 协程调度器提供者接口
  *
- * 提供统一的协程调度器访问接口，便于在测试时替换为测试调度器。
- * 这是依赖注入和单元测试的最佳实践。
+ * 提供统一的协程调度器访问接口，便于管理和替换调度器。
+ * 通过依赖注入使用，避免在代码中硬编码 Dispatchers。
  *
  * ## 为什么需要 DispatchersProvider？
- * 1. **可测试性**：在单元测试中可以替换为 TestDispatcher，实现确定性测试
- * 2. **依赖注入**：通过 DI 容器注入，便于管理和替换
- * 3. **统一管理**：集中管理所有协程调度器，避免硬编码
- * 4. **灵活性**：可以根据需要提供自定义调度器
+ * 1. **依赖注入**：通过 DI 容器注入，便于管理和替换
+ * 2. **统一管理**：集中管理所有协程调度器，避免硬编码
+ * 3. **灵活性**：可以根据需要提供自定义调度器
  *
  * ## 调度器说明
  * - **Main**: 主线程调度器，用于 UI 更新和轻量级任务
@@ -38,29 +37,8 @@ import kotlinx.coroutines.Dispatchers
  *             }
  *
  *             // 自动切换回 Main 线程更新 UI
- *             reduce(MyAction.DataLoaded(processed))
+ *             reduceAndUpdate(MyAction.DataLoaded(processed))
  *         }
- *     }
- * }
- * ```
- *
- * ## 单元测试示例
- * ```kotlin
- * class MyViewModelTest {
- *     // 测试调度器
- *     private val testDispatcher = StandardTestDispatcher()
- *     private val testDispatchers = object : DispatchersProvider {
- *         override val main = testDispatcher
- *         override val io = testDispatcher
- *         override val default = testDispatcher
- *         override val unconfined = testDispatcher
- *     }
- *
- *     @Test
- *     fun `test loading data`() = runTest(testDispatcher) {
- *         val viewModel = MyViewModel(testDispatchers)
- *         viewModel.sendIntent(MyIntent.LoadData)
- *         // 测试断言
  *     }
  * }
  * ```
@@ -118,7 +96,6 @@ interface DispatchersProvider {
      *
      * 使用场景：
      * - 性能关键的纯计算（无 IO 操作）
-     * - 测试场景
      * - 明确知道当前线程安全的场景
      */
     val unconfined: CoroutineDispatcher
@@ -141,31 +118,4 @@ class DefaultDispatchersProvider : DispatchersProvider {
     override val io: CoroutineDispatcher = Dispatchers.IO
     override val default: CoroutineDispatcher = Dispatchers.Default
     override val unconfined: CoroutineDispatcher = Dispatchers.Unconfined
-}
-
-/**
- * 测试用的协程调度器提供者
- *
- * 所有调度器都使用同一个测试调度器，便于控制协程执行和时间。
- * 仅用于单元测试。
- *
- * ## 使用示例
- * ```kotlin
- * @Test
- * fun myTest() = runTest {
- *     val testDispatchers = TestDispatchersProvider(this.testScheduler)
- *     val viewModel = MyViewModel(testDispatchers)
- *     // 测试代码
- * }
- * ```
- *
- * @param testDispatcher 测试调度器，通常是 StandardTestDispatcher 或 UnconfinedTestDispatcher
- */
-class TestDispatchersProvider(
-    private val testDispatcher: CoroutineDispatcher
-) : DispatchersProvider {
-    override val main: CoroutineDispatcher = testDispatcher
-    override val io: CoroutineDispatcher = testDispatcher
-    override val default: CoroutineDispatcher = testDispatcher
-    override val unconfined: CoroutineDispatcher = testDispatcher
 }

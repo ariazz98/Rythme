@@ -1,9 +1,9 @@
 package com.aria.rythme.core.mvi
 
 /**
- * MVI 架构 - 副作用事件接口
+ * 副作用事件接口
  *
- * Effect 代表不属于 UI 状态的一次性事件或副作用。
+ * 代表不属于 UI 状态的一次性事件或副作用。
  * 这些事件只会被消费一次，不应该成为持久的 UI 状态的一部分。
  *
  * ## 设计原则
@@ -23,7 +23,7 @@ package com.aria.rythme.core.mvi
  * ## 使用示例
  * ```kotlin
  * // 定义具体功能的 Effect
- * sealed interface LoginEffect : MviEffect {
+ * sealed interface LoginEffect : SideEffect {
  *     data class ShowToast(val message: String) : LoginEffect
  *     data object NavigateToHome : LoginEffect
  *     data class ShowError(val error: Throwable) : LoginEffect
@@ -79,8 +79,8 @@ package com.aria.rythme.core.mvi
  * - 在 LaunchedEffect 或 DisposableEffect 中收集 Effect
  * - 确保 Effect 只被处理一次（使用 Channel 而非 StateFlow）
  *
- * @see MviIntent 用户意图
- * @see MviState UI 状态
- * @see MviAction 内部处理动作
+ * @see UserIntent 用户意图
+ * @see UiState UI 状态
+ * @see InternalAction 内部处理动作
  */
-interface MviEffect
+interface SideEffect

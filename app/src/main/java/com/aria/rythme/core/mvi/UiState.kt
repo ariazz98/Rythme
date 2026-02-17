@@ -1,10 +1,10 @@
 package com.aria.rythme.core.mvi
 
 /**
- * MVI 架构 - UI 状态接口
+ * UI 状态接口
  *
- * State 代表界面在某一时刻的完整状态快照。
- * 这是 MVI 架构中的 Model，包含了渲染 UI 所需的所有数据。
+ * 代表界面在某一时刻的完整状态快照。
+ * 这是架构中的 Model，包含了渲染 UI 所需的所有数据。
  *
  * ## 设计原则
  * 1. **完整性**：State 应该包含渲染 UI 所需的所有数据
@@ -29,7 +29,7 @@ package com.aria.rythme.core.mvi
  *     val isLoading: Boolean = false,
  *     val isLoginEnabled: Boolean = false,
  *     val errorMessage: String? = null
- * ) : MviState
+ * ) : UiState
  *
  * // 在 ViewModel 中更新 State
  * _state.value = currentState.copy(isLoading = true)
@@ -50,8 +50,8 @@ package com.aria.rythme.core.mvi
  * - **State**: 持久的 UI 状态（如：用户名、加载状态、列表数据）
  * - **Effect**: 一次性事件（如：显示 Toast、导航跳转、显示 Dialog）
  *
- * @see MviIntent 用户意图
- * @see MviEffect 副作用事件
- * @see MviAction 内部处理动作
+ * @see UserIntent 用户意图
+ * @see SideEffect 副作用事件
+ * @see InternalAction 内部处理动作
  */
-interface MviState
+interface UiState

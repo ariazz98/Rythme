@@ -8,24 +8,24 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.aria.rythme.core.mvi.BaseViewModel
-import com.aria.rythme.core.mvi.MviEffect
-import com.aria.rythme.core.mvi.MviIntent
-import com.aria.rythme.core.mvi.MviState
-import com.aria.rythme.core.mvi.MviAction
+import com.aria.rythme.core.mvi.SideEffect
+import com.aria.rythme.core.mvi.UserIntent
+import com.aria.rythme.core.mvi.UiState
+import com.aria.rythme.core.mvi.InternalAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * MVI Compose 扩展函数集
+ * Compose 扩展函数集
  *
- * 提供一组便捷的扩展函数，简化 MVI 架构在 Jetpack Compose 中的使用。
+ * 提供一组便捷的扩展函数，简化单向数据流架构在 Jetpack Compose 中的使用。
  * 这些扩展函数封装了常见的状态订阅和副作用处理模式，提升开发效率。
  */
 
 /**
  * 在 Compose 中收集 StateFlow 并转换为 State
  *
- * 这是 collectAsState() 的类型安全版本，专门用于 MVI 的 State。
+ * 这是 collectAsState() 的类型安全版本，专门用于 UI State。
  * 当 StateFlow 发出新值时，会触发 Compose 重组。
  *
  * ## 特点
@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
  * ## 使用场景
  * 在 Composable 函数中订阅 ViewModel 的状态
  *
- * @receiver StateFlow<S> MVI State 的 StateFlow
+ * @receiver StateFlow<S> UI State 的 StateFlow
  * @return State<S> Compose 的 State 对象，可直接在 UI 中使用
  *
  * 使用示例：
@@ -44,7 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
  * @Composable
  * fun LoginScreen(viewModel: LoginViewModel = koinViewModel()) {
  *     // 订阅状态
- *     val state = viewModel.state.collectAsMviState()
+ *     val state = viewModel.state.collectAsUiState()
  *
  *     // 使用状态渲染 UI
  *     TextField(
@@ -61,12 +61,12 @@ import kotlinx.coroutines.flow.StateFlow
  * @see collectAsState Compose 原生的 collectAsState 函数
  */
 @Composable
-fun <S : MviState> StateFlow<S>.collectAsMviState(): State<S> {
+fun <S : UiState> StateFlow<S>.collectAsUiState(): State<S> {
     return collectAsState()
 }
 
 /**
- * 在 Compose 中收集并处理 MVI Effect
+ * 在 Compose 中收集并处理 Effect
  *
  * 用于处理一次性的副作用事件（如导航、Toast、Dialog）。
  * 这个扩展函数确保 Effect 只在合适的生命周期状态下被处理，避免在后台状态下执行副作用。
@@ -90,7 +90,7 @@ fun <S : MviState> StateFlow<S>.collectAsMviState(): State<S> {
  * - 请求权限
  * - 调用系统功能
  *
- * @receiver Flow<E> MVI Effect 的 Flow
+ * @receiver Flow<E> Effect 的 Flow
  * @param lifecycleState 收集 Effect 的最低生命周期状态，默认为 STARTED
  * @param onEffect Effect 处理回调函数
  *
@@ -104,7 +104,7 @@ fun <S : MviState> StateFlow<S>.collectAsMviState(): State<S> {
  *     val context = LocalContext.current
  *
  *     // 处理副作用
- *     viewModel.effect.collectAsMviEffect { effect ->
+ *     viewModel.effect.collectAsEffect { effect ->
  *         when (effect) {
  *             is LoginEffect.ShowToast -> {
  *                 Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -135,7 +135,7 @@ fun <S : MviState> StateFlow<S>.collectAsMviState(): State<S> {
  * ## 高级用法：指定生命周期状态
  * ```kotlin
  * // 只在 RESUMED 状态收集（适用于需要前台才能执行的操作）
- * viewModel.effect.collectAsMviEffect(
+ * viewModel.effect.collectAsEffect(
  *     lifecycleState = Lifecycle.State.RESUMED
  * ) { effect ->
  *     // 处理 effect
@@ -146,7 +146,7 @@ fun <S : MviState> StateFlow<S>.collectAsMviState(): State<S> {
  * @see repeatOnLifecycle 生命周期感知的 Flow 收集
  */
 @Composable
-fun <E : MviEffect> Flow<E>.collectAsMviEffect(
+fun <E : SideEffect> Flow<E>.collectAsEffect(
     lifecycleState: Lifecycle.State = Lifecycle.State.STARTED,
     onEffect: (E) -> Unit
 ) {
@@ -166,7 +166,7 @@ fun <E : MviEffect> Flow<E>.collectAsMviEffect(
  *
  * 直接从 ViewModel 收集状态，简化代码书写。
  *
- * @receiver BaseViewModel MVI ViewModel
+ * @receiver BaseViewModel ViewModel
  * @return State<S> Compose 的 State 对象
  *
  * 使用示例：
@@ -179,8 +179,8 @@ fun <E : MviEffect> Flow<E>.collectAsMviEffect(
  * ```
  */
 @Composable
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I, S, A, E>.collectState(): State<S> {
-    return state.collectAsMviState()
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect> BaseViewModel<I, S, A, E>.collectState(): State<S> {
+    return state.collectAsUiState()
 }
 
 /**
@@ -188,7 +188,7 @@ fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I,
  *
  * 直接从 ViewModel 收集副作用，简化代码书写。
  *
- * @receiver BaseViewModel MVI ViewModel
+ * @receiver BaseViewModel ViewModel
  * @param lifecycleState 收集 Effect 的最低生命周期状态
  * @param onEffect Effect 处理回调函数
  *
@@ -205,20 +205,20 @@ fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I,
  * ```
  */
 @Composable
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I, S, A, E>.collectEffect(
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect> BaseViewModel<I, S, A, E>.collectEffect(
     lifecycleState: Lifecycle.State = Lifecycle.State.STARTED,
     onEffect: (E) -> Unit
 ) {
-    effect.collectAsMviEffect(lifecycleState, onEffect)
+    effect.collectAsEffect(lifecycleState, onEffect)
 }
 
 /**
- * 完整的 MVI 组件收集函数
+ * 完整的组件收集函数
  *
- * 同时收集 State 和 Effect，提供一站式的 MVI 订阅方案。
+ * 同时收集 State 和 Effect，提供一站式的订阅方案。
  * 适用于需要同时处理状态和副作用的场景。
  *
- * @receiver BaseViewModel MVI ViewModel
+ * @receiver BaseViewModel ViewModel
  * @param lifecycleState 收集 Effect 的最低生命周期状态
  * @param onEffect Effect 处理回调函数
  * @return State<S> Compose 的 State 对象
@@ -227,7 +227,7 @@ fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I,
  * ```kotlin
  * @Composable
  * fun LoginScreen(viewModel: LoginViewModel = koinViewModel()) {
- *     val state = viewModel.collectMvi { effect ->
+ *     val state = viewModel.collectUi { effect ->
  *         when (effect) {
  *             is LoginEffect.ShowToast -> {
  *                 Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -247,7 +247,7 @@ fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I,
  * ```
  */
 @Composable
-fun <I : MviIntent, S : MviState, A : MviAction, E : MviEffect> BaseViewModel<I, S, A, E>.collectMvi(
+fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect> BaseViewModel<I, S, A, E>.collectUi(
     lifecycleState: Lifecycle.State = Lifecycle.State.STARTED,
     onEffect: (E) -> Unit
 ): State<S> {
