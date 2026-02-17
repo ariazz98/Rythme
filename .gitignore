@@ -1,0 +1,53 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+
+# Gradle files
+.gradle/
+local.properties
+
+# Log Files
+*.log
+
+# Android Studio
+*.iml
+.idea/
+captures/
+.navigation/
+
+# Keystore files
+*.jks
+*.keystore
+
+# External native build
+.externalNativeBuild/
+.cxx/
+
+# Google Services
+google-services.json
+
+# fastlane
+fastlane/
+
+# lint
+lint/
+
+# Profiling
+*.hprof
+
+# OS files
+.DS_Store
+
+# Kotlin
+.kotlin/
