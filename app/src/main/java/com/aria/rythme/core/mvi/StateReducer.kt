@@ -1,21 +1,21 @@
 package com.aria.rythme.core.mvi
 
 /**
- * MVI 架构 - 状态归约器接口
+ * 状态归约器接口
  *
  * StateReducer 是一个函数式接口，负责将 Action 转换为新的 State。
- * 这是 MVI 架构中状态管理的核心，实现了可预测的状态转换逻辑。
+ * 这是状态管理的核心，实现了可预测的状态转换逻辑。
  *
  * ## 设计理念
  * StateReducer 受到 Redux Reducer 的启发，强调：
  * - **纯函数**：相同的输入总是产生相同的输出
  * - **不可变性**：不修改原状态，总是返回新状态
  * - **可预测性**：状态变化逻辑清晰可追踪
- * - **可测试性**：纯函数易于单元测试
+ * - **可测试性**：纯函数易于测试
  *
  * ## 泛型参数
- * @param S [MviState] UI 状态类型
- * @param A [MviAction] 内部动作类型
+ * @param S [UiState] UI 状态类型
+ * @param A [InternalAction] 内部动作类型
  *
  * ## 核心原则
  * 1. **纯函数**：
@@ -36,7 +36,7 @@ package com.aria.rythme.core.mvi
  * ## 使用示例
  * ```kotlin
  * // 定义 Action
- * sealed interface CounterAction : MviAction {
+ * sealed interface CounterAction : InternalAction {
  *     data object Increment : CounterAction
  *     data object Decrement : CounterAction
  *     data class SetValue(val value: Int) : CounterAction
@@ -47,7 +47,7 @@ package com.aria.rythme.core.mvi
  * data class CounterState(
  *     val count: Int = 0,
  *     val isAtMax: Boolean = false
- * ) : MviState
+ * ) : UiState
  *
  * // 实现 Reducer
  * class CounterReducer : StateReducer<CounterState, CounterAction> {
@@ -224,11 +224,11 @@ package com.aria.rythme.core.mvi
  * | 测试 | 简单（纯函数） | 复杂（需要 mock） |
  * | 可预测性 | 完全可预测 | 依赖外部状态 |
  *
- * @see MviState UI 状态接口
- * @see MviAction 内部动作接口
- * @see BaseViewModel MVI ViewModel 基类
+ * @see UiState UI 状态接口
+ * @see InternalAction 内部动作接口
+ * @see BaseViewModel ViewModel 基类
  */
-fun interface StateReducer<S : MviState, A : MviAction> {
+fun interface StateReducer<S : UiState, A : InternalAction> {
     /**
      * 归约状态
      *
