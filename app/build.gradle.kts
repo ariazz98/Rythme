@@ -63,6 +63,12 @@ dependencies {
     implementation(libs.koin.android)                         // Koin for Android
     implementation(libs.koin.androidx.compose)                // Koin for Compose
     
+    // 媒体播放依赖
+    implementation(libs.androidx.media3.exoplayer)            // ExoPlayer 核心
+    implementation(libs.androidx.media3.session)              // MediaSession 支持
+    implementation(libs.androidx.media3.ui)                   // UI 组件
+    implementation(libs.androidx.palette)                     // 调色板（提取封面主题色）
+    
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
