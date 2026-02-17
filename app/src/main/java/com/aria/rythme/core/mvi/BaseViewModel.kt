@@ -367,7 +367,7 @@ abstract class BaseViewModel<I : MviIntent, S : MviState, A : MviAction, E : Mvi
      * 归约并更新状态
      *
      * 内部方法，用于通过 Reducer 更新状态。
-     * 调用 [reduce] 方法计算新状态，然后更新 StateFlow。
+     * 调用 [reduce] 抽象方法计算新状态，然后更新 StateFlow。
      *
      * ## 线程安全
      * StateFlow 的 value 赋值是线程安全的，可以从任何协程中调用。
@@ -377,11 +377,11 @@ abstract class BaseViewModel<I : MviIntent, S : MviState, A : MviAction, E : Mvi
      * 使用示例：
      * ```kotlin
      * // 在 handleIntent 中调用
-     * reduce(LoginAction.StartLoading)
-     * reduce(LoginAction.LoginSuccess(user))
+     * reduceAndUpdate(LoginAction.StartLoading)
+     * reduceAndUpdate(LoginAction.LoginSuccess(user))
      * ```
      */
-    protected fun reduce(action: A) {
+    protected fun reduceAndUpdate(action: A) {
         val newState = reduce(action)
         _state.value = newState
     }
