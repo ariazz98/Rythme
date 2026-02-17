@@ -1,0 +1,21 @@
+# Feature 模块目录
+
+此目录用于存放按功能划分的业务模块。
+
+## 目录结构
+每个功能模块应该包含以下子目录：
+
+feature/
+└── [feature_name]/          # 功能模块名称（如：login、home、profile）
+    ├── presentation/         # 表现层（UI + ViewModel）
+    │   ├── [Feature]Screen.kt       # Compose 界面
+    │   ├── [Feature]ViewModel.kt    # ViewModel 实现
+    │   └── [Feature]Contract.kt     # MVI 契约（Intent/State/Action/Effect）
+    ├── domain/              # 领域层（可选）
+    │   ├── usecase/        # 用例（业务逻辑）
+    │   ├── model/          # 领域模型
+    │   └── repository/     # 仓储接口
+    └── data/               # 数据层（可选）
+        ├── repository/     # 仓储实现
+        ├── datasource/     # 数据源（本地/远程）
+        └── model/          # 数据模型（DTO/Entity）
