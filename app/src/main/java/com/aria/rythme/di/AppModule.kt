@@ -22,7 +22,8 @@ import org.koin.dsl.module
  *
  * 提供播放器相关的依赖：
  * - ScanSettingsRepository: 扫描设置仓库
- * - MediaStoreSource: 本地音乐数据源
+ * - SongCacheRepository: 歌曲缓存仓库（单一数据源）
+ * - MediaStoreSource: MediaStore 扫描器（只写入）
  * - PlaybackController: 播放控制器
  * - PlayerViewModel: 播放器 ViewModel
  */
@@ -51,14 +52,15 @@ val playerModule = module {
     /**
      * 歌曲缓存仓库
      *
-     * 单例模式，管理本地歌曲缓存
+     * 单例模式，单一可信数据源
+     * UI 层只能通过这个仓库读取歌曲数据
      */
     single { SongCacheRepository(get()) }
     
     /**
      * MediaStore 数据源
      *
-     * 单例模式，整个应用共享一个实例
+     * 单例模式，只负责扫描和写入 Room
      */
     single { MediaStoreSource(androidContext(), get(), get()) }
     
@@ -86,7 +88,7 @@ val playerModule = module {
      *
      * ViewModel 作用域，与页面生命周期绑定
      */
-    viewModel { PlayerViewModel(get(), get(), get()) }
+    viewModel { PlayerViewModel(get(), get(), get(), get()) }
 }
 
 /**

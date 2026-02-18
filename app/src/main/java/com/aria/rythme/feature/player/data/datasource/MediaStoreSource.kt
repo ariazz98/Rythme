@@ -19,14 +19,26 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import androidx.core.net.toUri
+
+/**
+ * 扫描结果
+ */
+data class ScanResult(
+    val scannedCount: Int,
+    val addedCount: Int = 0,
+    val removedCount: Int = 0
+)
 
 /**
  * MediaStore 数据源
  *
- * 通过 Android MediaStore API 查询设备上的本地音乐文件。
- * 提供歌曲、专辑、艺术家的查询功能。
- * 支持根据用户配置过滤短音频和小文件。
+ * 通过 Android MediaStore API 扫描设备上的本地音乐文件。
+ * 
+ * ## 设计原则
+ * - 只负责扫描和写入 Room，不负责读取
+ * - 读取统一通过 SongCacheRepository（单一数据源）
  *
  * ## 权限要求
  * - Android 13+: READ_MEDIA_AUDIO
@@ -39,7 +51,7 @@ import androidx.core.net.toUri
  *
  * @param context 应用上下文
  * @param settingsRepository 扫描设置仓库
- * @param cacheRepository 歌曲缓存仓库
+ * @param cacheRepository 歌曲缓存仓库（只写入）
  */
 class MediaStoreSource(
     private val context: Context,
@@ -50,51 +62,23 @@ class MediaStoreSource(
     private val contentResolver: ContentResolver = context.contentResolver
 
     /**
-     * 获取所有歌曲
+     * 扫描并同步歌曲到 Room
      *
-     * 优先从缓存读取，如果缓存为空则执行全量扫描。
-     * 扫描结果会自动同步到缓存。
+     * 从 MediaStore 扫描歌曲，并同步到 Room 数据库。
+     * 这是一个只写操作，UI 应该订阅 SongCacheRepository.getAllSongs() 获取数据。
      *
-     * @return 歌曲列表流
+     * @return 扫描结果（扫描到的歌曲数量）
      */
-    fun getAllSongs(): Flow<List<Song>> = flow {
-        // 先检查缓存
-        if (cacheRepository.hasCache()) {
-            val cachedSongs = cacheRepository.getAllSongsOnce()
-            RythmeLogger.d(TAG, "从缓存加载 ${cachedSongs.size} 首歌曲")
-            emit(cachedSongs)
-            
-            // 后台扫描更新缓存（不阻塞当前返回）
-            val freshSongs = scanFromMediaStore()
-            if (freshSongs != cachedSongs) {
-                cacheRepository.syncSongs(freshSongs)
-                RythmeLogger.d(TAG, "后台更新缓存完成，共 ${freshSongs.size} 首")
-            }
-        } else {
-            // 无缓存，执行全量扫描
-            RythmeLogger.d(TAG, "无缓存，执行全量扫描")
-            val songs = scanFromMediaStore()
-            cacheRepository.saveSongs(songs)
-            emit(songs)
-        }
-    }.flowOn(Dispatchers.IO)
-    
-    /**
-     * 强制重新扫描
-     *
-     * 忽略缓存，直接从 MediaStore 扫描并更新缓存。
-     *
-     * @return 歌曲列表流
-     */
-    fun forceRescan(): Flow<List<Song>> = flow {
-        RythmeLogger.d(TAG, "执行强制重新扫描")
+    suspend fun scanAndSync(): ScanResult {
+        RythmeLogger.d(TAG, "开始扫描并同步歌曲")
         val songs = scanFromMediaStore()
         cacheRepository.syncSongs(songs)
-        emit(songs)
-    }.flowOn(Dispatchers.IO)
+        RythmeLogger.d(TAG, "扫描同步完成，共 ${songs.size} 首歌曲")
+        return ScanResult(scannedCount = songs.size)
+    }
     
     /**
-     * 从 MediaStore 扫描歌曲
+     * 从 MediaStore 扫描歌曲（不写入 Room）
      */
     private suspend fun scanFromMediaStore(): List<Song> {
         val settings = settingsRepository.settings.first()
