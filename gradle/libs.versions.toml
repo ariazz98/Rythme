@@ -20,7 +20,7 @@ coil = "2.7.0"
 
 # 数据存储相关依赖版本
 datastore = "1.1.2"
-room = "2.7.1"
+room = "2.8.4"
 ksp = "2.3.6"
 
 [libraries]
