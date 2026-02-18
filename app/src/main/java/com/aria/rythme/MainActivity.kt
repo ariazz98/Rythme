@@ -314,7 +314,9 @@ fun PlaylistWithMiniPlayer(
                     // 可以添加顶部标题栏
                 }
             ) { innerPadding ->
-                PlaylistScreen()
+                PlaylistScreen(
+                    modifier = Modifier.padding(innerPadding)
+                )
             }
         },
         miniPlayer = {
@@ -351,6 +353,9 @@ fun PlayerScreenWithBack(
     Scaffold(
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
-        PlayerScreen(onBack = onBack)
+        PlayerScreen(
+            modifier = Modifier.padding(innerPadding),
+            onBack = onBack
+        )
     }
 }

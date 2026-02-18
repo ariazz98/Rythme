@@ -5,6 +5,7 @@ import com.aria.rythme.core.mvi.SideEffect
 import com.aria.rythme.core.mvi.UiState
 import com.aria.rythme.core.mvi.UserIntent
 import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.feature.player.domain.model.RepeatMode
 import java.util.Locale
 
 /**
@@ -129,20 +130,6 @@ data class PlayerState(
         val seconds = totalSeconds % 60
         return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
-}
-
-/**
- * 循环模式
- */
-enum class RepeatMode {
-    /** 不循环 */
-    OFF,
-
-    /** 单曲循环 */
-    ONE,
-
-    /** 列表循环 */
-    ALL
 }
 
 /**

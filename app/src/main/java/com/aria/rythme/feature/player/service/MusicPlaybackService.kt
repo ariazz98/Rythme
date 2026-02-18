@@ -5,8 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.media.AudioFocusRequest
-import android.media.AudioManager
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import com.aria.rythme.core.utils.RythmeLogger
@@ -49,74 +47,21 @@ class MusicPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
     private var exoPlayer: ExoPlayer? = null
-    private var audioManager: AudioManager? = null
-    private var audioFocusRequest: AudioFocusRequest? = null
-    private var audioFocusGranted = false
 
     override fun onCreate() {
         super.onCreate()
         RythmeLogger.d(TAG, "服务创建")
-        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         createNotificationChannel()
         initializePlayer()
     }
 
     /**
-     * 请求音频焦点
-     */
-    private fun requestAudioFocus(): Boolean {
-        if (audioFocusGranted) return true
-
-        return run {
-            val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                .build()
-            audioFocusRequest = focusRequest
-            val result = audioManager?.requestAudioFocus(focusRequest)
-            result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        }.also { audioFocusGranted = it == true }
-    }
-
-    /**
-     * 放弃音频焦点
-     */
-    private fun abandonAudioFocus() {
-        if (!audioFocusGranted) return
-
-        audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
-        audioFocusGranted = false
-    }
-
-    /**
-     * 音频焦点变化监听
-     */
-    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_GAIN -> {
-                // 获得音频焦点，恢复播放
-                if (exoPlayer?.playWhenReady == false) {
-                    exoPlayer?.play()
-                }
-                exoPlayer?.volume = 1f
-            }
-            AudioManager.AUDIOFOCUS_LOSS -> {
-                // 永久失去焦点，暂停播放
-                exoPlayer?.pause()
-                abandonAudioFocus()
-            }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                // 暂时失去焦点，暂停播放
-                exoPlayer?.pause()
-            }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                // 暂时失去焦点，但可以降低音量继续播放
-                exoPlayer?.volume = 0.3f
-            }
-        }
-    }
-
-    /**
      * 初始化播放器
+     * 
+     * 使用 ExoPlayer 自动管理音频焦点（handleAudioFocus = true）
+     * - 自动请求/放弃音频焦点
+     * - 自动处理焦点丢失时的暂停/降音
+     * - 自动处理耳机拔出事件
      */
     private fun initializePlayer() {
         val audioAttributes = AudioAttributes.Builder()
@@ -125,14 +70,14 @@ class MusicPlaybackService : MediaSessionService() {
             .build()
 
         exoPlayer = ExoPlayer.Builder(this)
-            .setAudioAttributes(audioAttributes, false)  // false: 我们手动管理音频焦点
-            .setHandleAudioBecomingNoisy(true)
+            .setAudioAttributes(audioAttributes, true)  // true: ExoPlayer 自动管理音频焦点
+            .setHandleAudioBecomingNoisy(true)  // 自动处理耳机拔出
             .build()
             .apply {
                 addListener(PlayerEventListener())
             }
         
-        RythmeLogger.d(TAG, "ExoPlayer 初始化完成")
+        RythmeLogger.d(TAG, "ExoPlayer 初始化完成（自动音频焦点管理）")
 
         mediaSession = MediaSession.Builder(this, exoPlayer!!)
             .setCallback(MediaSessionCallback())
@@ -260,9 +205,7 @@ class MusicPlaybackService : MediaSessionService() {
             if (it.isPlaying) {
                 it.pause()
             } else {
-                if (requestAudioFocus()) {
-                    it.play()
-                }
+                it.play()  // ExoPlayer 会自动处理音频焦点
             }
         }
     }
@@ -290,9 +233,7 @@ class MusicPlaybackService : MediaSessionService() {
             updateNotification()
             // 更新前台服务状态
             if (isPlaying) {
-                if (requestAudioFocus()) {
-                    startForeground(NOTIFICATION_ID, buildNotification(exoPlayer!!))
-                }
+                startForeground(NOTIFICATION_ID, buildNotification(exoPlayer!!))
             } else {
                 // 暂停时停止前台服务（但保持服务运行）
                 stopForeground(STOP_FOREGROUND_DETACH)
@@ -313,13 +254,6 @@ class MusicPlaybackService : MediaSessionService() {
                 else -> "UNKNOWN($playbackState)"
             }
             RythmeLogger.d(TAG, "onPlaybackStateChanged: state=$stateStr")
-            
-            // 播放结束时检查是否需要停止服务
-            if (playbackState == Player.STATE_ENDED) {
-                if (exoPlayer?.repeatMode == Player.REPEAT_MODE_OFF) {
-                    abandonAudioFocus()
-                }
-            }
         }
         
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -360,7 +294,6 @@ class MusicPlaybackService : MediaSessionService() {
      * 服务销毁
      */
     override fun onDestroy() {
-        abandonAudioFocus()
         mediaSession?.run {
             player.release()
             release()

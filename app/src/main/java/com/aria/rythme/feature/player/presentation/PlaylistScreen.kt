@@ -51,6 +51,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun PlaylistScreen(
+    modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = koinViewModel(),
     onSongClick: ((Song) -> Unit)? = null
 ) {
@@ -62,7 +63,7 @@ fun PlaylistScreen(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
