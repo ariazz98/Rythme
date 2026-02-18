@@ -54,6 +54,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.feature.player.domain.model.RepeatMode
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -66,6 +67,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun PlayerScreen(
+    modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = koinViewModel(),
     onBack: (() -> Unit)? = null
 ) {
@@ -77,7 +79,7 @@ fun PlayerScreen(
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(
                 color = state.themeColor?.let { Color(it) }

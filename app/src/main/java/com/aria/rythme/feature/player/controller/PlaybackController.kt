@@ -11,9 +11,11 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.aria.rythme.core.utils.RythmeLogger
 import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.feature.player.domain.model.RepeatMode
 import com.aria.rythme.feature.player.service.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -56,12 +58,18 @@ class PlaybackController(private val context: Context) {
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
     
+    /** 初始化完成信号 */
+    private val initializationDeferred = CompletableDeferred<Unit>()
+    
+    /** 播放器监听器实例（用于正确移除） */
+    private val playerListener = PlayerListener()
+    
     /** 协程作用域 */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     
     /** 是否已初始化完成 */
-    @Volatile
-    private var isInitialized = false
+    val isInitialized: Boolean
+        get() = initializationDeferred.isCompleted
 
     // 播放状态
     private val _isPlaying = MutableStateFlow(false)
@@ -118,14 +126,15 @@ class PlaybackController(private val context: Context) {
                 addListener({
                     try {
                         mediaController = get().apply {
-                            addListener(PlayerListener())
+                            addListener(playerListener)
                             updateStateFromPlayer()
                         }
-                        isInitialized = true
+                        initializationDeferred.complete(Unit)
                         RythmeLogger.d(TAG, "PlaybackController 初始化成功")
                     } catch (e: Exception) {
                         RythmeLogger.e(TAG, "PlaybackController 初始化失败", e)
                         _error.value = "初始化失败: ${e.message}"
+                        initializationDeferred.completeExceptionally(e)
                     }
                 }, MoreExecutors.directExecutor())
             }
@@ -133,15 +142,18 @@ class PlaybackController(private val context: Context) {
     
     /**
      * 等待初始化完成
+     * 
+     * 使用 CompletableDeferred 挂起等待，避免忙等待浪费 CPU
      */
     private suspend fun awaitInitialization() {
-        while (!isInitialized) {
-            delay(50)
-        }
+        initializationDeferred.await()
     }
 
     /**
      * 播放指定歌曲
+     *
+     * 如果提供了播放列表，会把整个列表加载到 ExoPlayer，并跳转到指定歌曲。
+     * 这样 ExoPlayer 可以原生支持上一首/下一首切换。
      *
      * @param song 要播放的歌曲
      * @param playlist 可选的播放列表上下文
@@ -159,35 +171,64 @@ class PlaybackController(private val context: Context) {
             return
         }
 
-        // 更新播放列表
         if (playlist.isNotEmpty()) {
-            _playlist.value = playlist
-            _currentIndex.value = playlist.indexOfFirst { it.id == song.id }
+            val songIndex = playlist.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+            
+            // 检查播放列表是否已经加载
+            if (_playlist.value != playlist) {
+                // 播放列表变化，重新加载所有 MediaItems
+                RythmeLogger.d(TAG, "加载播放列表: ${playlist.size} 首歌曲")
+                _playlist.value = playlist
+                
+                val mediaItems = playlist.map { createMediaItem(it) }
+                controller.setMediaItems(mediaItems, songIndex, 0L)
+                controller.prepare()
+                controller.play()
+            } else {
+                // 播放列表相同，只需跳转到指定位置
+                RythmeLogger.d(TAG, "跳转到索引: $songIndex")
+                controller.seekToDefaultPosition(songIndex)
+                controller.play()
+            }
+            
+            _currentIndex.value = songIndex
+        } else {
+            // 没有播放列表，单曲播放
+            RythmeLogger.d(TAG, "单曲播放: ${song.title}")
+            val mediaItem = createMediaItem(song)
+            controller.setMediaItem(mediaItem)
+            controller.prepare()
+            controller.play()
         }
 
-        // 创建 MediaItem
-        val mediaItem = createMediaItem(song)
-        RythmeLogger.d(TAG, "创建 MediaItem: uri=${song.uri}")
-
-        // 设置并播放
-        controller.setMediaItem(mediaItem)
-        controller.prepare()
-        controller.play()
-        RythmeLogger.d(TAG, "已调用 controller.play()")
-
         _currentSong.value = song
+        RythmeLogger.d(TAG, "已调用 controller.play()")
     }
 
     /**
      * 播放播放列表中的指定位置
+     * 
+     * 使用 ExoPlayer 原生的 seekToDefaultPosition 切换歌曲，更高效
      *
      * @param index 歌曲索引
      */
     suspend fun playAtIndex(index: Int) {
+        awaitInitialization()
+        val controller = mediaController ?: return
         val songs = _playlist.value
+        
         if (index in songs.indices) {
             _currentIndex.value = index
-            play(songs[index], songs)
+            _currentSong.value = songs[index]
+            
+            // 使用 ExoPlayer 原生切换
+            if (controller.mediaItemCount > 0) {
+                controller.seekToDefaultPosition(index)
+                controller.play()
+            } else {
+                // 播放列表未加载，先加载
+                play(songs[index], songs)
+            }
         }
     }
 
@@ -220,43 +261,47 @@ class PlaybackController(private val context: Context) {
 
     /**
      * 下一首
+     * 
+     * 优先使用 ExoPlayer 原生的 seekToNextMediaItem
      */
     fun next() {
         val controller = mediaController ?: return
-        val playlist = _playlist.value
-        val currentIndex = _currentIndex.value
-
-        if (playlist.isNotEmpty()) {
+        
+        if (controller.mediaItemCount > 1) {
+            // 使用 ExoPlayer 原生切换（已支持随机/顺序/循环模式）
+            controller.seekToNextMediaItem()
+        } else if (_playlist.value.isNotEmpty()) {
+            // 转为手动切换
+            val currentIndex = _currentIndex.value
             val nextIndex = if (_shuffleMode.value) {
-                // 随机播放
-                playlist.indices.random()
+                _playlist.value.indices.random()
             } else {
-                // 顺序播放
-                (currentIndex + 1) % playlist.size
+                (currentIndex + 1) % _playlist.value.size
             }
             scope.launch { playAtIndex(nextIndex) }
-        } else {
-            controller.seekToNext()
         }
     }
 
     /**
      * 上一首
+     * 
+     * 优先使用 ExoPlayer 原生的 seekToPreviousMediaItem
      */
     fun previous() {
         val controller = mediaController ?: return
-        val playlist = _playlist.value
-        val currentIndex = _currentIndex.value
-
-        if (playlist.isNotEmpty()) {
+        
+        if (controller.mediaItemCount > 1) {
+            // 使用 ExoPlayer 原生切换
+            controller.seekToPreviousMediaItem()
+        } else if (_playlist.value.isNotEmpty()) {
+            // 转为手动切换
+            val currentIndex = _currentIndex.value
             val previousIndex = if (currentIndex > 0) {
                 currentIndex - 1
             } else {
-                playlist.size - 1
+                _playlist.value.size - 1
             }
             scope.launch { playAtIndex(previousIndex) }
-        } else {
-            controller.seekToPrevious()
         }
     }
 
@@ -299,11 +344,7 @@ class PlaybackController(private val context: Context) {
     fun setRepeatMode(mode: RepeatMode) {
         val controller = mediaController ?: return
         _repeatMode.value = mode
-        controller.repeatMode = when (mode) {
-            RepeatMode.OFF -> Player.REPEAT_MODE_OFF
-            RepeatMode.ONE -> Player.REPEAT_MODE_ONE
-            RepeatMode.ALL -> Player.REPEAT_MODE_ALL
-        }
+        controller.repeatMode = mode.toExoPlayerMode()
     }
 
     /**
@@ -338,15 +379,29 @@ class PlaybackController(private val context: Context) {
 
     /**
      * 设置播放列表
+     * 
+     * 批量加载所有 MediaItems 到 ExoPlayer
      *
      * @param songs 歌曲列表
      * @param startIndex 开始播放的索引
      */
-    fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
+    suspend fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
+        if (songs.isEmpty()) return
+        
+        awaitInitialization()
+        val controller = mediaController ?: return
+        
         _playlist.value = songs
-        if (startIndex in songs.indices) {
-            scope.launch { playAtIndex(startIndex) }
-        }
+        _currentIndex.value = startIndex.coerceIn(songs.indices)
+        _currentSong.value = songs[_currentIndex.value]
+        
+        // 批量加载所有 MediaItems
+        val mediaItems = songs.map { createMediaItem(it) }
+        controller.setMediaItems(mediaItems, _currentIndex.value, 0L)
+        controller.prepare()
+        controller.play()
+        
+        RythmeLogger.d(TAG, "已设置播放列表: ${songs.size} 首歌曲，从索引 ${_currentIndex.value} 开始")
     }
 
     /**
@@ -389,11 +444,28 @@ class PlaybackController(private val context: Context) {
      */
     fun release() {
         scope.cancel()
-        mediaController?.removeListener(PlayerListener())
+        mediaController?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         mediaController = null
         controllerFuture = null
-        isInitialized = false
+    }
+
+    /**
+     * 获取当前播放位置（实时）
+     * 
+     * @return 当前位置（毫秒）
+     */
+    fun getCurrentPosition(): Long {
+        return mediaController?.currentPosition ?: _currentPosition.value
+    }
+
+    /**
+     * 获取总时长（实时）
+     * 
+     * @return 总时长（毫秒）
+     */
+    fun getDuration(): Long {
+        return mediaController?.duration?.coerceAtLeast(0) ?: _duration.value
     }
 
     /**
@@ -445,6 +517,19 @@ class PlaybackController(private val context: Context) {
                 _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0
             }
         }
+        
+        override fun onEvents(player: Player, events: Player.Events) {
+            // 持续更新当前位置和时长
+            if (events.contains(Player.EVENT_IS_PLAYING_CHANGED) || 
+                events.contains(Player.EVENT_POSITION_DISCONTINUITY) ||
+                events.containsAny(
+                    Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    Player.EVENT_MEDIA_ITEM_TRANSITION
+                )) {
+                _currentPosition.value = player.currentPosition
+                _duration.value = player.duration.coerceAtLeast(0)
+            }
+        }
 
         override fun onPlayerError(error: PlaybackException) {
             _error.value = error.message
@@ -452,23 +537,20 @@ class PlaybackController(private val context: Context) {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             mediaItem?.let {
-                // 更新当前歌曲
+                // 更新当前歌曲和索引
                 val songId = it.mediaId.toLongOrNull()
                 val song = _playlist.value.find { s -> s.id == songId }
                 _currentSong.value = song
+                
+                // 同步索引
+                val newIndex = _playlist.value.indexOfFirst { s -> s.id == songId }
+                if (newIndex >= 0) {
+                    _currentIndex.value = newIndex
+                }
             }
         }
     }
 
-    /**
-     * 播放模式
-     */
-    enum class RepeatMode {
-        OFF,    // 不循环
-        ONE,    // 单曲循环
-        ALL     // 列表循环
-    }
-    
     companion object {
         private const val TAG = "PlaybackController"
     }

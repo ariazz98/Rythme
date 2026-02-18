@@ -8,6 +8,7 @@ import com.aria.rythme.feature.player.data.datasource.MediaStoreSource
 import com.aria.rythme.feature.player.data.observer.ChangeType
 import com.aria.rythme.feature.player.data.observer.MediaStoreObserver
 import com.aria.rythme.feature.player.data.repository.SongCacheRepository
+import com.aria.rythme.feature.player.domain.model.RepeatMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -46,11 +47,8 @@ class PlayerViewModel(
     private var songsObserverJob: Job? = null
 
     init {
-        // 监听播放控制器状态
+        // 监听播放控制器状态（包括播放状态驱动的进度更新）
         observePlaybackState()
-
-        // 开始进度更新
-        startProgressUpdate()
         
         // 监听 MediaStore 变化
         observeMediaStoreChanges()
@@ -189,13 +187,7 @@ class PlayerViewModel(
      */
     private fun toggleRepeatMode() {
         playbackController.toggleRepeatMode()
-        val controllerMode = playbackController.repeatMode.value
-        val mode = when (controllerMode) {
-            PlaybackController.RepeatMode.OFF -> RepeatMode.OFF
-            PlaybackController.RepeatMode.ONE -> RepeatMode.ONE
-            PlaybackController.RepeatMode.ALL -> RepeatMode.ALL
-        }
-        reduceAndUpdate(PlayerAction.UpdateRepeatMode(mode))
+        reduceAndUpdate(PlayerAction.UpdateRepeatMode(playbackController.repeatMode.value))
     }
 
     /**
@@ -285,44 +277,62 @@ class PlayerViewModel(
 
     /**
      * 监听播放状态
+     * 
+     * 注意：每个 Flow 需要独立启动，不能包裹在同一个 launch 块中
      */
     private fun observePlaybackState() {
-        viewModelScope.launch {
-            // 监听播放状态
-            playbackController.isPlaying
-                .onEach { isPlaying ->
-                    reduceAndUpdate(PlayerAction.UpdatePlayState(isPlaying))
+        // 监听播放状态（独立启动）
+        playbackController.isPlaying
+            .onEach { isPlaying ->
+                reduceAndUpdate(PlayerAction.UpdatePlayState(isPlaying))
+                // 根据播放状态启停进度更新
+                if (isPlaying) {
+                    startProgressUpdate()
+                } else {
+                    stopProgressUpdate()
                 }
-                .launchIn(viewModelScope)
+            }
+            .launchIn(viewModelScope)
 
-            // 监听当前歌曲
-            playbackController.currentSong
-                .onEach { song ->
-                    reduceAndUpdate(PlayerAction.UpdateCurrentSong(song))
-                    song?.let {
-                        val index = currentState.playlist.indexOfFirst { it.id == song.id }
-                        if (index >= 0) {
-                            reduceAndUpdate(PlayerAction.UpdateCurrentIndex(index))
-                        }
+        // 监听当前歌曲（独立启动）
+        playbackController.currentSong
+            .onEach { song ->
+                reduceAndUpdate(PlayerAction.UpdateCurrentSong(song))
+                song?.let {
+                    val index = currentState.playlist.indexOfFirst { it.id == song.id }
+                    if (index >= 0) {
+                        reduceAndUpdate(PlayerAction.UpdateCurrentIndex(index))
                     }
                 }
-                .launchIn(viewModelScope)
-        }
+            }
+            .launchIn(viewModelScope)
     }
 
     /**
      * 开始进度更新
+     * 
+     * 仅在播放时启动，避免无谓的 CPU 消耗
      */
     private fun startProgressUpdate() {
-        progressUpdateJob?.cancel()
+        if (progressUpdateJob?.isActive == true) return
+        
         progressUpdateJob = viewModelScope.launch {
             while (true) {
-                val position = playbackController.currentPosition.value
-                val duration = playbackController.duration.value
+                // 直接从 PlaybackController 获取实时位置
+                val position = playbackController.getCurrentPosition()
+                val duration = playbackController.getDuration()
                 reduceAndUpdate(PlayerAction.UpdateProgress(position, duration))
-                delay(1000) // 每秒更新一次
+                delay(PROGRESS_UPDATE_INTERVAL)
             }
         }
+    }
+    
+    /**
+     * 停止进度更新
+     */
+    private fun stopProgressUpdate() {
+        progressUpdateJob?.cancel()
+        progressUpdateJob = null
     }
 
     /**
@@ -332,7 +342,7 @@ class PlayerViewModel(
      */
     override fun onCleared() {
         super.onCleared()
-        progressUpdateJob?.cancel()
+        stopProgressUpdate()
         observerJob?.cancel()
         songsObserverJob?.cancel()
         // 不要释放 PlaybackController，因为它是单例
@@ -363,5 +373,6 @@ class PlayerViewModel(
     
     companion object {
         private const val TAG = "PlayerViewModel"
+        private const val PROGRESS_UPDATE_INTERVAL = 500L  // 500ms 更新一次，更平滑
     }
 }

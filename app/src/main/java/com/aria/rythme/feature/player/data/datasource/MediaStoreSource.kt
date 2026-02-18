@@ -68,13 +68,19 @@ class MediaStoreSource(
      * 这是一个只写操作，UI 应该订阅 SongCacheRepository.getAllSongs() 获取数据。
      *
      * @return 扫描结果（扫描到的歌曲数量）
+     * @throws Exception 扫描失败时抛出异常
      */
-    suspend fun scanAndSync(): ScanResult {
+    suspend fun scanAndSync(): ScanResult = withContext(Dispatchers.IO) {
         RythmeLogger.d(TAG, "开始扫描并同步歌曲")
-        val songs = scanFromMediaStore()
-        cacheRepository.syncSongs(songs)
-        RythmeLogger.d(TAG, "扫描同步完成，共 ${songs.size} 首歌曲")
-        return ScanResult(scannedCount = songs.size)
+        try {
+            val songs = scanFromMediaStore()
+            cacheRepository.syncSongs(songs)
+            RythmeLogger.d(TAG, "扫描同步完成，共 ${songs.size} 首歌曲")
+            ScanResult(scannedCount = songs.size)
+        } catch (e: Exception) {
+            RythmeLogger.e(TAG, "扫描同步失败", e)
+            throw e
+        }
     }
     
     /**
@@ -270,6 +276,7 @@ class MediaStoreSource(
                 sortOrder
             )
         } catch (e: Exception) {
+            RythmeLogger.e(TAG, "查询歌曲失败", e)
             null
         }
     }
@@ -298,6 +305,7 @@ class MediaStoreSource(
                 sortOrder
             )
         } catch (e: Exception) {
+            RythmeLogger.e(TAG, "查询专辑失败", e)
             null
         }
     }
@@ -324,27 +332,30 @@ class MediaStoreSource(
                 sortOrder
             )
         } catch (e: Exception) {
+            RythmeLogger.e(TAG, "查询艺术家失败", e)
             null
         }
     }
 
     /**
      * 解析歌曲游标
+     * 
+     * 安全地解析游标数据，避免列不存在时崩溃
      */
     private fun parseSongCursor(cursor: Cursor): Song {
-        val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
-        val title = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE))
-        val artist = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST))
-        val artistId = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID))
-        val album = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM))
-        val albumId = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID))
-        val duration = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION))
-        val trackNumber = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK))
-        val path = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA))
-        val dateAdded = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED))
-        val dateModified = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED))
-        val size = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE))
-        val mimeType = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE))
+        val id = cursor.getLongOrDefault(MediaStore.Audio.Media._ID, 0L)
+        val title = cursor.getStringOrDefault(MediaStore.Audio.Media.TITLE, "未知歌曲")
+        val artist = cursor.getStringOrDefault(MediaStore.Audio.Media.ARTIST, "未知艺术家")
+        val artistId = cursor.getLongOrDefault(MediaStore.Audio.Media.ARTIST_ID, 0L)
+        val album = cursor.getStringOrDefault(MediaStore.Audio.Media.ALBUM, "未知专辑")
+        val albumId = cursor.getLongOrDefault(MediaStore.Audio.Media.ALBUM_ID, 0L)
+        val duration = cursor.getLongOrDefault(MediaStore.Audio.Media.DURATION, 0L)
+        val trackNumber = cursor.getIntOrDefault(MediaStore.Audio.Media.TRACK, 0)
+        val path = cursor.getStringOrDefault(MediaStore.Audio.Media.DATA, "")
+        val dateAdded = cursor.getLongOrDefault(MediaStore.Audio.Media.DATE_ADDED, 0L)
+        val dateModified = cursor.getLongOrDefault(MediaStore.Audio.Media.DATE_MODIFIED, 0L)
+        val size = cursor.getLongOrDefault(MediaStore.Audio.Media.SIZE, 0L)
+        val mimeType = cursor.getStringOrDefault(MediaStore.Audio.Media.MIME_TYPE, "audio/*")
 
         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
         val coverUri = getAlbumCoverUri(albumId)
@@ -366,6 +377,22 @@ class MediaStoreSource(
             size = size,
             mimeType = mimeType
         )
+    }
+    
+    // Cursor 安全扩展函数
+    private fun Cursor.getStringOrDefault(column: String, default: String): String {
+        val index = getColumnIndex(column)
+        return if (index >= 0) getString(index) ?: default else default
+    }
+    
+    private fun Cursor.getLongOrDefault(column: String, default: Long): Long {
+        val index = getColumnIndex(column)
+        return if (index >= 0) getLong(index) else default
+    }
+    
+    private fun Cursor.getIntOrDefault(column: String, default: Int): Int {
+        val index = getColumnIndex(column)
+        return if (index >= 0) getInt(index) else default
     }
 
     /**
