@@ -52,6 +52,9 @@ sealed interface PlayerIntent : UserIntent {
 
     /** 加载歌曲列表 */
     data object LoadSongs : PlayerIntent
+    
+    /** 强制刷新歌曲列表 */
+    data object RefreshSongs : PlayerIntent
 
     /** 选择播放列表中的歌曲 */
     data class SelectSongFromPlaylist(val index: Int) : PlayerIntent
@@ -183,6 +186,9 @@ sealed interface PlayerAction : InternalAction {
 sealed interface PlayerEffect : SideEffect {
     /** 显示错误提示 */
     data class ShowError(val message: String) : PlayerEffect
+    
+    /** 显示消息提示 */
+    data class ShowMessage(val message: String) : PlayerEffect
 
     /** 请求音频权限 */
     data object RequestAudioPermission : PlayerEffect

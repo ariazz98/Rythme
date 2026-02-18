@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -72,6 +73,12 @@ dependencies {
     // UI 依赖
     implementation(libs.androidx.compose.material.icons)      // Material Icons
     implementation(libs.coil.compose)                         // Coil 图片加载
+    
+    // 数据存储依赖
+    implementation(libs.androidx.datastore.preferences)       // DataStore Preferences
+    implementation(libs.androidx.room.runtime)                // Room 数据库
+    implementation(libs.androidx.room.ktx)                    // Room Kotlin 扩展
+    ksp(libs.androidx.room.compiler)                          // Room 注解处理器
     
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)

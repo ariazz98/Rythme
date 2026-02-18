@@ -5,6 +5,8 @@ import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.utils.RythmeLogger
 import com.aria.rythme.feature.player.controller.PlaybackController
 import com.aria.rythme.feature.player.data.datasource.MediaStoreSource
+import com.aria.rythme.feature.player.data.observer.ChangeType
+import com.aria.rythme.feature.player.data.observer.MediaStoreObserver
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -18,14 +20,19 @@ import kotlinx.coroutines.launch
  *
  * @param playbackController 播放控制器
  * @param mediaStoreSource MediaStore 数据源
+ * @param mediaStoreObserver MediaStore 观察者
  */
 class PlayerViewModel(
     private val playbackController: PlaybackController,
-    private val mediaStoreSource: MediaStoreSource
+    private val mediaStoreSource: MediaStoreSource,
+    private val mediaStoreObserver: MediaStoreObserver
 ) : BaseViewModel<PlayerIntent, PlayerState, PlayerAction, PlayerEffect>() {
 
     /** 进度更新任务 */
     private var progressUpdateJob: Job? = null
+    
+    /** MediaStore 观察任务 */
+    private var observerJob: Job? = null
 
     init {
         // 监听播放控制器状态
@@ -33,6 +40,9 @@ class PlayerViewModel(
 
         // 开始进度更新
         startProgressUpdate()
+        
+        // 监听 MediaStore 变化
+        observeMediaStoreChanges()
     }
 
     /**
@@ -57,6 +67,7 @@ class PlayerViewModel(
             is PlayerIntent.ToggleRepeatMode -> toggleRepeatMode()
             is PlayerIntent.ToggleShuffleMode -> toggleShuffleMode()
             is PlayerIntent.LoadSongs -> loadSongs()
+            is PlayerIntent.RefreshSongs -> refreshSongs()
             is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
         }
     }
@@ -214,6 +225,31 @@ class PlayerViewModel(
     }
 
     /**
+     * 强制刷新歌曲列表
+     */
+    private fun refreshSongs() {
+        RythmeLogger.d(TAG, "强制刷新歌曲列表")
+        viewModelScope.launch {
+            reduceAndUpdate(PlayerAction.SetLoading(true))
+            try {
+                mediaStoreSource.forceRescan()
+                    .onEach { songs ->
+                        RythmeLogger.d(TAG, "刷新完成，共 ${songs.size} 首歌曲")
+                        reduceAndUpdate(PlayerAction.UpdatePlaylist(songs))
+                        reduceAndUpdate(PlayerAction.SetLoading(false))
+                        sendEffect(PlayerEffect.ShowMessage("已刷新 ${songs.size} 首歌曲"))
+                    }
+                    .launchIn(viewModelScope)
+            } catch (e: Exception) {
+                RythmeLogger.e(TAG, "刷新歌曲失败", e)
+                reduceAndUpdate(PlayerAction.SetError(e.message))
+                reduceAndUpdate(PlayerAction.SetLoading(false))
+                sendEffect(PlayerEffect.ShowError("刷新失败: ${e.message}"))
+            }
+        }
+    }
+
+    /**
      * 从播放列表选择歌曲
      */
     private fun selectSongFromPlaylist(index: Int) {
@@ -272,7 +308,28 @@ class PlayerViewModel(
     override fun onCleared() {
         super.onCleared()
         progressUpdateJob?.cancel()
+        observerJob?.cancel()
         // 不要释放 PlaybackController，因为它是单例
+    }
+    
+    /**
+     * 监听 MediaStore 变化
+     */
+    private fun observeMediaStoreChanges() {
+        observerJob = viewModelScope.launch {
+            mediaStoreObserver.observeChanges()
+                .collect { change ->
+                    if (change.type == ChangeType.AUDIO_CHANGED) {
+                        RythmeLogger.d(TAG, "检测到音频文件变化，自动刷新")
+                        // 后台静默刷新，不显示 loading
+                        mediaStoreSource.forceRescan()
+                            .collect { songs ->
+                                reduceAndUpdate(PlayerAction.UpdatePlaylist(songs))
+                                RythmeLogger.d(TAG, "自动刷新完成，共 ${songs.size} 首歌曲")
+                            }
+                    }
+                }
+        }
     }
     
     companion object {
