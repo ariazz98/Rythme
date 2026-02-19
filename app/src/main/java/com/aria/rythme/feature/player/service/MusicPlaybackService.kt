@@ -264,21 +264,22 @@ class MusicPlaybackService : MediaSessionService() {
     /**
      * 媒体会话回调
      */
-    private inner class MediaSessionCallback : MediaSession.Callback {
+    private class MediaSessionCallback : MediaSession.Callback {
         /**
          * 处理播放恢复请求
          * 当从通知栏或媒体按钮恢复播放时调用
          */
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             // 返回当前播放队列和位置
             val player = mediaSession.player
             val mediaItems = mutableListOf<MediaItem>()
             
             for (i in 0 until player.mediaItemCount) {
-                player.getMediaItemAt(i)?.let { mediaItems.add(it) }
+                player.getMediaItemAt(i).let { mediaItems.add(it) }
             }
             
             val startPosition = player.currentPosition

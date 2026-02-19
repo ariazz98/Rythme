@@ -231,10 +231,10 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) {
             // 权限已授予，刷新歌曲列表
-            Toast.makeText(this, "权限已授予", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.permission_granted, Toast.LENGTH_SHORT).show()
         } else {
             // 权限被拒绝
-            Toast.makeText(this, "需要音频权限才能播放音乐", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -256,11 +256,7 @@ class MainActivity : ComponentActivity() {
      * 检查并请求音频权限
      */
     private fun checkAndRequestPermission() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
+        val permission = Manifest.permission.READ_MEDIA_AUDIO
 
         when {
             ContextCompat.checkSelfPermission(this, permission) ==
@@ -269,7 +265,7 @@ class MainActivity : ComponentActivity() {
             }
             shouldShowRequestPermissionRationale(permission) -> {
                 // 显示权限说明
-                Toast.makeText(this, "需要音频权限来扫描本地音乐", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, R.string.permission_required_storage, Toast.LENGTH_LONG).show()
                 permissionLauncher.launch(permission)
             }
             else -> {

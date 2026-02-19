@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Rythme</string>
+    <string name="permission_granted">权限已授予</string>
+    <string name="permission_required">需要音频权限才能播放音乐</string>
+    <string name="permission_required_storage">需要音频权限来扫描本地音乐</string>
 </resources>

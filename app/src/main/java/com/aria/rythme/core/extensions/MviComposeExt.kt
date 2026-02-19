@@ -1,5 +1,6 @@
 package com.aria.rythme.core.extensions
 
+import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -145,6 +146,7 @@ fun <S : UiState> StateFlow<S>.collectAsUiState(): State<S> {
  * @see LaunchedEffect Compose 的副作用 API
  * @see repeatOnLifecycle 生命周期感知的 Flow 收集
  */
+@SuppressLint("ComposableNaming")
 @Composable
 fun <E : SideEffect> Flow<E>.collectAsEffect(
     lifecycleState: Lifecycle.State = Lifecycle.State.STARTED,
@@ -204,6 +206,7 @@ fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect> BaseViewMo
  * }
  * ```
  */
+@SuppressLint("ComposableNaming")
 @Composable
 fun <I : UserIntent, S : UiState, A : InternalAction, E : SideEffect> BaseViewModel<I, S, A, E>.collectEffect(
     lifecycleState: Lifecycle.State = Lifecycle.State.STARTED,
