@@ -73,12 +73,18 @@ dependencies {
     // UI 依赖
     implementation(libs.androidx.compose.material.icons)      // Material Icons
     implementation(libs.coil.compose)                         // Coil 图片加载
-    
+    implementation(libs.coil.network.okhttp)                         // Coil 图片加载
+
     // 数据存储依赖
     implementation(libs.androidx.datastore.preferences)       // DataStore Preferences
     implementation(libs.androidx.room.runtime)                // Room 数据库
     implementation(libs.androidx.room.ktx)                    // Room Kotlin 扩展
     ksp(libs.androidx.room.compiler)                          // Room 注解处理器
+    
+    // 导航依赖
+    implementation(libs.androidx.navigation3.runtime)          // Navigation3 Runtime
+    implementation(libs.androidx.navigation3.ui)          // Navigation3 UI
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
