@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -48,24 +49,28 @@ fun BottomNavigationBar(
             .height(95.dp)
             .padding(horizontal = 21.dp)
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .padding(top = 12.dp)
                 .fillMaxWidth()
                 .height(60.dp)
-                .background(MaterialTheme.rythmeColors.bottomBackground, RoundedCornerShape(30.dp)),
-            horizontalArrangement = Arrangement.SpaceAround
+                .background(MaterialTheme.rythmeColors.bottomBackground, RoundedCornerShape(30.dp))
         ) {
-            TOP_LEVEL_DESTINATIONS.forEach { (route, item) ->
-                BottomNavigationItem(
-                    modifier = Modifier
-                        .padding(3.dp)
-                        .weight(1f),
-                    iconRes = item.icon,
-                    titleRes = item.title,
-                    isSelected = selectedKey == route,
-                    onClick = { onSelectKey(route) }
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(3.dp)
+            ) {
+                TOP_LEVEL_DESTINATIONS.forEach { (route, item) ->
+                    BottomNavigationItem(
+                        modifier = Modifier
+                            .weight(1f),
+                        iconRes = item.icon,
+                        titleRes = item.title,
+                        isSelected = selectedKey == route,
+                        onClick = { onSelectKey(route) }
+                    )
+                }
             }
         }
     }
@@ -81,8 +86,7 @@ fun BottomNavigationItem(
 ) {
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .height(54.dp)
+            .fillMaxSize()
             .background(
                 if (isSelected) MaterialTheme.rythmeColors.bottomSelected else MaterialTheme.rythmeColors.bottomUnselected,
                 RoundedCornerShape(27.dp)
@@ -104,7 +108,8 @@ fun BottomNavigationItem(
         Text(
             text = stringResource(titleRes),
             color = if (isSelected) MaterialTheme.rythmeColors.primary else MaterialTheme.colorScheme.onBackground,
-            fontSize = 10.sp
+            fontSize = 10.sp,
+            lineHeight = 10.sp
         )
     }
 }
