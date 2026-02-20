@@ -1,7 +1,6 @@
 package com.aria.rythme.feature.player.presentation
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,10 +47,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
-import androidx.palette.graphics.Palette
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.player.data.model.Song
 import com.aria.rythme.feature.player.domain.model.RepeatMode
@@ -204,22 +202,6 @@ private fun AlbumCover(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
                 onSuccess = { result ->
-                    // 提取主题色（使用复制后的位图避免 HARDWARE 配置问题）
-                    val drawable = result.result.drawable
-                    val bitmap = drawable.toBitmap()
-                    // 如果是 HARDWARE 位图，复制为 ARGB_8888
-                    val safeBitmap = if (bitmap.config == android.graphics.Bitmap.Config.HARDWARE) {
-                        bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-                    } else {
-                        bitmap
-                    }
-                    safeBitmap?.let {
-                        Palette.from(it).generate { palette ->
-                            palette?.dominantSwatch?.rgb?.let { color ->
-                                onThemeColorExtracted(color)
-                            }
-                        }
-                    }
                 }
             )
         } else {

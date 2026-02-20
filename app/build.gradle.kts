@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.jetbrains.kotlin.serialization)
 }
 
 android {
@@ -85,6 +86,7 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)          // Navigation3 Runtime
     implementation(libs.androidx.navigation3.ui)          // Navigation3 UI
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.kotlinx.serialization.core)
     
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)

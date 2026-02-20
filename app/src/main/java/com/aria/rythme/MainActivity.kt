@@ -2,7 +2,6 @@ package com.aria.rythme
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -10,22 +9,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.aria.rythme.feature.player.presentation.PlayerScreen
-import com.aria.rythme.feature.player.presentation.PlaylistScreen
-import com.aria.rythme.feature.player.presentation.components.MiniPlayer
-import com.aria.rythme.feature.player.presentation.components.MiniPlayerScaffold
+import com.aria.rythme.core.navigation.RythmeApp
 import com.aria.rythme.ui.theme.RythmeTheme
-import org.koin.androidx.compose.koinViewModel
 
 /**
  * 主 Activity
@@ -247,7 +236,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             RythmeTheme {
-                MainScreen()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    RythmeApp()
+                }
             }
         }
     }
@@ -273,85 +267,5 @@ class MainActivity : ComponentActivity() {
                 permissionLauncher.launch(permission)
             }
         }
-    }
-}
-
-/**
- * 主屏幕
- *
- * 包含播放列表和迷你播放器
- */
-@Composable
-fun MainScreen() {
-    var showPlayer by remember { mutableStateOf(false) }
-
-    if (showPlayer) {
-        // 显示完整播放器
-        PlayerScreenWithBack { showPlayer = false }
-    } else {
-        // 显示播放列表和迷你播放器
-        PlaylistWithMiniPlayer { showPlayer = true }
-    }
-}
-
-/**
- * 播放列表与迷你播放器组合
- */
-@Composable
-fun PlaylistWithMiniPlayer(
-    onExpandPlayer: () -> Unit
-) {
-    MiniPlayerScaffold(
-        modifier = Modifier.fillMaxSize(),
-        content = {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                topBar = {
-                    // 可以添加顶部标题栏
-                }
-            ) { innerPadding ->
-                PlaylistScreen(
-                    modifier = Modifier.padding(innerPadding)
-                )
-            }
-        },
-        miniPlayer = {
-            val viewModel: com.aria.rythme.feature.player.presentation.PlayerViewModel = koinViewModel()
-            val state by viewModel.state.collectAsStateWithLifecycle()
-        
-            MiniPlayer(
-                song = state.currentSong,
-                isPlaying = state.isPlaying,
-                progress = state.progress,
-                onClick = onExpandPlayer,
-                onPlayPauseClick = {
-                    viewModel.sendIntent(
-                        com.aria.rythme.feature.player.presentation.PlayerIntent.TogglePlayPause
-                    )
-                },
-                onNextClick = {
-                    viewModel.sendIntent(
-                        com.aria.rythme.feature.player.presentation.PlayerIntent.Next
-                    )
-                }
-            )
-        }
-    )
-}
-
-/**
- * 播放器页面（带返回）
- */
-@Composable
-fun PlayerScreenWithBack(
-    onBack: () -> Unit
-) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        PlayerScreen(
-            modifier = Modifier.padding(innerPadding),
-            onBack = onBack
-        )
     }
 }
