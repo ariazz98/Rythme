@@ -101,15 +101,14 @@ fun BottomNavigationItem(
         Icon(
             painter = painterResource(iconRes),
             contentDescription = "",
-            tint = if (isSelected) MaterialTheme.rythmeColors.primary else MaterialTheme.colorScheme.onBackground,
+            tint = if (isSelected) MaterialTheme.rythmeColors.primary else MaterialTheme.rythmeColors.textColor,
             modifier = Modifier
                 .size(24.dp)
         )
         Text(
             text = stringResource(titleRes),
-            color = if (isSelected) MaterialTheme.rythmeColors.primary else MaterialTheme.colorScheme.onBackground,
-            fontSize = 10.sp,
-            lineHeight = 10.sp
+            color = if (isSelected) MaterialTheme.rythmeColors.primary else MaterialTheme.rythmeColors.textColor,
+            fontSize = 10.sp
         )
     }
 }

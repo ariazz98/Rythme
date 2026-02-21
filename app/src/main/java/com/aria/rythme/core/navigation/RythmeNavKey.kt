@@ -25,16 +25,10 @@ sealed interface RythmeRoute: NavKey {
     data object Home : RythmeRoute
 
     /**
-     * 发现
-     */
-    @Serializable
-    data object Discover : RythmeRoute
-
-    /**
      * 广播
      */
     @Serializable
-    data object Radio : RythmeRoute
+    data object Playlist : RythmeRoute
 
     /**
      * 资料库
@@ -77,12 +71,17 @@ sealed interface RythmeRoute: NavKey {
      */
     @Serializable
     data class ArtistDetail(val id: String) : RythmeRoute
+
+    /**
+     * 歌曲列表
+     */
+    @Serializable
+    data object SongList : RythmeRoute
 }
 
 val ALL_TOP_LEVEL_ROUTES = setOf(
     RythmeRoute.Home,
-    RythmeRoute.Discover,
-    RythmeRoute.Radio,
+    RythmeRoute.Playlist,
     RythmeRoute.Library,
     RythmeRoute.Search
 )

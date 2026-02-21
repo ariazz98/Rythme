@@ -1,5 +1,6 @@
 package com.aria.rythme.di
 
+import com.aria.rythme.feature.library.presentation.songlist.SongListViewModel
 import com.aria.rythme.feature.player.controller.PlaybackController
 import com.aria.rythme.feature.player.data.datasource.MediaStoreSource
 import com.aria.rythme.feature.player.data.local.MusicDatabase
@@ -89,6 +90,13 @@ val playerModule = module {
      * ViewModel 作用域，与页面生命周期绑定
      */
     viewModel { PlayerViewModel(get(), get(), get(), get()) }
+
+    /**
+     * 歌曲列表 ViewModel
+     *
+     * ViewModel 作用域，与页面生命周期绑定
+     */
+    viewModel { SongListViewModel(get(), get()) }
 }
 
 /**

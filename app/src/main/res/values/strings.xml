@@ -1,8 +1,7 @@
 <resources>
     <string name="app_name">Rythme</string>
     <string name="title_home">主页</string>
-    <string name="title_discover">新发现</string>
-    <string name="title_radio">广播</string>
+    <string name="title_play_list">歌单</string>
     <string name="title_library">资料库</string>
     <string name="title_search">搜索</string>
     <string name="permission_granted">权限已授予</string>

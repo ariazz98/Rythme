@@ -12,13 +12,9 @@ val TOP_LEVEL_DESTINATIONS = mapOf(
         icon = R.drawable.ic_home,
         title = R.string.title_home
     ),
-    RythmeRoute.Discover to BottomNavItem(
-        icon = R.drawable.ic_discover,
-        title = R.string.title_discover
-    ),
-    RythmeRoute.Radio to BottomNavItem(
+    RythmeRoute.Playlist to BottomNavItem(
         icon = R.drawable.ic_radio,
-        title = R.string.title_radio
+        title = R.string.title_play_list
     ),
     RythmeRoute.Library to BottomNavItem(
         icon = R.drawable.ic_library,
