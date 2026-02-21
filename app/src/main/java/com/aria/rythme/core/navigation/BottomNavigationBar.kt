@@ -6,16 +6,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -24,7 +28,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
+import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.feature.player.presentation.PlayerIntent
+import com.aria.rythme.feature.player.presentation.PlayerViewModel
+import com.aria.rythme.ui.component.MiniPlayer
 import com.aria.rythme.ui.theme.rythmeColors
+import org.koin.androidx.compose.koinViewModel
 
 /**
  * 底部导航栏（Apple Music 风格）
@@ -41,25 +50,44 @@ import com.aria.rythme.ui.theme.rythmeColors
 @Composable
 fun BottomNavigationBar(
     selectedKey: NavKey,
-    onSelectKey: (NavKey) -> Unit
+    onSelectKey: (NavKey) -> Unit,
+    viewModel: PlayerViewModel = koinViewModel()
 ) {
-    Box(
+
+    val state by viewModel.state.collectAsUiState()
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(95.dp)
-            .padding(horizontal = 21.dp)
+            .wrapContentHeight()
+            .navigationBarsPadding()
+            .padding(start = 21.dp, end = 21.dp, bottom = 8.dp)
     ) {
+        MiniPlayer(
+            song = state.currentSong,
+            isPlaying = state.isPlaying,
+            onClick = {
+
+            },
+            onPlayPauseClick = {
+                viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+            },
+            onNextClick = {
+                viewModel.sendIntent(PlayerIntent.Next)
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Box(
             modifier = Modifier
-                .padding(top = 12.dp)
                 .fillMaxWidth()
-                .height(60.dp)
+                .height(64.dp)
                 .background(MaterialTheme.rythmeColors.bottomBackground, RoundedCornerShape(30.dp))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(3.dp)
+                    .padding(4.dp)
             ) {
                 TOP_LEVEL_DESTINATIONS.forEach { (route, item) ->
                     BottomNavigationItem(
@@ -89,7 +117,7 @@ fun BottomNavigationItem(
             .fillMaxSize()
             .background(
                 if (isSelected) MaterialTheme.rythmeColors.bottomSelected else MaterialTheme.rythmeColors.bottomUnselected,
-                RoundedCornerShape(27.dp)
+                RoundedCornerShape(50)
             )
             .clickable(
                 interactionSource = null,
