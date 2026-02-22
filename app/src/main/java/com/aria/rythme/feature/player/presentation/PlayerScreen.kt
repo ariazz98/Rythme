@@ -62,11 +62,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -94,8 +96,10 @@ fun PlayerScreen(
 ) {
     val state by viewModel.state.collectAsUiState()
 
+    val width = LocalWindowInfo.current.containerDpSize.width
+
     val animateCoverSize by animateDpAsState(
-        targetValue = if (state.isPlaying) 350.dp else 256.dp,
+        targetValue = if (state.isPlaying) min(width * 6 / 7, 350.dp) else min(width * 2 / 3, 256.dp),
         animationSpec = if (state.isPlaying) {
             spring(
                 dampingRatio = 0.6f,
