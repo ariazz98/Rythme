@@ -1,7 +1,15 @@
 package com.aria.rythme.feature.player.presentation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring.DampingRatioMediumBouncy
+import androidx.compose.animation.core.Spring.StiffnessLow
+import androidx.compose.animation.core.Spring.StiffnessMediumLow
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,19 +52,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.domain.model.RepeatMode
+import com.aria.rythme.ui.component.CoverItem
+import com.aria.rythme.ui.component.ProgressItem
+import com.aria.rythme.ui.component.VoiceItem
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -60,108 +86,190 @@ import org.koin.androidx.compose.koinViewModel
  *
  * 显示当前播放歌曲的信息和控制按钮。
  *
- * @param viewModel 播放器 ViewModel
- * @param onBack 返回回调
+ * @param viewModel 播放 ViewModel
  */
 @Composable
 fun PlayerScreen(
-    modifier: Modifier = Modifier,
-    viewModel: PlayerViewModel = koinViewModel(),
-    onBack: (() -> Unit)? = null
+    viewModel: PlayerViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsUiState()
 
-    // 加载歌曲列表
-    LaunchedEffect(Unit) {
-        viewModel.sendIntent(PlayerIntent.LoadSongs)
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                color = state.themeColor?.let { Color(it) }
-                    ?: MaterialTheme.colorScheme.background
+    val animateCoverSize by animateDpAsState(
+        targetValue = if (state.isPlaying) 350.dp else 256.dp,
+        animationSpec = if (state.isPlaying) {
+            spring(
+                dampingRatio = 0.6f,
+                stiffness = 100f
             )
+        } else {
+            tween(
+                durationMillis = 500,
+                easing = FastOutSlowInEasing
+            )
+        }
+    )
+
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(Brush.verticalGradient(
+            colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
+            startY = 0f,
+            endY = Float.POSITIVE_INFINITY
+        )),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 返回按钮
-        if (onBack != null) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .padding(16.dp)
-                    .align(Alignment.TopStart)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
+
+        Spacer(modifier = Modifier.statusBarsPadding().height(16.dp))
+
+        Box(
+            modifier = Modifier
+                .width(62.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFFB1B1B9))
+        )
+
+        Box(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+
+            CoverItem(
+                size = animateCoverSize,
+                corner = 9.dp,
+                song = state.currentSong,
+                defaultBgColor = Color(0xFF606063),
+                defaultIconColor = Color(0xFF737376)
+            )
+
         }
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
 
-            // 专辑封面
-            AlbumCover(
-                song = state.currentSong,
-                isPlaying = state.isPlaying,
-                onThemeColorExtracted = { color ->
-                    // 可以在这里更新主题色
-                }
+            Text(
+                text = state.currentSong?.title ?: stringResource(R.string.not_play),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                0f to Color.Transparent,
+                                1f to Color.Black,
+                                startX = 0f,
+                                endX = 8.dp.toPx()
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                0.9f to Color.Black,
+                                1f to Color.Transparent
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+                    .customMarquee()
+                    .padding(horizontal = 32.dp)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // 歌曲信息
-            SongInfo(
-                title = state.currentSong?.title ?: "未知歌曲",
-                artist = state.currentSong?.artist ?: "未知艺术家"
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 进度条
-            ProgressSlider(
+            ProgressItem(
+                enabled = state.currentSong != null,
                 progress = state.progress,
-                currentPosition = state.currentPositionText,
-                duration = state.durationText,
-                onSeek = { progress ->
-                    val position = (progress * state.duration).toLong()
-                    viewModel.sendIntent(PlayerIntent.SeekTo(position))
-                }
+                currentPosition = state.currentPosition,
+                duration = state.duration,
+                onSeek = { viewModel.sendIntent(PlayerIntent.SeekTo((it * state.duration).toLong())) }
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_previous),
+                    contentDescription = "",
+                    tint = Color.White,
+                    modifier = Modifier.size(40.dp)
+                        .clickable(interactionSource = null, indication = null) {
+                            viewModel.sendIntent(PlayerIntent.Previous)
+                        }
+                )
+
+                Icon(
+                    painter = if (state.isPlaying) painterResource(R.drawable.ic_pause) else painterResource(R.drawable.ic_play),
+                    contentDescription = "",
+                    tint = Color.White,
+                    modifier = Modifier.size(40.dp)
+                        .clickable(interactionSource = null, indication = null) {
+                            viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                        }
+                )
+
+                Icon(
+                    painter = painterResource(R.drawable.ic_next),
+                    contentDescription = "",
+                    tint = Color.White,
+                    modifier = Modifier.size(40.dp)
+                        .clickable(interactionSource = null, indication = null) {
+                            viewModel.sendIntent(PlayerIntent.Next)
+                        }
+                )
+
+            }
+
+            Spacer(modifier = Modifier.height(56.dp))
+
+            VoiceItem(
+                progress = 0.5f,
+                onSeek = {  }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 播放控制
-            PlaybackControls(
-                isPlaying = state.isPlaying,
-                repeatMode = state.repeatMode,
-                isShuffleEnabled = state.isShuffleEnabled,
-                onPlayPauseClick = {
-                    viewModel.sendIntent(PlayerIntent.TogglePlayPause)
-                },
-                onNextClick = {
-                    viewModel.sendIntent(PlayerIntent.Next)
-                },
-                onPreviousClick = {
-                    viewModel.sendIntent(PlayerIntent.Previous)
-                },
-                onRepeatClick = {
-                    viewModel.sendIntent(PlayerIntent.ToggleRepeatMode)
-                },
-                onShuffleClick = {
-                    viewModel.sendIntent(PlayerIntent.ToggleShuffleMode)
-                }
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lrc),
+                    contentDescription = "",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+
+                Icon(
+                    painter = painterResource(R.drawable.ic_airplay),
+                    contentDescription = "",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+
+                Icon(
+                    painter = painterResource(R.drawable.ic_play_list),
+                    contentDescription = "",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(56.dp))
         }
+
     }
 }
 
@@ -220,39 +328,6 @@ private fun AlbumCover(
                 )
             }
         }
-    }
-}
-
-/**
- * 歌曲信息组件
- *
- * @param title 歌曲标题
- * @param artist 艺术家
- */
-@Composable
-private fun SongInfo(
-    title: String,
-    artist: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = artist,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

@@ -26,6 +26,7 @@ import com.aria.rythme.core.navigation.rememberNavigationState
 import com.aria.rythme.core.navigation.toEntries
 import com.aria.rythme.feature.home.presentation.HomeScreen
 import com.aria.rythme.feature.library.presentation.LibraryScreen
+import com.aria.rythme.feature.player.presentation.PlayerScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
@@ -52,6 +53,9 @@ fun RythmeApp() {
                 selectedKey = navigationState.topLevelRoute,
                 onSelectKey = {
                     navigator.navigate(it)
+                },
+                onClickPlayer = {
+                    navigator.navigate(RythmeRoute.Player)
                 }
             )
         }
@@ -78,7 +82,11 @@ fun RythmeApp() {
                         entry<RythmeRoute.Search> {
                             SearchScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
-                        entry<RythmeRoute.SongList>(
+                        entry<RythmeRoute.SongList> {
+                            SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                        }
+
+                        entry<RythmeRoute.Player>(
                             metadata = DialogSceneStrategy.dialog(
                                 dialogProperties = DialogProperties(
                                     dismissOnBackPress = true,
@@ -87,7 +95,7 @@ fun RythmeApp() {
                                 )
                             )
                         ) {
-                            SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                            PlayerScreen()
                         }
                     }
                 )

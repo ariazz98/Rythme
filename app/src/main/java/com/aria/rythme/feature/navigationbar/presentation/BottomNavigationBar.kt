@@ -24,12 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.core.extensions.collectAsUiState
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
 import com.aria.rythme.feature.player.presentation.PlayerIntent
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
@@ -53,6 +51,7 @@ import org.koin.androidx.compose.koinViewModel
 fun BottomNavigationBar(
     selectedKey: NavKey,
     onSelectKey: (NavKey) -> Unit,
+    onClickPlayer: () -> Unit,
     viewModel: PlayerViewModel = koinViewModel()
 ) {
 
@@ -68,7 +67,7 @@ fun BottomNavigationBar(
             song = state.currentSong,
             isPlaying = state.isPlaying,
             onClick = {
-
+                onClickPlayer()
             },
             onPlayPauseClick = {
                 viewModel.sendIntent(PlayerIntent.TogglePlayPause)
@@ -141,13 +140,4 @@ fun BottomNavigationItem(
             fontSize = 10.sp
         )
     }
-}
-
-@Preview(showSystemUi = true)
-@Composable
-fun PreviewBottomBar() {
-    BottomNavigationBar(
-        selectedKey = RythmeRoute.Home,
-        onSelectKey = {}
-    )
 }
