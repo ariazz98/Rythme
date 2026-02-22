@@ -3,6 +3,7 @@ package com.aria.rythme.feature.library.presentation.songlist
 import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.mvi.InternalAction
+import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.core.utils.RythmeLogger
 import com.aria.rythme.feature.player.controller.PlaybackController
 import com.aria.rythme.feature.player.data.model.Song
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
  * 歌曲列表 ViewModel
  */
 class SongListViewModel(
+    private val navigator: Navigator,
     private val songRepository: SongCacheRepository,
     private val playbackController: PlaybackController
 ) : BaseViewModel<SongListIntent, SongListState, SongListAction, SongListEffect>() {
@@ -32,6 +34,7 @@ class SongListViewModel(
 
     override fun handleIntent(intent: SongListIntent) {
         when (intent) {
+            is SongListIntent.GoBack -> navigator.goBack()
             is SongListIntent.LoadSongs -> loadSongs()
             is SongListIntent.PlayAll -> playAllSongs()
             is SongListIntent.ToggleShuffle -> toggleShuffle()

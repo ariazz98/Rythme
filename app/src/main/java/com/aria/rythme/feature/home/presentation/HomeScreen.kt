@@ -22,7 +22,7 @@ import com.aria.rythme.ui.component.SmallSquareCard
  */
 @Composable
 fun HomeScreen(
-    navigator: Navigator
+    viewModel: HomeViewModel
 ) {
 
     MainListPage(

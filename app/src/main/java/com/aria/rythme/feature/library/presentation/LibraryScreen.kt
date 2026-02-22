@@ -23,7 +23,7 @@ import com.aria.rythme.ui.theme.rythmeColors
  */
 @Composable
 fun LibraryScreen(
-    navigator: Navigator
+    viewModel: LibraryViewModel
 ) {
 
     MainListPage(
@@ -70,7 +70,7 @@ fun LibraryScreen(
                     icon = Icons.Default.MusicNote,
                     title = "歌曲",
                     iconColor = MaterialTheme.rythmeColors.primary,
-                    onClick = { navigator.navigate(RythmeRoute.SongList) }
+                    onClick = { viewModel.sendIntent(LibraryIntent.NavToSongList) }
                 )
             }
 

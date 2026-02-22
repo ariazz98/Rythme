@@ -12,7 +12,7 @@ import com.aria.rythme.ui.component.MainListPage
  */
 @Composable
 fun PlayListScreen(
-    navigator: Navigator
+    viewModel: PlayListViewModel
 ) {
 
     MainListPage(

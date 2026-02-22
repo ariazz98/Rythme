@@ -14,7 +14,7 @@ import com.aria.rythme.ui.component.SmallCategoryCard
  */
 @Composable
 fun SearchScreen(
-    navigator: Navigator
+    viewModel: SearchViewModel
 ) {
 
     MainGridPage(

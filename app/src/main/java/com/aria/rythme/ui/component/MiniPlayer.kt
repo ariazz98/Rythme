@@ -69,6 +69,13 @@ fun MiniPlayer(
                 .background(Color(0xFFE9E9E9)),
             contentAlignment = Alignment.Center
         ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_music),
+                contentDescription = "",
+                tint = Color(0xFFC6C6C6),
+                modifier = Modifier.size(16.dp)
+            )
+
             if (song?.coverUri != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -80,12 +87,6 @@ fun MiniPlayer(
                     contentScale = ContentScale.Crop
                 )
             }
-            Icon(
-                painter = painterResource(R.drawable.ic_music),
-                contentDescription = "",
-                tint = Color(0xFFC6C6C6),
-                modifier = Modifier.size(16.dp)
-            )
         }
 
         Column(modifier = Modifier

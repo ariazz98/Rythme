@@ -1,5 +1,9 @@
+@file:OptIn(KoinExperimentalAPI::class)
+
 package com.aria.rythme.di
 
+import com.aria.rythme.feature.home.presentation.HomeViewModel
+import com.aria.rythme.feature.library.presentation.LibraryViewModel
 import com.aria.rythme.feature.library.presentation.songlist.SongListViewModel
 import com.aria.rythme.feature.player.controller.PlaybackController
 import com.aria.rythme.feature.player.data.datasource.MediaStoreSource
@@ -8,7 +12,10 @@ import com.aria.rythme.feature.player.data.observer.MediaStoreObserver
 import com.aria.rythme.feature.player.data.repository.SongCacheRepository
 import com.aria.rythme.feature.player.data.settings.ScanSettingsRepository
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
+import com.aria.rythme.feature.playlist.presentation.PlayListViewModel
+import com.aria.rythme.feature.search.presentation.SearchViewModel
 import org.koin.android.ext.koin.androidContext
+import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -90,18 +97,50 @@ val playerModule = module {
      * ViewModel 作用域，与页面生命周期绑定
      */
     viewModel { PlayerViewModel(get(), get(), get(), get()) }
+}
 
-    /**
-     * 歌曲列表 ViewModel
-     *
-     * ViewModel 作用域，与页面生命周期绑定
-     */
-    viewModel { SongListViewModel(get(), get()) }
+val homeModule = module {
+    viewModel { params ->
+        HomeViewModel(params.get())
+    }
+}
+
+val playListModule = module {
+    viewModel { params ->
+        PlayListViewModel(params.get())
+    }
+}
+
+val libraryModule = module {
+    viewModel { params ->
+        LibraryViewModel(params.get())
+    }
+}
+
+val searchModule = module {
+    viewModel { params ->
+        SearchViewModel(params.get())
+    }
+}
+
+val songListModule = module {
+    viewModel { params ->
+        SongListViewModel(
+            navigator = params.get(),
+            songRepository = get(),
+            playbackController = get()
+        )
+    }
 }
 
 /**
  * 所有模块列表
  */
 val appModules = listOf(
-    playerModule
+    playerModule,
+    homeModule,
+    playListModule,
+    libraryModule,
+    searchModule,
+    songListModule
 )

@@ -13,18 +13,6 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-)
-
 data class RythmeColors(
     val primary: Color,
     val bottomSelected: Color,
@@ -32,7 +20,8 @@ data class RythmeColors(
     val bottomBackground: Color,
     val textColor: Color,
     val weakColor: Color,
-    val subTitleColor: Color
+    val subTitleColor: Color,
+    val surface: Color
 )
 
 private val LightRythmeColors = RythmeColors(
@@ -42,7 +31,8 @@ private val LightRythmeColors = RythmeColors(
     bottomBackground = BottomBarBackground,
     textColor = Color.Black,
     weakColor = Gray4,
-    subTitleColor = SubTitleColor
+    subTitleColor = SubTitleColor,
+    surface = SurfaceBackground
 )
 
 private val DarkRythmeColors = RythmeColors(
@@ -52,7 +42,8 @@ private val DarkRythmeColors = RythmeColors(
     bottomBackground = BottomBarBackgroundDark,
     textColor = Color.White,
     weakColor = Gray4Dark,
-    subTitleColor = SubTitleColor
+    subTitleColor = SubTitleColor,
+    surface = SurfaceBackgroundDark
 )
 
 /**
@@ -98,7 +89,6 @@ fun RythmeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val extendedColors = if (darkTheme) DarkRythmeColors else LightRythmeColors
 
     // 创建紧凑的字体配置
@@ -124,7 +114,6 @@ fun RythmeTheme(
         LocalRythmeColors provides extendedColors
     ) {
         MaterialTheme(
-            colorScheme = colorScheme,
             typography = compactTypography,
             content = content
         )

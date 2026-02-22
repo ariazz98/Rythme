@@ -45,8 +45,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun SongListScreen(
-    navigator: Navigator,
-    viewModel: SongListViewModel = koinViewModel()
+    viewModel: SongListViewModel
 ) {
     val state = viewModel.state.collectAsUiState()
     val innerPadding = LocalInnerPadding.current
@@ -65,7 +64,7 @@ fun SongListScreen(
     ) {
         // 顶部导航栏
         SongListTopBar(
-            onBack = { navigator.goBack() },
+            onBack = { viewModel.sendIntent(SongListIntent.GoBack) },
             modifier = Modifier.padding(top = topPadding)
         )
 

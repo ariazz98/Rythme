@@ -22,6 +22,8 @@ data class SongListState(
  * 用户意图
  */
 sealed interface SongListIntent : UserIntent {
+
+    data object GoBack: SongListIntent
     /**
      * 加载歌曲列表
      */
