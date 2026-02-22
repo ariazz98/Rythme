@@ -176,7 +176,4 @@ sealed interface PlayerEffect : SideEffect {
     
     /** 显示消息提示 */
     data class ShowMessage(val message: String) : PlayerEffect
-
-    /** 请求音频权限 */
-    data object RequestAudioPermission : PlayerEffect
 }

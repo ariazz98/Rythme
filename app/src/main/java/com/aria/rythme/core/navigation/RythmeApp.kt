@@ -15,10 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import com.aria.rythme.feature.home.presentation.HomeScreen
 import com.aria.rythme.feature.library.presentation.LibraryScreen
-import com.aria.rythme.feature.library.presentation.songlist.SongListScreen
+import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
 import com.aria.rythme.ui.theme.rythmeColors
@@ -55,6 +56,7 @@ fun RythmeApp() {
                 modifier = Modifier
                     .fillMaxSize(),
                 onBack = navigator::goBack,
+                sceneStrategy = remember { DialogSceneStrategy() },
                 entries = navigationState.toEntries(
                     entryProvider {
                         entry<RythmeRoute.Home> {
@@ -69,7 +71,9 @@ fun RythmeApp() {
                         entry<RythmeRoute.Search> {
                             SearchScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
-                        entry<RythmeRoute.SongList> {
+                        entry<RythmeRoute.SongList>(
+                            metadata = DialogSceneStrategy.dialog()
+                        ) {
                             SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
                     }

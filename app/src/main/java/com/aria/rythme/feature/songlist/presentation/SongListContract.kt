@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.library.presentation.songlist
+package com.aria.rythme.feature.songlist.presentation
 
 import com.aria.rythme.core.mvi.SideEffect
 import com.aria.rythme.core.mvi.UiState

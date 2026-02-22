@@ -3,12 +3,8 @@ package com.aria.rythme.feature.player.presentation
 import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.feature.player.controller.PlaybackController
-import com.aria.rythme.feature.player.data.datasource.MediaStoreSource
-import com.aria.rythme.feature.player.data.observer.ChangeType
-import com.aria.rythme.feature.player.data.observer.MediaStoreObserver
-import com.aria.rythme.feature.player.data.repository.SongCacheRepository
-import com.aria.rythme.feature.player.domain.model.RepeatMode
+import com.aria.rythme.core.play.controller.PlaybackController
+import com.aria.rythme.feature.player.data.repository.MusicRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -18,40 +14,34 @@ import kotlinx.coroutines.launch
 /**
  * 播放器 ViewModel
  *
- * 管理播放器页面的业务逻辑，处理用户交互和播放状态同步。
+ * 管理播放器页面的 UI 状态和用户交互。
+ * 所有数据操作已下沉到 MusicRepository，ViewModel 只负责 UI 状态管理。
  *
- * ## 数据流设计（单一可信数据源）
- * - 歌曲数据统一从 SongCacheRepository 读取（Room Flow）
- * - MediaStoreSource 只负责扫描和写入 Room
- * - Room 数据变化会自动通知 UI
+ * ## 架构分层
+ * - ViewModel：UI 状态管理、用户交互处理
+ * - Repository：数据加载、刷新、MediaStore 监听（数据层闭环）
+ * - PlaybackController：播放控制
  *
  * @param playbackController 播放控制器
- * @param songCacheRepository 歌曲缓存仓库（单一数据源）
- * @param mediaStoreSource MediaStore 扫描器（只写入）
- * @param mediaStoreObserver MediaStore 观察者
+ * @param musicRepository 音乐数据仓库
  */
 class PlayerViewModel(
     private val playbackController: PlaybackController,
-    private val songCacheRepository: SongCacheRepository,
-    private val mediaStoreSource: MediaStoreSource,
-    private val mediaStoreObserver: MediaStoreObserver
+    private val musicRepository: MusicRepository
 ) : BaseViewModel<PlayerIntent, PlayerState, PlayerAction, PlayerEffect>() {
 
     /** 进度更新任务 */
     private var progressUpdateJob: Job? = null
     
-    /** MediaStore 观察任务 */
-    private var observerJob: Job? = null
-    
     /** 歌曲列表观察任务 */
     private var songsObserverJob: Job? = null
 
     init {
-        // 监听播放控制器状态（包括播放状态驱动的进度更新）
+        // 监听播放控制器状态
         observePlaybackState()
         
-        // 监听 MediaStore 变化
-        observeMediaStoreChanges()
+        // 监听数据仓库加载状态
+        observeRepositoryState()
     }
 
     /**
@@ -201,9 +191,9 @@ class PlayerViewModel(
     /**
      * 加载歌曲列表
      * 
-     * 1. 订阅 Room Flow（单一数据源）
-     * 2. 触发 MediaStore 扫描同步到 Room
-     * 3. Room 数据变化会自动通过 Flow 更新 UI
+     * 委托给 MusicRepository 处理：
+     * 1. 订阅 Repository 的歌曲流
+     * 2. Repository 自动触发扫描和同步
      */
     private fun loadSongs() {
         RythmeLogger.d(TAG, "开始加载歌曲列表")
@@ -211,10 +201,10 @@ class PlayerViewModel(
         // 取消之前的订阅
         songsObserverJob?.cancel()
         
-        // 订阅 Room Flow（单一数据源）
-        songsObserverJob = songCacheRepository.getAllSongs()
+        // 订阅 Repository 的歌曲流
+        songsObserverJob = musicRepository.getAllSongs()
             .onEach { songs ->
-                RythmeLogger.d(TAG, "Room 数据更新: ${songs.size} 首歌曲")
+                RythmeLogger.d(TAG, "歌曲列表更新: ${songs.size} 首")
                 reduceAndUpdate(PlayerAction.UpdatePlaylist(songs))
                 
                 // 设置默认歌曲
@@ -223,22 +213,15 @@ class PlayerViewModel(
                     reduceAndUpdate(PlayerAction.UpdateCurrentSong(songs.first()))
                     reduceAndUpdate(PlayerAction.UpdateCurrentIndex(0))
                 }
-                
-                reduceAndUpdate(PlayerAction.SetLoading(false))
             }
             .launchIn(viewModelScope)
         
-        // 触发扫描（写入 Room，Room Flow 会自动通知 UI）
+        // 触发数据加载（Repository 内部处理）
         viewModelScope.launch {
-            reduceAndUpdate(PlayerAction.SetLoading(true))
-            try {
-                val result = mediaStoreSource.scanAndSync()
-                RythmeLogger.d(TAG, "扫描完成: ${result.scannedCount} 首歌曲")
-            } catch (e: Exception) {
-                RythmeLogger.e(TAG, "扫描失败", e)
-                reduceAndUpdate(PlayerAction.SetError(e.message))
-                reduceAndUpdate(PlayerAction.SetLoading(false))
-                sendEffect(PlayerEffect.ShowError("扫描失败: ${e.message}"))
+            val result = musicRepository.loadSongs()
+            result.onFailure { error ->
+                RythmeLogger.e(TAG, "加载失败", error)
+                sendEffect(PlayerEffect.ShowError("加载失败: ${error.message}"))
             }
         }
     }
@@ -246,22 +229,17 @@ class PlayerViewModel(
     /**
      * 强制刷新歌曲列表
      * 
-     * 只触发扫描，Room Flow 会自动更新 UI
+     * 委托给 MusicRepository 处理刷新逻辑
      */
     private fun refreshSongs() {
         RythmeLogger.d(TAG, "强制刷新歌曲列表")
         viewModelScope.launch {
-            reduceAndUpdate(PlayerAction.SetLoading(true))
-            try {
-                val result = mediaStoreSource.scanAndSync()
-                RythmeLogger.d(TAG, "刷新完成: ${result.scannedCount} 首歌曲")
-                reduceAndUpdate(PlayerAction.SetLoading(false))
-                sendEffect(PlayerEffect.ShowMessage("已刷新 ${result.scannedCount} 首歌曲"))
-            } catch (e: Exception) {
-                RythmeLogger.e(TAG, "刷新失败", e)
-                reduceAndUpdate(PlayerAction.SetError(e.message))
-                reduceAndUpdate(PlayerAction.SetLoading(false))
-                sendEffect(PlayerEffect.ShowError("刷新失败: ${e.message}"))
+            val result = musicRepository.refreshSongs()
+            result.onSuccess { scanResult ->
+                sendEffect(PlayerEffect.ShowMessage("已刷新 ${scanResult.scannedCount} 首歌曲"))
+            }.onFailure { error ->
+                RythmeLogger.e(TAG, "刷新失败", error)
+                sendEffect(PlayerEffect.ShowError("刷新失败: ${error.message}"))
             }
         }
     }
@@ -335,40 +313,38 @@ class PlayerViewModel(
         progressUpdateJob = null
     }
 
+   /**
+     * 监听数据仓库状态
+     * 
+     * 同步 Repository 的加载状态和错误信息到 UI 状态
+     */
+    private fun observeRepositoryState() {
+        // 监听加载状态
+        musicRepository.isLoading
+            .onEach { isLoading ->
+                reduceAndUpdate(PlayerAction.SetLoading(isLoading))
+            }
+            .launchIn(viewModelScope)
+        
+        // 监听错误信息
+        musicRepository.error
+            .onEach { error ->
+                error?.let {
+                    reduceAndUpdate(PlayerAction.SetError(it))
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+    
     /**
      * 清理资源
      * 
-     * 注意：PlaybackController 是单例，不应在此处释放
+     * 注意：PlaybackController 和 MusicRepository 都是单例，不需要在此处释放
      */
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdate()
-        observerJob?.cancel()
         songsObserverJob?.cancel()
-        // 不要释放 PlaybackController，因为它是单例
-    }
-    
-    /**
-     * 监听 MediaStore 变化
-     * 
-     * 检测到变化时只触发扫描，Room Flow 会自动更新 UI
-     */
-    private fun observeMediaStoreChanges() {
-        observerJob = viewModelScope.launch {
-            mediaStoreObserver.observeChanges()
-                .collect { change ->
-                    if (change.type == ChangeType.AUDIO_CHANGED) {
-                        RythmeLogger.d(TAG, "检测到音频文件变化，触发后台扫描")
-                        // 只触发扫描，Room Flow 会自动更新 UI
-                        try {
-                            val result = mediaStoreSource.scanAndSync()
-                            RythmeLogger.d(TAG, "后台扫描完成: ${result.scannedCount} 首歌曲")
-                        } catch (e: Exception) {
-                            RythmeLogger.e(TAG, "后台扫描失败", e)
-                        }
-                    }
-                }
-        }
     }
     
     companion object {

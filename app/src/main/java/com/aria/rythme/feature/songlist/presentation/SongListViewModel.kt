@@ -1,13 +1,13 @@
-package com.aria.rythme.feature.library.presentation.songlist
+package com.aria.rythme.feature.songlist.presentation
 
 import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.mvi.InternalAction
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.feature.player.controller.PlaybackController
+import com.aria.rythme.core.play.controller.PlaybackController
 import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.data.repository.SongCacheRepository
+import com.aria.rythme.feature.player.data.repository.MusicRepository
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
  */
 class SongListViewModel(
     private val navigator: Navigator,
-    private val songRepository: SongCacheRepository,
+    private val musicRepository: MusicRepository,
     private val playbackController: PlaybackController
 ) : BaseViewModel<SongListIntent, SongListState, SongListAction, SongListEffect>() {
 
@@ -64,7 +64,7 @@ class SongListViewModel(
     private fun loadSongs() {
         viewModelScope.launch {
             try {
-                songRepository.getAllSongs().collectLatest { songs ->
+                musicRepository.getAllSongs().collectLatest { songs ->
                     RythmeLogger.d(TAG, "Loaded ${songs.size} songs")
                     reduceAndUpdate(SongListAction.SongsLoaded(songs))
                 }

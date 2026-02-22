@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.aria.rythme.core.utils.RythmeLogger
@@ -16,13 +17,13 @@ import kotlinx.coroutines.flow.map
  * DataStore 实例
  */
 private val Context.scanSettingsDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "scan_settings"
+    name = "app_settings"
 )
 
 /**
- * 扫描设置仓库
+ * 应用配置项仓库
  *
- * 使用 DataStore 持久化用户的扫描配置。
+ * 使用 DataStore 持久化用户的配置。
  *
  * ## 使用示例
  * ```kotlin
@@ -42,7 +43,7 @@ private val Context.scanSettingsDataStore: DataStore<Preferences> by preferences
  *
  * @param context 应用上下文
  */
-class ScanSettingsRepository(private val context: Context) {
+class AppSettingsRepository(private val context: Context) {
 
     /**
      * 扫描设置流
@@ -52,7 +53,7 @@ class ScanSettingsRepository(private val context: Context) {
     val settings: Flow<ScanSettings> = context.scanSettingsDataStore.data
         .catch { exception ->
             RythmeLogger.e(TAG, "读取扫描设置失败", exception)
-            emit(androidx.datastore.preferences.core.emptyPreferences())
+            emit(emptyPreferences())
         }
         .map { preferences ->
             ScanSettings(

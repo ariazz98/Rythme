@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.library.presentation.songlist
+package com.aria.rythme.feature.songlist.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,11 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -35,10 +34,8 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.navigation.LocalInnerPadding
-import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.feature.player.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
-import org.koin.androidx.compose.koinViewModel
 
 /**
  * 歌曲列表页面
@@ -214,7 +211,7 @@ fun PlaybackButtonsRow(
 @Composable
 fun PlaybackButton(
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isActive: Boolean = false

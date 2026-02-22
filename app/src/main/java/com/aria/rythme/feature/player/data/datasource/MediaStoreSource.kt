@@ -5,15 +5,13 @@ import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
-import android.os.Build
 import android.provider.MediaStore
 import com.aria.rythme.core.utils.RythmeLogger
 import com.aria.rythme.feature.player.data.model.Album
 import com.aria.rythme.feature.player.data.model.Artist
 import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.data.repository.SongCacheRepository
 import com.aria.rythme.feature.player.data.settings.ScanSettings
-import com.aria.rythme.feature.player.data.settings.ScanSettingsRepository
+import com.aria.rythme.feature.player.data.settings.AppSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -35,10 +33,7 @@ data class ScanResult(
  * MediaStore 数据源
  *
  * 通过 Android MediaStore API 扫描设备上的本地音乐文件。
- * 
- * ## 设计原则
- * - 只负责扫描和写入 Room，不负责读取
- * - 读取统一通过 SongCacheRepository（单一数据源）
+ * 只负责扫描，不负责数据存储。
  *
  * ## 权限要求
  * - Android 13+: READ_MEDIA_AUDIO
@@ -51,42 +46,23 @@ data class ScanResult(
  *
  * @param context 应用上下文
  * @param settingsRepository 扫描设置仓库
- * @param cacheRepository 歌曲缓存仓库（只写入）
  */
 class MediaStoreSource(
     private val context: Context,
-    private val settingsRepository: ScanSettingsRepository,
-    private val cacheRepository: SongCacheRepository
+    private val settingsRepository: AppSettingsRepository
 ) {
 
     private val contentResolver: ContentResolver = context.contentResolver
 
     /**
-     * 扫描并同步歌曲到 Room
-     *
-     * 从 MediaStore 扫描歌曲，并同步到 Room 数据库。
-     * 这是一个只写操作，UI 应该订阅 SongCacheRepository.getAllSongs() 获取数据。
-     *
-     * @return 扫描结果（扫描到的歌曲数量）
+     * 从 MediaStore 扫描歌曲
+     * 
+     * 扫描设备上的所有音频文件，根据过滤规则过滤。
+     * 
+     * @return 符合条件的歌曲列表
      * @throws Exception 扫描失败时抛出异常
      */
-    suspend fun scanAndSync(): ScanResult = withContext(Dispatchers.IO) {
-        RythmeLogger.d(TAG, "开始扫描并同步歌曲")
-        try {
-            val songs = scanFromMediaStore()
-            cacheRepository.syncSongs(songs)
-            RythmeLogger.d(TAG, "扫描同步完成，共 ${songs.size} 首歌曲")
-            ScanResult(scannedCount = songs.size)
-        } catch (e: Exception) {
-            RythmeLogger.e(TAG, "扫描同步失败", e)
-            throw e
-        }
-    }
-    
-    /**
-     * 从 MediaStore 扫描歌曲（不写入 Room）
-     */
-    private suspend fun scanFromMediaStore(): List<Song> {
+    suspend fun scanFromMediaStore(): List<Song> = withContext(Dispatchers.IO) {
         val settings = settingsRepository.settings.first()
         RythmeLogger.d(TAG, "开始扫描歌曲，过滤配置: 最小时长=${settings.minDurationMs}ms, 最小大小=${settings.minSizeBytes}bytes")
         
@@ -103,7 +79,7 @@ class MediaStoreSource(
         }
         
         RythmeLogger.d(TAG, "扫描完成，共 ${songs.size} 首歌曲符合条件")
-        return songs
+        return@withContext songs
     }
     
     /**
