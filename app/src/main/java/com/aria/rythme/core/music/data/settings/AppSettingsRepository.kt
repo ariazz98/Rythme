@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.data.settings
+package com.aria.rythme.core.music.data.settings
 
 import android.content.Context
 import androidx.datastore.core.DataStore

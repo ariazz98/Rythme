@@ -1,4 +1,4 @@
-package com.aria.rythme.core.play.controller
+package com.aria.rythme.core.music.controller
 
 import android.content.ComponentName
 import android.content.Context
@@ -9,9 +9,9 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.domain.model.RepeatMode
-import com.aria.rythme.feature.player.service.MusicPlaybackService
+import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.music.domain.model.RepeatMode
+import com.aria.rythme.core.music.service.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.CompletableDeferred

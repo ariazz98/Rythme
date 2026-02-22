@@ -1,13 +1,13 @@
-package com.aria.rythme.feature.player.data.repository
+package com.aria.rythme.core.music.data.repository
 
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.feature.player.data.datasource.MediaStoreSource
-import com.aria.rythme.feature.player.data.datasource.ScanResult
-import com.aria.rythme.feature.player.data.local.SongDao
-import com.aria.rythme.feature.player.data.local.SongEntity
-import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.data.observer.ChangeType
-import com.aria.rythme.feature.player.data.observer.MediaStoreObserver
+import com.aria.rythme.core.music.data.datasource.MediaStoreSource
+import com.aria.rythme.core.music.data.datasource.ScanResult
+import com.aria.rythme.core.music.data.local.SongDao
+import com.aria.rythme.core.music.data.local.SongEntity
+import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.music.data.observer.ChangeType
+import com.aria.rythme.core.music.data.observer.MediaStoreObserver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

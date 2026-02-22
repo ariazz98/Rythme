@@ -33,7 +33,7 @@
 
         <!-- 音乐播放服务 -->
         <service
-            android:name=".feature.player.service.MusicPlaybackService"
+            android:name="com.aria.rythme.core.music.service.MusicPlaybackService"
             android:enabled="true"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">

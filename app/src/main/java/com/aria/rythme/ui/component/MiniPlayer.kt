@@ -39,7 +39,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.customMarquee
-import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
 
 @Composable

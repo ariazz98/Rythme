@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.domain.model
+package com.aria.rythme.core.music.domain.model
 
 import androidx.media3.common.Player
 

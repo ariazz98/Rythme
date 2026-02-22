@@ -34,7 +34,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.navigation.LocalInnerPadding
-import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
 
 /**

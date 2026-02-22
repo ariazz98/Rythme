@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.data.model
+package com.aria.rythme.core.music.data.model
 
 import android.net.Uri
 

@@ -3,8 +3,8 @@ package com.aria.rythme.feature.player.presentation
 import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.core.play.controller.PlaybackController
-import com.aria.rythme.feature.player.data.repository.MusicRepository
+import com.aria.rythme.core.music.controller.PlaybackController
+import com.aria.rythme.core.music.data.repository.MusicRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -95,7 +95,7 @@ class PlayerViewModel(
     /**
      * 播放歌曲
      */
-    private fun playSong(song: com.aria.rythme.feature.player.data.model.Song) {
+    private fun playSong(song: com.aria.rythme.core.music.data.model.Song) {
         viewModelScope.launch {
             playbackController.play(song, currentState.playlist)
         }

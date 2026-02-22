@@ -1,9 +1,9 @@
-package com.aria.rythme.feature.player.data.local
+package com.aria.rythme.core.music.data.local
 
 import android.net.Uri
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.core.music.data.model.Song
 
 /**
  * 歌曲数据库实体类

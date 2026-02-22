@@ -3,7 +3,7 @@ package com.aria.rythme.feature.songlist.presentation
 import com.aria.rythme.core.mvi.SideEffect
 import com.aria.rythme.core.mvi.UiState
 import com.aria.rythme.core.mvi.UserIntent
-import com.aria.rythme.feature.player.data.model.Song
+import com.aria.rythme.core.music.data.model.Song
 
 /**
  * 歌曲列表页面的 MVI Contract

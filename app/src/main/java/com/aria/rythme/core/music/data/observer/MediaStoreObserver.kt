@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.data.observer
+package com.aria.rythme.core.music.data.observer
 
 import android.content.Context
 import android.database.ContentObserver

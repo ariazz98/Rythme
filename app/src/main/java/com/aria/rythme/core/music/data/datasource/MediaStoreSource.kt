@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.data.datasource
+package com.aria.rythme.core.music.data.datasource
 
 import android.content.ContentResolver
 import android.content.ContentUris
@@ -7,11 +7,11 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.MediaStore
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.feature.player.data.model.Album
-import com.aria.rythme.feature.player.data.model.Artist
-import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.data.settings.ScanSettings
-import com.aria.rythme.feature.player.data.settings.AppSettingsRepository
+import com.aria.rythme.core.music.data.model.Album
+import com.aria.rythme.core.music.data.model.Artist
+import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.music.data.settings.ScanSettings
+import com.aria.rythme.core.music.data.settings.AppSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first

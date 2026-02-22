@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.data.local
+package com.aria.rythme.core.music.data.local
 
 import android.content.Context
 import androidx.room.Database

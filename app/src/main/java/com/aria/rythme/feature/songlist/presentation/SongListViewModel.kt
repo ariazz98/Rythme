@@ -5,9 +5,9 @@ import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.mvi.InternalAction
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.core.play.controller.PlaybackController
-import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.data.repository.MusicRepository
+import com.aria.rythme.core.music.controller.PlaybackController
+import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.music.data.repository.MusicRepository
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 

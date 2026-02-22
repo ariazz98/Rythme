@@ -1,4 +1,4 @@
-package com.aria.rythme.feature.player.service
+package com.aria.rythme.core.music.service
 
 import android.app.Notification
 import android.app.NotificationChannel

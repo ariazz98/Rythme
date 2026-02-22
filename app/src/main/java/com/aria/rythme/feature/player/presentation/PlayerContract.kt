@@ -4,8 +4,8 @@ import com.aria.rythme.core.mvi.InternalAction
 import com.aria.rythme.core.mvi.SideEffect
 import com.aria.rythme.core.mvi.UiState
 import com.aria.rythme.core.mvi.UserIntent
-import com.aria.rythme.feature.player.data.model.Song
-import com.aria.rythme.feature.player.domain.model.RepeatMode
+import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.music.domain.model.RepeatMode
 import java.util.Locale
 
 /**

@@ -14,6 +14,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
@@ -72,7 +73,13 @@ fun RythmeApp() {
                             SearchScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
                         entry<RythmeRoute.SongList>(
-                            metadata = DialogSceneStrategy.dialog()
+                            metadata = DialogSceneStrategy.dialog(
+                                dialogProperties = DialogProperties(
+                                    dismissOnBackPress = true,
+                                    usePlatformDefaultWidth = false,
+                                    decorFitsSystemWindows = false
+                                )
+                            )
                         ) {
                             SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
