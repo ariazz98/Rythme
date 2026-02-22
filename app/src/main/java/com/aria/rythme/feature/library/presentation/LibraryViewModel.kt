@@ -2,7 +2,7 @@ package com.aria.rythme.feature.library.presentation
 
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.core.navigation.RythmeRoute
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 
 class LibraryViewModel(
     private val navigator: Navigator

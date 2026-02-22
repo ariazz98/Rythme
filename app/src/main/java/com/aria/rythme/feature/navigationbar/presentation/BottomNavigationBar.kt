@@ -1,4 +1,4 @@
-package com.aria.rythme.core.navigation
+package com.aria.rythme.feature.navigationbar.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
 import com.aria.rythme.feature.player.presentation.PlayerIntent
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.ui.component.MiniPlayer

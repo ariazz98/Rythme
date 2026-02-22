@@ -11,8 +11,6 @@ import androidx.compose.material.icons.filled.Recommend
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import com.aria.rythme.R
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.core.navigation.RythmeRoute
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.RythmeListItem
 import com.aria.rythme.ui.theme.rythmeColors

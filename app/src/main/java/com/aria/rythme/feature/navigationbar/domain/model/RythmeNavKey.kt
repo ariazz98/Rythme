@@ -1,4 +1,4 @@
-package com.aria.rythme.core.navigation
+package com.aria.rythme.feature.navigationbar.domain.model
 
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable

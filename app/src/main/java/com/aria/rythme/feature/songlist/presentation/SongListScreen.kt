@@ -33,7 +33,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.core.extensions.collectAsUiState
-import com.aria.rythme.core.navigation.LocalInnerPadding
+import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
 

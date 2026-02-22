@@ -1,6 +1,7 @@
-package com.aria.rythme.core.navigation
+package com.aria.rythme.feature.navigationbar.data.model
 
 import com.aria.rythme.R
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 
 data class BottomNavItem(
     val icon: Int,

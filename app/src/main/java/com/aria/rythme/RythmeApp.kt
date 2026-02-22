@@ -1,6 +1,6 @@
 @file:OptIn(KoinExperimentalAPI::class)
 
-package com.aria.rythme.core.navigation
+package com.aria.rythme
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +18,12 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
+import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
+import com.aria.rythme.feature.navigationbar.presentation.BottomNavigationBar
+import com.aria.rythme.core.navigation.Navigator
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.core.navigation.rememberNavigationState
+import com.aria.rythme.core.navigation.toEntries
 import com.aria.rythme.feature.home.presentation.HomeScreen
 import com.aria.rythme.feature.library.presentation.LibraryScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
