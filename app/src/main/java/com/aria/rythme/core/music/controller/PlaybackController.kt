@@ -1,7 +1,11 @@
 package com.aria.rythme.core.music.controller
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -68,6 +72,29 @@ class PlaybackController(private val context: Context) {
     /** 是否已初始化完成 */
     val isInitialized: Boolean
         get() = initializationDeferred.isCompleted
+    
+    /** 音频管理器 */
+    private val audioManager by lazy {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    
+    /** 音量变化监听器（BroadcastReceiver）*/
+    private val volumeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") {
+                val streamType = intent?.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+                RythmeLogger.d(TAG, "收到音量变化广播 - Action: ${intent?.action}, StreamType: $streamType")
+
+                if (streamType == AudioManager.STREAM_MUSIC) {
+                    updateVolumeState()
+                    RythmeLogger.d(TAG, "音量变化（Broadcast）: ${_volume.value}%")
+                }
+            }
+        }
+    }
+    
+    /** 音量监听器是否已注册 */
+    private var isVolumeReceiverRegistered = false
 
     // 播放状态
     private val _isPlaying = MutableStateFlow(false)
@@ -105,6 +132,10 @@ class PlaybackController(private val context: Context) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // 音量百分比 (0-100)
+    private val _volume = MutableStateFlow(0)
+    val volume: StateFlow<Int> = _volume.asStateFlow()
+
     /**
      * 初始化控制器
      *
@@ -136,6 +167,11 @@ class PlaybackController(private val context: Context) {
                     }
                 }, MoreExecutors.directExecutor())
             }
+        
+        // 注册音量变化监听
+        registerVolumeReceiver()
+        // 初始化音量状态
+        updateVolumeState()
     }
     
     /**
@@ -441,6 +477,7 @@ class PlaybackController(private val context: Context) {
      * 释放资源
      */
     fun release() {
+        unregisterVolumeReceiver()
         scope.cancel()
         mediaController?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
@@ -474,6 +511,120 @@ class PlaybackController(private val context: Context) {
         _isPlaying.value = controller.isPlaying
         _currentPosition.value = controller.currentPosition
         _duration.value = controller.duration.coerceAtLeast(0)
+    }
+
+    /**
+     * 获取当前音量百分比
+     * 
+     * @return 音量百分比 (0-100)
+     */
+    fun getVolumePercentage(): Int {
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        return if (maxVolume > 0) {
+            (currentVolume.toFloat() / maxVolume * 100).toInt()
+        } else {
+            0
+        }
+    }
+
+    /**
+     * 设置音量百分比（静默设置，不显示系统 UI）
+     * 
+     * @param percentage 音量百分比 (0-100)
+     */
+    fun setVolumePercentage(percentage: Int) {
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val volume = (percentage / 100f * maxVolume).toInt().coerceIn(0, maxVolume)
+        
+        // 使用 FLAG = 0 静默设置，不显示系统音量 UI
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, 0)
+        
+        RythmeLogger.d(TAG, "设置音量: $percentage% (实际: $volume/$maxVolume)")
+    }
+
+    /**
+     * 增加音量
+     * 
+     * @param showUI 是否显示系统音量 UI
+     */
+    fun volumeUp(showUI: Boolean = false) {
+        val flags = if (showUI) AudioManager.FLAG_SHOW_UI else 0
+        audioManager.adjustStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            AudioManager.ADJUST_RAISE,
+            flags
+        )
+        RythmeLogger.d(TAG, "音量增加: ${_volume.value}%")
+    }
+
+    /**
+     * 减少音量
+     * 
+     * @param showUI 是否显示系统音量 UI
+     */
+    fun volumeDown(showUI: Boolean = false) {
+        val flags = if (showUI) AudioManager.FLAG_SHOW_UI else 0
+        audioManager.adjustStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            AudioManager.ADJUST_LOWER,
+            flags
+        )
+        RythmeLogger.d(TAG, "音量减少: ${_volume.value}%")
+    }
+
+    /**
+     * 静音/取消静音
+     */
+    fun toggleMute() {
+        val currentVolume = getVolumePercentage()
+        if (currentVolume > 0) {
+            // 当前有音量，设置为静音
+            setVolumePercentage(0)
+            RythmeLogger.d(TAG, "已静音")
+        } else {
+            // 当前静音，恢复到 50%
+            setVolumePercentage(50)
+            RythmeLogger.d(TAG, "取消静音")
+        }
+    }
+
+    /**
+     * 更新音量状态
+     */
+    private fun updateVolumeState() {
+        _volume.value = getVolumePercentage()
+    }
+
+    /**
+     * 注册音量变化监听器（BroadcastReceiver）
+     */
+    private fun registerVolumeReceiver() {
+        if (isVolumeReceiverRegistered) return
+        
+        try {
+            val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+            context.registerReceiver(volumeReceiver, filter)
+            isVolumeReceiverRegistered = true
+            RythmeLogger.d(TAG, "已注册音量变化监听器（Broadcast）")
+        } catch (e: Exception) {
+            RythmeLogger.e(TAG, "注册音量监听器失败", e)
+        }
+    }
+
+    /**
+     * 注销音量变化监听器
+     */
+    private fun unregisterVolumeReceiver() {
+        if (!isVolumeReceiverRegistered) return
+        
+        try {
+            context.unregisterReceiver(volumeReceiver)
+            isVolumeReceiverRegistered = false
+            RythmeLogger.d(TAG, "已注销音量变化监听器")
+        } catch (e: Exception) {
+            RythmeLogger.e(TAG, "注销音量监听器失败", e)
+        }
     }
 
     /**

@@ -175,6 +175,11 @@ fun VoiceItem(
         )
 
     }
+
+    // 同步进度
+    LaunchedEffect(progress) {
+        sliderPosition = progress
+    }
 }
 
 /**

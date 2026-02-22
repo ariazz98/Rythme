@@ -234,8 +234,8 @@ fun PlayerScreen(
             Spacer(modifier = Modifier.height(56.dp))
 
             VoiceItem(
-                progress = 0.5f,
-                onSeek = {  }
+                progress = state.volume / 100f,
+                onSeek = { viewModel.sendIntent(PlayerIntent.SetVolume((it * 100).toInt())) }
             )
 
             Spacer(modifier = Modifier.height(24.dp))

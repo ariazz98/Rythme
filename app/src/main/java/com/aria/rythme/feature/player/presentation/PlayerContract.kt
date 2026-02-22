@@ -59,6 +59,9 @@ sealed interface PlayerIntent : UserIntent {
 
     /** 选择播放列表中的歌曲 */
     data class SelectSongFromPlaylist(val index: Int) : PlayerIntent
+
+    /** 设置音量百分比 */
+    data class SetVolume(val percentage: Int) : PlayerIntent
 }
 
 /**
@@ -96,7 +99,10 @@ data class PlayerState(
     val errorMessage: String? = null,
 
     /** 封面主题色 */
-    val themeColor: Int? = null
+    val themeColor: Int? = null,
+
+    /** 音量百分比 (0-100) */
+    val volume: Int = 0
 ) : UiState {
 
     /**
@@ -165,6 +171,9 @@ sealed interface PlayerAction : InternalAction {
 
     /** 设置错误信息 */
     data class SetError(val message: String?) : PlayerAction
+
+    /** 更新音量 */
+    data class UpdateVolume(val volume: Int) : PlayerAction
 }
 
 /**

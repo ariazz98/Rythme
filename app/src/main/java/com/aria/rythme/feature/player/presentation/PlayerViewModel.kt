@@ -68,6 +68,7 @@ class PlayerViewModel(
             is PlayerIntent.LoadSongs -> loadSongs()
             is PlayerIntent.RefreshSongs -> refreshSongs()
             is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
+            is PlayerIntent.SetVolume -> setVolume(intent.percentage)
         }
     }
 
@@ -89,6 +90,7 @@ class PlayerViewModel(
             is PlayerAction.UpdateThemeColor -> currentState.copy(themeColor = action.color)
             is PlayerAction.SetLoading -> currentState.copy(isLoading = action.isLoading)
             is PlayerAction.SetError -> currentState.copy(errorMessage = action.message)
+            is PlayerAction.UpdateVolume -> currentState.copy(volume = action.volume)
         }
     }
 
@@ -254,6 +256,13 @@ class PlayerViewModel(
     }
 
     /**
+     * 设置音量
+     */
+    private fun setVolume(percentage: Int) {
+        playbackController.setVolumePercentage(percentage)
+    }
+
+    /**
      * 监听播放状态
      * 
      * 注意：每个 Flow 需要独立启动，不能包裹在同一个 launch 块中
@@ -282,6 +291,13 @@ class PlayerViewModel(
                         reduceAndUpdate(PlayerAction.UpdateCurrentIndex(index))
                     }
                 }
+            }
+            .launchIn(viewModelScope)
+        
+        // 监听音量变化（独立启动）
+        playbackController.volume
+            .onEach { volume ->
+                reduceAndUpdate(PlayerAction.UpdateVolume(volume))
             }
             .launchIn(viewModelScope)
     }
