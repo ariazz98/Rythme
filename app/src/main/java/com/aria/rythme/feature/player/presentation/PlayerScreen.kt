@@ -158,6 +158,8 @@ fun PlayerScreen(
                 .fillMaxWidth()
         ) {
 
+            Spacer(modifier = Modifier.height(24.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -270,7 +272,7 @@ fun PlayerScreen(
                 Icon(
                     painter = painterResource(R.drawable.ic_previous),
                     contentDescription = "",
-                    tint = Color.White,
+                    tint = if (state.canPlayPrevious) Color.White else Color(0x33FFFFFF),
                     modifier = Modifier.size(40.dp)
                         .clickable(interactionSource = null, indication = null) {
                             viewModel.sendIntent(PlayerIntent.Previous)
@@ -283,14 +285,20 @@ fun PlayerScreen(
                     tint = Color.White,
                     modifier = Modifier.size(40.dp)
                         .clickable(interactionSource = null, indication = null) {
-                            viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                            if (state.currentSong == null) {
+                                // 如果当前没有歌曲播放，加载并随机播放一首
+                                viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                            } else {
+                                // 否则切换播放/暂停状态
+                                viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                            }
                         }
                 )
 
                 Icon(
                     painter = painterResource(R.drawable.ic_next),
                     contentDescription = "",
-                    tint = Color.White,
+                    tint = if (state.canPlayNext) Color.White else Color(0x33FFFFFF),
                     modifier = Modifier.size(40.dp)
                         .clickable(interactionSource = null, indication = null) {
                             viewModel.sendIntent(PlayerIntent.Next)

@@ -67,6 +67,7 @@ class PlayerViewModel(
             is PlayerIntent.ToggleShuffleMode -> toggleShuffleMode()
             is PlayerIntent.LoadSongs -> loadSongs()
             is PlayerIntent.RefreshSongs -> refreshSongs()
+            is PlayerIntent.LoadAndPlayRandom -> loadAndPlayRandom()
             is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
             is PlayerIntent.SetVolume -> setVolume(intent.percentage)
         }
@@ -247,6 +248,35 @@ class PlayerViewModel(
     }
 
     /**
+     * 加载歌曲列表并随机播放一首
+     * 
+     * 当当前没有歌曲播放时，加载所有歌曲并随机播放一首
+     */
+    private fun loadAndPlayRandom() {
+        RythmeLogger.d(TAG, "加载歌曲列表并随机播放")
+        viewModelScope.launch {
+            // 先加载歌曲列表
+            val result = musicRepository.loadSongs()
+            result.onSuccess {
+                // 获取所有歌曲
+                val songs = musicRepository.getAllSongsOnce()
+                if (songs.isNotEmpty()) {
+                    // 随机选择一首歌曲
+                    val randomSong = songs.random()
+                    RythmeLogger.d(TAG, "随机播放: ${randomSong.title}")
+                    // 播放选中的歌曲
+                    playbackController.play(randomSong, songs)
+                } else {
+                    sendEffect(PlayerEffect.ShowMessage("没有找到可播放的歌曲"))
+                }
+            }.onFailure { error ->
+                RythmeLogger.e(TAG, "加载失败", error)
+                sendEffect(PlayerEffect.ShowError("加载失败: ${error.message}"))
+            }
+        }
+    }
+
+    /**
      * 从播放列表选择歌曲
      */
     private fun selectSongFromPlaylist(index: Int) {
@@ -294,10 +324,27 @@ class PlayerViewModel(
             }
             .launchIn(viewModelScope)
         
+        // 监听播放列表（独立启动）
+        playbackController.playlist
+            .onEach { playlist ->
+                if (playlist.isNotEmpty()) {
+                    RythmeLogger.d(TAG, "播放列表更新: ${playlist.size} 首")
+                    reduceAndUpdate(PlayerAction.UpdatePlaylist(playlist))
+                }
+            }
+            .launchIn(viewModelScope)
+        
         // 监听音量变化（独立启动）
         playbackController.volume
             .onEach { volume ->
                 reduceAndUpdate(PlayerAction.UpdateVolume(volume))
+            }
+            .launchIn(viewModelScope)
+        
+        // 监听循环模式（独立启动）
+        playbackController.repeatMode
+            .onEach { repeatMode ->
+                reduceAndUpdate(PlayerAction.UpdateRepeatMode(repeatMode))
             }
             .launchIn(viewModelScope)
     }

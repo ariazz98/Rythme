@@ -65,12 +65,17 @@ fun BottomNavigationBar(
     ) {
         MiniPlayer(
             song = state.currentSong,
+            canPlayNext = state.canPlayNext,
             isPlaying = state.isPlaying,
             onClick = {
                 onClickPlayer()
             },
             onPlayPauseClick = {
-                viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                if (state.currentSong == null) {
+                    viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                } else {
+                    viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                }
             },
             onNextClick = {
                 viewModel.sendIntent(PlayerIntent.Next)

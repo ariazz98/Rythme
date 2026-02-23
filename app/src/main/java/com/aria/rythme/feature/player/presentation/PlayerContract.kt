@@ -57,6 +57,9 @@ sealed interface PlayerIntent : UserIntent {
     /** 强制刷新歌曲列表 */
     data object RefreshSongs : PlayerIntent
 
+    /** 加载歌曲列表并随机播放一首 */
+    data object LoadAndPlayRandom : PlayerIntent
+
     /** 选择播放列表中的歌曲 */
     data class SelectSongFromPlaylist(val index: Int) : PlayerIntent
 
@@ -136,6 +139,18 @@ data class PlayerState(
         val seconds = totalSeconds % 60
         return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
+
+    /**
+     * 是否可以播放上一首
+     */
+    val canPlayPrevious: Boolean
+        get() = playlist.isNotEmpty() && (currentIndex > 0 || repeatMode == RepeatMode.ALL)
+
+    /**
+     * 是否可以播放下一首
+     */
+    val canPlayNext: Boolean
+        get() = playlist.isNotEmpty() && (currentIndex < playlist.size - 1 || repeatMode == RepeatMode.ALL)
 }
 
 /**

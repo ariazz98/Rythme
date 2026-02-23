@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
@@ -39,6 +38,7 @@ import com.aria.rythme.ui.theme.rythmeColors
 fun MiniPlayer(
     song: Song?,
     isPlaying: Boolean,
+    canPlayNext: Boolean,
     onClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -60,8 +60,8 @@ fun MiniPlayer(
             size = 32.dp,
             corner = 6.dp,
             song = song,
-            defaultBgColor = Color(0xFFE9E9E9),
-            defaultIconColor = Color(0xFFC6C6C6)
+            defaultBgColor = Color(0xFFD6D6D5),
+            defaultIconColor = Color(0xFF4A4A49)
         )
 
         Column(modifier = Modifier
@@ -130,21 +130,22 @@ fun MiniPlayer(
         Icon(
             painter = painterResource(R.drawable.ic_next),
             contentDescription = "",
+            tint = if (canPlayNext) Color.Black else Color(0xFFBFBFBE),
             modifier = Modifier
                 .padding(end = 21.dp)
                 .size(28.dp)
-                .clickable(
-                    interactionSource = null,
-                    indication = null
-                ) {
-                    onNextClick()
-                }
+                .then(
+                    if (canPlayNext) {
+                        Modifier.clickable(
+                            interactionSource = null,
+                            indication = null
+                        ) {
+                            onNextClick()
+                        }
+                    } else {
+                        Modifier
+                    }
+                )
         )
     }
-}
-
-@Preview
-@Composable
-fun MiniPlayerPreview() {
-    MiniPlayer(null, false, {}, {}, {})
 }
