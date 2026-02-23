@@ -95,7 +95,7 @@ fun RythmeApp() {
                                 )
                             )
                         ) {
-                            PlayerScreen()
+                            PlayerScreen(navigator = navigator)
                         }
                     }
                 )

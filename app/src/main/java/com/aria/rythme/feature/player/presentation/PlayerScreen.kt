@@ -78,6 +78,7 @@ import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.domain.model.RepeatMode
+import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.ui.component.CoverItem
 import com.aria.rythme.ui.component.ProgressItem
 import com.aria.rythme.ui.component.VoiceItem
@@ -92,6 +93,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun PlayerScreen(
+    navigator: Navigator,
     viewModel: PlayerViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsUiState()
@@ -131,6 +133,9 @@ fun PlayerScreen(
                 .height(6.dp)
                 .clip(RoundedCornerShape(50))
                 .background(Color(0xFFB1B1B9))
+                .clickable(interactionSource = null, indication = null) {
+                    navigator.goBack()
+                }
         )
 
         Box(
@@ -153,41 +158,100 @@ fun PlayerScreen(
                 .fillMaxWidth()
         ) {
 
-            Text(
-                text = state.currentSong?.title ?: stringResource(R.string.not_play),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                maxLines = 1,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                0f to Color.Transparent,
-                                1f to Color.Black,
-                                startX = 0f,
-                                endX = 8.dp.toPx()
-                            ),
-                            blendMode = BlendMode.DstIn
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    Text(
+                        text = state.currentSong?.title ?: stringResource(R.string.not_play),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                compositingStrategy = CompositingStrategy.Offscreen
+                            }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0f to Color.Transparent,
+                                        1f to Color.Black,
+                                        startX = 0f,
+                                        endX = 8.dp.toPx()
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0.9f to Color.Black,
+                                        1f to Color.Transparent
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                            .customMarquee()
+                            .padding(start = 32.dp)
+                    )
+                    if (!state.currentSong?.artist.isNullOrEmpty()) {
+                        Text(
+                            text = state.currentSong!!.artist,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0x80FFFFFF),
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = 32.dp)
                         )
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                0.9f to Color.Black,
-                                1f to Color.Transparent
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
                     }
-                    .customMarquee()
-                    .padding(horizontal = 32.dp)
-            )
+                }
 
-            Spacer(modifier = Modifier.height(40.dp))
+                if (state.currentSong != null) {
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x30FFFFFF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_star),
+                            contentDescription = "",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x30FFFFFF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_more),
+                            contentDescription = "",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(32.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             ProgressItem(
                 enabled = state.currentSong != null,
