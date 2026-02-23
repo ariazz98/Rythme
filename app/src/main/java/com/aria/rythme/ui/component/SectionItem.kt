@@ -45,7 +45,7 @@ fun SectionItem(
             ) {
                 Text(
                     text = title,
-                    fontSize = 18.sp,
+                    fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.rythmeColors.textColor
                 )
@@ -55,7 +55,7 @@ fun SectionItem(
                         painter = painterResource(R.drawable.ic_forward),
                         contentDescription = "查看更多",
                         tint = MaterialTheme.rythmeColors.subTitleColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

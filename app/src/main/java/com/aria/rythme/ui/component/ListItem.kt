@@ -63,7 +63,7 @@ fun RythmeListItem(
                 painter = painterResource(R.drawable.ic_forward),
                 contentDescription = null,
                 tint = MaterialTheme.rythmeColors.weakColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(12.dp)
             )
         }
 
