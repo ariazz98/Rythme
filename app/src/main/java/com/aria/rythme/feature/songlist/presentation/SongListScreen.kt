@@ -35,6 +35,7 @@ import coil3.request.crossfade
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.theme.rythmeColors
 
 /**
@@ -57,7 +58,8 @@ fun SongListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
+            .background(MaterialTheme.rythmeColors.surface)
     ) {
         // 顶部导航栏
         SongListTopBar(

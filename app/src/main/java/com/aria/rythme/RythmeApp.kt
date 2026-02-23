@@ -2,6 +2,15 @@
 
 package com.aria.rythme
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,22 +23,22 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
-import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
-import com.aria.rythme.feature.navigationbar.presentation.BottomNavigationBar
 import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.core.navigation.rememberNavigationState
 import com.aria.rythme.core.navigation.toEntries
 import com.aria.rythme.feature.home.presentation.HomeScreen
 import com.aria.rythme.feature.library.presentation.LibraryScreen
+import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.feature.navigationbar.presentation.BottomNavigationBar
 import com.aria.rythme.feature.player.presentation.PlayerScreen
-import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
+import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.annotation.KoinExperimentalAPI
@@ -38,6 +47,40 @@ import org.koin.core.parameter.parametersOf
 val LocalInnerPadding = staticCompositionLocalOf { PaddingValues(0.dp) }
 @Composable
 fun RythmeApp() {
+    val rootBackStack = rememberNavBackStack(RythmeRoute.ScaffoldPage)
+    NavDisplay(
+        backStack = rootBackStack,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            slideInVertically(animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)) { it } togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+        },
+        popTransitionSpec = {
+            fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith slideOutVertically(animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)) { it }
+        },
+        predictivePopTransitionSpec = {
+            fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith slideOutVertically(animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)) { it }
+        },
+        entryProvider = entryProvider {
+            entry<RythmeRoute.ScaffoldPage> {
+                ScaffoldNavigation {
+                    rootBackStack.add(RythmeRoute.Player)
+                }
+            }
+            entry<RythmeRoute.Player> {
+                PlayerScreen(
+                    onBack = {
+                        rootBackStack.remove(RythmeRoute.Player)
+                    }
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun ScaffoldNavigation(
+    openPlayer: () -> Unit
+) {
     val navigationState = rememberNavigationState(
         startRoute = RythmeRoute.Home,
         topLevelRoutes = ALL_TOP_LEVEL_ROUTES
@@ -55,7 +98,7 @@ fun RythmeApp() {
                     navigator.navigate(it)
                 },
                 onClickPlayer = {
-                    navigator.navigate(RythmeRoute.Player)
+                    openPlayer()
                 }
             )
         }
@@ -67,6 +110,15 @@ fun RythmeApp() {
                 modifier = Modifier
                     .fillMaxSize(),
                 onBack = navigator::goBack,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+                },
+                popTransitionSpec = {
+                    fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+                },
+                predictivePopTransitionSpec = {
+                    fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+                },
                 sceneStrategy = remember { DialogSceneStrategy() },
                 entries = navigationState.toEntries(
                     entryProvider {
@@ -82,20 +134,28 @@ fun RythmeApp() {
                         entry<RythmeRoute.Search> {
                             SearchScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
-                        entry<RythmeRoute.SongList> {
-                            SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
-                        }
-
-                        entry<RythmeRoute.Player>(
-                            metadata = DialogSceneStrategy.dialog(
-                                dialogProperties = DialogProperties(
-                                    dismissOnBackPress = true,
-                                    usePlatformDefaultWidth = false,
-                                    decorFitsSystemWindows = false
-                                )
-                            )
+                        entry<RythmeRoute.SongList>(
+                            metadata = NavDisplay.transitionSpec {
+                                slideInHorizontally(
+                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                ) { it } togetherWith slideOutHorizontally(
+                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                ) { -it / 2 }
+                            } + NavDisplay.popTransitionSpec {
+                                slideInHorizontally(
+                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                ) { -it / 2 } togetherWith slideOutHorizontally(
+                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                ) { it }
+                            } + NavDisplay.predictivePopTransitionSpec {
+                                slideInHorizontally(
+                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                ) { -it / 2 } togetherWith slideOutHorizontally(
+                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                ) { it }
+                            }
                         ) {
-                            PlayerScreen(navigator = navigator)
+                            SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
                         }
                     }
                 )

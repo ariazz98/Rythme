@@ -18,6 +18,10 @@ import kotlinx.serialization.Serializable
  */
 
 sealed interface RythmeRoute: NavKey {
+
+    @Serializable
+    data object ScaffoldPage : RythmeRoute
+
     /**
      * 主页
      */

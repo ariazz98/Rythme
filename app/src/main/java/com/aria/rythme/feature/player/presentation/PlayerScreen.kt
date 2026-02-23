@@ -71,7 +71,7 @@ import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.domain.model.RepeatMode
-import com.aria.rythme.core.navigation.Navigator
+import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.component.CoverItem
 import com.aria.rythme.ui.component.ProgressItem
 import com.aria.rythme.ui.component.VoiceItem
@@ -86,7 +86,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun PlayerScreen(
-    navigator: Navigator,
+    onBack: () -> Unit,
     viewModel: PlayerViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsUiState()
@@ -110,6 +110,7 @@ fun PlayerScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
+        .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
         .background(Brush.verticalGradient(
             colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
             startY = 0f,
@@ -127,7 +128,7 @@ fun PlayerScreen(
                 .clip(RoundedCornerShape(50))
                 .background(Color(0xFFB1B1B9))
                 .clickable(interactionSource = null, indication = null) {
-                    navigator.goBack()
+                    onBack()
                 }
         )
 

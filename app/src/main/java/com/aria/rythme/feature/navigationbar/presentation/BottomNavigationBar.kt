@@ -22,6 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -60,8 +62,10 @@ fun BottomNavigationBar(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
+            .background(verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f))))
             .navigationBarsPadding()
             .padding(start = 21.dp, end = 21.dp, bottom = 8.dp)
+
     ) {
         MiniPlayer(
             song = state.currentSong,
