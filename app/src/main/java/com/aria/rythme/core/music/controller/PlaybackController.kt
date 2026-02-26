@@ -82,8 +82,8 @@ class PlaybackController(private val context: Context) {
     private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") {
-                val streamType = intent?.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
-                RythmeLogger.d(TAG, "收到音量变化广播 - Action: ${intent?.action}, StreamType: $streamType")
+                val streamType = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+                RythmeLogger.d(TAG, "收到音量变化广播 - Action: ${intent.action}, StreamType: $streamType")
 
                 if (streamType == AudioManager.STREAM_MUSIC) {
                     updateVolumeState()

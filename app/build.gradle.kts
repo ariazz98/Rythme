@@ -90,4 +90,6 @@ dependencies {
     
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    implementation(libs.backdrop)
 }

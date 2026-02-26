@@ -1,7 +1,12 @@
 package com.aria.rythme.feature.navigationbar.presentation
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,20 +19,26 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
@@ -35,6 +46,12 @@ import com.aria.rythme.feature.player.presentation.PlayerIntent
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.ui.component.MiniPlayer
 import com.aria.rythme.ui.theme.rythmeColors
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -51,6 +68,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun BottomNavigationBar(
+    backdrop: Backdrop,
     selectedKey: NavKey,
     onSelectKey: (NavKey) -> Unit,
     onClickPlayer: () -> Unit,
@@ -58,6 +76,8 @@ fun BottomNavigationBar(
 ) {
 
     val state by viewModel.state.collectAsUiState()
+    val animationScope = rememberCoroutineScope()
+    val progressAnimation = remember { Animatable(0f) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -90,9 +110,45 @@ fun BottomNavigationBar(
 
         Box(
             modifier = Modifier
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { CircleShape },
+                    effects = {
+                        vibrancy()
+                        blur(4f.dp.toPx())
+                        lens(16f.dp.toPx(), 32f.dp.toPx())
+                    },
+                    layerBlock = {
+                        val progress = progressAnimation.value
+                        val maxScale = (size.width + 16f.dp.toPx()) / size.width
+                        val scale = lerp(1f, maxScale, progress)
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                    onDrawSurface = { drawRect(Color.White.copy(alpha = 0.5f)) }
+                )
+                .clickable(
+                    interactionSource = null,
+                    indication = null
+                ) {}
+                .pointerInput(animationScope) {
+                    val animationSpec = spring(0.5f, 300f, 0.001f)
+                    awaitEachGesture {
+                        // press
+                        awaitFirstDown()
+                        animationScope.launch {
+                            progressAnimation.animateTo(1f, animationSpec)
+                        }
+
+                        // release
+                        waitForUpOrCancellation()
+                        animationScope.launch {
+                            progressAnimation.animateTo(0f, animationSpec)
+                        }
+                    }
+                }
                 .fillMaxWidth()
                 .height(64.dp)
-                .background(MaterialTheme.rythmeColors.bottomBackground, RoundedCornerShape(30.dp))
         ) {
             Row(
                 modifier = Modifier

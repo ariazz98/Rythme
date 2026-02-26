@@ -21,12 +21,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
+import com.aria.rythme.core.navigation.NavigationState
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.core.navigation.rememberNavigationState
 import com.aria.rythme.core.navigation.toEntries
@@ -40,6 +42,8 @@ import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.ui.theme.rythmeColors
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.parameter.parametersOf
@@ -48,6 +52,13 @@ val LocalInnerPadding = staticCompositionLocalOf { PaddingValues(0.dp) }
 @Composable
 fun RythmeApp() {
     val rootBackStack = rememberNavBackStack(RythmeRoute.ScaffoldPage)
+    val navigationState = rememberNavigationState(
+        startRoute = RythmeRoute.Home,
+        topLevelRoutes = ALL_TOP_LEVEL_ROUTES
+    )
+    // 创建导航控制器
+    val navigator = remember { Navigator(navigationState) }
+
     NavDisplay(
         backStack = rootBackStack,
         modifier = Modifier.fillMaxSize(),
@@ -62,7 +73,7 @@ fun RythmeApp() {
         },
         entryProvider = entryProvider {
             entry<RythmeRoute.ScaffoldPage> {
-                ScaffoldNavigation {
+                ScaffoldNavigation(navigationState, navigator) {
                     rootBackStack.add(RythmeRoute.Player)
                 }
             }
@@ -79,20 +90,21 @@ fun RythmeApp() {
 
 @Composable
 private fun ScaffoldNavigation(
+    navigationState: NavigationState,
+    navigator: Navigator,
     openPlayer: () -> Unit
 ) {
-    val navigationState = rememberNavigationState(
-        startRoute = RythmeRoute.Home,
-        topLevelRoutes = ALL_TOP_LEVEL_ROUTES
-    )
 
-    // 创建导航控制器
-    val navigator = remember { Navigator(navigationState) }
+    val backdrop = rememberLayerBackdrop {
+        drawRect(Color.White)
+        drawContent()
+    }
 
     Scaffold(
         modifier = Modifier.background(MaterialTheme.rythmeColors.surface),
         bottomBar = {
             BottomNavigationBar(
+                backdrop = backdrop,
                 selectedKey = navigationState.topLevelRoute,
                 onSelectKey = {
                     navigator.navigate(it)
@@ -108,7 +120,8 @@ private fun ScaffoldNavigation(
         ) {
             NavDisplay(
                 modifier = Modifier
-                    .fillMaxSize(),
+                    .fillMaxSize()
+                    .layerBackdrop(backdrop),
                 onBack = navigator::goBack,
                 transitionSpec = {
                     fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
