@@ -3,6 +3,7 @@
 package com.aria.rythme
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -13,16 +14,19 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -60,47 +64,39 @@ val LocalBackdrop = staticCompositionLocalOf<Backdrop> { error("Backdrop must be
 
 @Composable
 fun RythmeApp() {
-    val rootNavigationState = rememberNavigationState(
-        startRoute = RythmeRoute.ScaffoldPage,
-        topLevelRoutes = setOf(RythmeRoute.ScaffoldPage, RythmeRoute.Player)
-    )
-    val scaffoldNavigationState = rememberNavigationState(
+    val navigationState = rememberNavigationState(
         startRoute = RythmeRoute.Home,
         topLevelRoutes = ALL_TOP_LEVEL_ROUTES
     )
-    val rootNavigator = remember { Navigator(rootNavigationState) }
-    // 创建导航控制器
-    val navigator = remember { Navigator(scaffoldNavigationState) }
+    val navigator = remember { Navigator(navigationState) }
+    // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
+    var playerVisible by remember { mutableStateOf(false) }
 
-    NavDisplay(
-        modifier = Modifier.fillMaxSize(),
-        onBack = rootNavigator::goBack,
-        transitionSpec = {
-            slideInVertically(animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)) { it } togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
-        },
-        popTransitionSpec = {
-            fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith slideOutVertically(animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)) { it }
-        },
-        predictivePopTransitionSpec = {
-            fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith slideOutVertically(animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)) { it }
-        },
-        entries = rootNavigationState.toEntries(
-            entryProvider = entryProvider {
-                entry<RythmeRoute.ScaffoldPage> {
-                    ScaffoldNavigation(scaffoldNavigationState, navigator) {
-                        rootNavigator.navigate(RythmeRoute.Player)
-                    }
-                }
-                entry<RythmeRoute.Player> {
-                    PlayerScreen(
-                        onBack = {
-                            rootNavigator.goBack()
-                        }
-                    )
-                }
-            }
+    // 当 Player 可见时拦截系统返回键，关闭 Player 而非退出应用
+    BackHandler(enabled = playerVisible) {
+        playerVisible = false
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        ScaffoldNavigation(
+            navigationState = navigationState,
+            navigator = navigator,
+            openPlayer = { playerVisible = true }
         )
-    )
+
+        // Player 全屏浮层：从底部滑入/滑出，Scaffold 保持存活
+        AnimatedVisibility(
+            visible = playerVisible,
+            enter = slideInVertically(
+                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+            ) { it },
+            exit = slideOutVertically(
+                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+            ) { it }
+        ) {
+            PlayerScreen(onBack = { playerVisible = false })
+        }
+    }
 }
 
 @Composable
@@ -116,29 +112,33 @@ private fun ScaffoldNavigation(
 
     val topBarState = rememberTopBarState()
 
-    // 根据当前 tab 确定标题和按钮配置
-    val topBarTitleRes = when (navigationState.topLevelRoute) {
-        RythmeRoute.Home -> R.string.title_home
-        RythmeRoute.Library -> R.string.title_library
-        RythmeRoute.Search -> R.string.title_search
-        RythmeRoute.Playlist -> R.string.title_play_list
-        else -> R.string.title_home
-    }
-    val topBarHasMoreMenu = navigationState.topLevelRoute == RythmeRoute.Library
-
     CompositionLocalProvider(
         LocalBackdrop provides backdrop
     ) {
         Scaffold(
             topBar = {
-                RythmeHeader(
-                    title = stringResource(topBarTitleRes),
-                    hasMoreMenu = topBarHasMoreMenu,
-                    hasAvatar = true,
-                    isShow = topBarState.isScrollAtTop,
-                    onMoreClick = { /* TODO */ },
-                    onAvatarClick = { /* TODO */ }
-                )
+                // Crossfade 使标题、按钮与页面内容同步切换，避免标题先于内容更新
+                Crossfade(
+                    targetState = navigationState.topLevelRoute,
+                    animationSpec = tween(durationMillis = 100)
+                ) { route ->
+                    val titleRes = when (route) {
+                        RythmeRoute.Home -> R.string.title_home
+                        RythmeRoute.Library -> R.string.title_library
+                        RythmeRoute.Search -> R.string.title_search
+                        RythmeRoute.Playlist -> R.string.title_play_list
+                        else -> R.string.title_home
+                    }
+                    RythmeHeader(
+                        title = stringResource(titleRes),
+                        hasMoreMenu = route == RythmeRoute.Library,
+                        hasAvatar = true,
+                        // 使用该路由自己的滚动缓存，而非全局当前值
+                        isShow = topBarState.isScrollAtTop(route),
+                        onMoreClick = { /* TODO */ },
+                        onAvatarClick = { /* TODO */ }
+                    )
+                }
             },
             bottomBar = {
                 BottomNavigationBar(

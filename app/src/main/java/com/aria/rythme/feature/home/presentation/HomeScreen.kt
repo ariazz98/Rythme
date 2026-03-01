@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.core.navigation.Navigator
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.LargeVerticalCard
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.MiddleVerticalCard
@@ -24,7 +25,7 @@ fun HomeScreen(
     viewModel: HomeViewModel
 ) {
 
-    MainListPage {
+    MainListPage(routeKey = RythmeRoute.Home) {
         // 专属精选推荐区块
         item {
             SectionItem(

@@ -24,12 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
 fun MainListPage(
+    routeKey: NavKey,
     mainContent: LazyListScope.() -> Unit
 ) {
 
@@ -46,11 +48,11 @@ fun MainListPage(
         }
     }
 
-    // 同步滚动位置到全局 TopBar 可见性状态
+    // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
     LaunchedEffect(listState) {
         snapshotFlow { isAtTop }.collect { atTop ->
-            topBarState.isScrollAtTop = atTop
+            topBarState.updateScrollAtTop(routeKey, atTop)
         }
     }
 
@@ -77,6 +79,7 @@ fun MainListPage(
 
 @Composable
 fun MainGridPage(
+    routeKey: NavKey,
     gridCount: Int = 2,
     mainContent: LazyGridScope.() -> Unit
 ) {
@@ -93,11 +96,11 @@ fun MainGridPage(
         }
     }
 
-    // 同步滚动位置到全局 TopBar 可见性状态
+    // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
     LaunchedEffect(gridState) {
         snapshotFlow { isAtTop }.collect { atTop ->
-            topBarState.isScrollAtTop = atTop
+            topBarState.updateScrollAtTop(routeKey, atTop)
         }
     }
 
