@@ -92,4 +92,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.backdrop)
+    implementation(libs.capsule)
 }

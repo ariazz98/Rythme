@@ -3,9 +3,7 @@ package com.aria.rythme.ui.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +19,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.R
 import com.aria.rythme.core.music.data.model.Song
+import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
 fun CoverItem(
@@ -34,7 +33,7 @@ fun CoverItem(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(corner))
+            .clip(ContinuousRoundedRectangle(corner))
             .background(defaultBgColor),
         contentAlignment = Alignment.Center
     ) {

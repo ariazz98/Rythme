@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recommend
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import com.aria.rythme.R
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.RythmeListItem
 import com.aria.rythme.ui.theme.rythmeColors
@@ -25,15 +24,6 @@ fun LibraryScreen(
 ) {
 
     MainListPage(
-        titleRes = R.string.title_library,
-        hasMoreMenu = true,
-        hasAvatar = true,
-        onMoreClick = {
-            // TODO: 点击打开菜单
-        },
-        onAvatarClick = {
-            // TODO: 头像点击打开半屏
-        },
         mainContent = {
             // 播放列表
             item {

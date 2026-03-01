@@ -37,7 +37,7 @@ private val LightRythmeColors = RythmeColors(
 
 private val DarkRythmeColors = RythmeColors(
     primary = PrimaryPink,
-    bottomSelected = BottomBarSelected,
+    bottomSelected = BottomBarSelectedDark,
     bottomUnselected = BottomBarUnSelected,
     bottomBackground = BottomBarBackgroundDark,
     textColor = Color.White,

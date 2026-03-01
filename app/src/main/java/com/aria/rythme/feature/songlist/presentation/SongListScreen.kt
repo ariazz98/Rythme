@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -37,6 +36,7 @@ import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.theme.rythmeColors
+import com.kyant.capsule.ContinuousRoundedRectangle
 
 /**
  * 歌曲列表页面
@@ -58,7 +58,7 @@ fun SongListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
+            .clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
             .background(MaterialTheme.rythmeColors.surface)
     ) {
         // 顶部导航栏
@@ -221,7 +221,7 @@ fun PlaybackButton(
     Box(
         modifier = modifier
             .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(ContinuousRoundedRectangle(24.dp))
             .background(
                 if (isActive) {
                     MaterialTheme.rythmeColors.primary.copy(alpha = 0.1f)
@@ -288,7 +288,7 @@ fun SongListItem(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(ContinuousRoundedRectangle(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         )
 

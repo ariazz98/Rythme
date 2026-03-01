@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -75,6 +74,8 @@ import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.component.CoverItem
 import com.aria.rythme.ui.component.ProgressItem
 import com.aria.rythme.ui.component.VoiceItem
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -110,7 +111,7 @@ fun PlayerScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
+        .clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
         .background(Brush.verticalGradient(
             colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
             startY = 0f,
@@ -125,7 +126,7 @@ fun PlayerScreen(
             modifier = Modifier
                 .width(62.dp)
                 .height(6.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(ContinuousCapsule)
                 .background(Color(0xFFB1B1B9))
                 .clickable(interactionSource = null, indication = null) {
                     onBack()
@@ -366,7 +367,7 @@ private fun AlbumCover(
             .fillMaxWidth(0.8f)
             .aspectRatio(1f)
             .scale(scale)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(ContinuousRoundedRectangle(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {

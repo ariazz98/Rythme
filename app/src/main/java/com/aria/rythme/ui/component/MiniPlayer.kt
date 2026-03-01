@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,10 +28,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.capsule.ContinuousCapsule
 
 @Composable
 fun MiniPlayer(
@@ -43,12 +48,24 @@ fun MiniPlayer(
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
 ) {
+    val backdrop = LocalBackdrop.current
+    val containerColor = MaterialTheme.rythmeColors.bottomBackground
     Row(
         modifier = Modifier
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { ContinuousCapsule },
+                effects = {
+                    vibrancy()
+                    blur(2f.dp.toPx())
+                    lens(24f.dp.toPx(), 32f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(containerColor)
+                }
+            )
             .fillMaxWidth()
             .height(50.dp)
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.rythmeColors.bottomBackground)
             .clickable {
                 onClick()
             },
@@ -60,7 +77,7 @@ fun MiniPlayer(
             size = 32.dp,
             corner = 6.dp,
             song = song,
-            defaultBgColor = Color(0xFFD6D6D5),
+            defaultBgColor = Color(0x99D6D6D5),
             defaultIconColor = Color(0xFF4A4A49)
         )
 

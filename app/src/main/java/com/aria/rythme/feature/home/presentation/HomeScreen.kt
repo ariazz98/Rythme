@@ -8,7 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.aria.rythme.R
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.ui.component.LargeVerticalCard
 import com.aria.rythme.ui.component.MainListPage
@@ -25,14 +24,7 @@ fun HomeScreen(
     viewModel: HomeViewModel
 ) {
 
-    MainListPage(
-        titleRes = R.string.title_home,
-        hasMoreMenu = false,
-        hasAvatar = true,
-        onAvatarClick = {
-            // TODO: 打开个人资料
-        }
-    ) {
+    MainListPage {
         // 专属精选推荐区块
         item {
             SectionItem(

@@ -7,11 +7,12 @@ val SurfaceBackgroundDark = Color.Black
 val PrimaryPink = Color(0xFFFF2D55)
 val PrimaryPinkDark = Color(0xFFFF375F)
 
-val BottomBarSelected = Color(0xFFEDEDED)
+val BottomBarSelected = Color.Black.copy(0.1f)
+val BottomBarSelectedDark = Color.White.copy(0.1f)
 val BottomBarUnSelected = Color.Transparent
 
-val BottomBarBackground = Color(0xFFF2F2F7)
-val BottomBarBackgroundDark = Color(0xFF1C1C1E)
+val BottomBarBackground = Color(0x66FAFAFA)
+val BottomBarBackgroundDark = Color(0x66121212)
 
 val Gray4 = Color(0xFFD1D1D6)
 val Gray4Dark = Color(0xFF3A3A3C)

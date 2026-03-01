@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
 import com.aria.rythme.core.utils.formatLeftTime
 import com.aria.rythme.core.utils.formatPosition
-
+import com.kyant.capsule.ContinuousCapsule
 @Composable
 fun ProgressItem(
     progress: Float,
@@ -245,7 +244,7 @@ fun RythmeDraggableProgressBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(barHeight)
-                .clip(RoundedCornerShape(50))
+                .clip(ContinuousCapsule)
                 .pointerInput(enabled) {
                     if (enabled) {
                         awaitPointerEventScope {
@@ -354,7 +353,7 @@ fun RythmeDraggableProgressBarNoPadding(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(barHeight)
-                .clip(RoundedCornerShape(50))
+                .clip(ContinuousCapsule)
                 .pointerInput(enabled) {
                     if (enabled) {
                         awaitPointerEventScope {

@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -51,6 +49,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -112,7 +111,7 @@ fun BottomNavigationBar(
             modifier = Modifier
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { CircleShape },
+                    shape = { ContinuousCapsule },
                     effects = {
                         vibrancy()
                         blur(4f.dp.toPx())
@@ -183,7 +182,7 @@ fun BottomNavigationItem(
             .fillMaxSize()
             .background(
                 if (isSelected) MaterialTheme.rythmeColors.bottomSelected else MaterialTheme.rythmeColors.bottomUnselected,
-                RoundedCornerShape(50)
+                ContinuousCapsule
             )
             .clickable(
                 interactionSource = null,

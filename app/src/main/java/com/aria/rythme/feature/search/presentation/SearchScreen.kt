@@ -3,8 +3,6 @@ package com.aria.rythme.feature.search.presentation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.aria.rythme.R
-import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.ui.component.MainGridPage
 import com.aria.rythme.ui.component.SmallCategoryCard
 
@@ -17,14 +15,7 @@ fun SearchScreen(
     viewModel: SearchViewModel
 ) {
 
-    MainGridPage(
-        titleRes = R.string.title_search,
-        hasMoreMenu = false,
-        hasAvatar = true,
-        onAvatarClick = {
-            // TODO: 打开个人资料
-        }
-    ) {
+    MainGridPage {
         // 农历新年
         item {
             SmallCategoryCard(
