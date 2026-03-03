@@ -104,8 +104,8 @@ fun CustomBottomBar(
             .padding(start = 21.dp, end = 21.dp, bottom = 8.dp)
     ) {
         BoxWithConstraints(
-            modifier = modifier,
-            contentAlignment = Alignment.CenterStart
+            modifier = modifier.height(BarHeight),
+            contentAlignment = Alignment.Center
         ) {
             val density = LocalDensity.current
             // 总可用宽度（去掉间距和圆形最小尺寸）
