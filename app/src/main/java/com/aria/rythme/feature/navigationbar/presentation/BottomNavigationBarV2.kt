@@ -115,10 +115,13 @@ fun CustomBottomBar(
             // 胶囊最大宽度 = 总宽度 - 间距 - 圆形尺寸
             val capsuleMaxWidth = totalWidthDp - GapWidth - circleSize
 
+            // 整体高度：主tab展开时64dp，action展开时56dp
+            val currentHeight = lerp(BarHeight.value - 14f, BarHeight.value, expandFraction).dp
+
             // 主tab宽度：从圆形到胶囊
-            val mainTabWidth = lerp(circleSize.value, capsuleMaxWidth.value, expandFraction).dp
+            val mainTabWidth = lerp(currentHeight.value, (totalWidthDp - GapWidth - currentHeight).value, expandFraction).dp
             // action宽度：从胶囊到圆形（与主tab互补）
-            val actionWidth = lerp(capsuleMaxWidth.value, circleSize.value, expandFraction).dp
+            val actionWidth = lerp((totalWidthDp - GapWidth - currentHeight).value, currentHeight.value, expandFraction).dp
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(GapWidth),
@@ -141,7 +144,7 @@ fun CustomBottomBar(
                             onDrawSurface = { drawRect(containerColor) }
                         )
                         .width(mainTabWidth)
-                        .height(BarHeight)
+                        .height(currentHeight)
                         .clickable(
                             interactionSource = null,
                             indication = null
@@ -194,7 +197,7 @@ fun CustomBottomBar(
                             onDrawSurface = { drawRect(containerColor) }
                         )
                         .width(actionWidth)
-                        .height(BarHeight)
+                        .height(currentHeight)
                         .clickable(
                             interactionSource = null,
                             indication = null
