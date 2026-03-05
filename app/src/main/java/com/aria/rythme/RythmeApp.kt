@@ -2,16 +2,15 @@
 
 package com.aria.rythme
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -26,8 +25,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -62,6 +63,8 @@ import org.koin.core.parameter.parametersOf
 
 val LocalInnerPadding = staticCompositionLocalOf { PaddingValues(0.dp) }
 val LocalBackdrop = staticCompositionLocalOf<Backdrop> { error("Backdrop must be provided") }
+val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope> { error("No SharedTransitionScope") }
+val LocalPlayerVisible = compositionLocalOf { false }
 
 @Composable
 fun RythmeApp() {
@@ -78,24 +81,19 @@ fun RythmeApp() {
         playerVisible = false
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        ScaffoldNavigation(
-            navigationState = navigationState,
-            navigator = navigator,
-            openPlayer = { playerVisible = true }
-        )
-
-        // Player 全屏浮层：从底部滑入/滑出，Scaffold 保持存活
-        AnimatedVisibility(
-            visible = playerVisible,
-            enter = slideInVertically(
-                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
-            ) { it },
-            exit = slideOutVertically(
-                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
-            ) { it }
+    SharedTransitionLayout {
+        CompositionLocalProvider(
+            LocalSharedTransitionScope provides this@SharedTransitionLayout,
+            LocalPlayerVisible provides playerVisible
         ) {
-            PlayerScreen(onBack = { playerVisible = false })
+            Box(modifier = Modifier.fillMaxSize()) {
+                ScaffoldNavigation(
+                    navigationState = navigationState,
+                    navigator = navigator,
+                    openPlayer = { playerVisible = true }
+                )
+                PlayerScreen(onBack = { playerVisible = false })
+            }
         }
     }
 }

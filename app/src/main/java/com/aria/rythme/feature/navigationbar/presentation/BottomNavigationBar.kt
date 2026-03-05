@@ -1,6 +1,10 @@
 package com.aria.rythme.feature.navigationbar.presentation
 
+import androidx.compose.animation.SharedTransitionScope.ResizeMode
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.aria.rythme.LocalPlayerVisible
+import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.player.presentation.PlayerIntent
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
@@ -63,6 +69,9 @@ fun BottomNavigationBar(
 ) {
     val state by viewModel.state.collectAsUiState()
 
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val playerVisible = LocalPlayerVisible.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -71,20 +80,40 @@ fun BottomNavigationBar(
             .navigationBarsPadding()
             .padding(start = 21.dp, end = 21.dp, bottom = 8.dp)
     ) {
-        MiniPlayer(
-            song = state.currentSong,
-            canPlayNext = state.canPlayNext,
-            isPlaying = state.isPlaying,
-            onClick = { onClickPlayer() },
-            onPlayPauseClick = {
-                if (state.currentSong == null) {
-                    viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
-                } else {
-                    viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+        // 固定高度防止 MiniPlayer 退出时布局抖动
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp)) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !playerVisible,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                val animVisScope = this
+                with(sharedTransitionScope) {
+                    Box(
+                        modifier = Modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(key = "playerContainer"),
+                            animatedVisibilityScope = animVisScope,
+                            resizeMode = ResizeMode.RemeasureToBounds
+                        )
+                    ) {
+                        MiniPlayer(
+                            song = state.currentSong,
+                            canPlayNext = state.canPlayNext,
+                            isPlaying = state.isPlaying,
+                            onClick = { onClickPlayer() },
+                            onPlayPauseClick = {
+                                if (state.currentSong == null) {
+                                    viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                                } else {
+                                    viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                                }
+                            },
+                            onNextClick = { viewModel.sendIntent(PlayerIntent.Next) }
+                        )
+                    }
                 }
-            },
-            onNextClick = { viewModel.sendIntent(PlayerIntent.Next) }
-        )
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 

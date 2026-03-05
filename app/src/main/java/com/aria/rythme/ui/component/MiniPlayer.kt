@@ -2,7 +2,6 @@ package com.aria.rythme.ui.component
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -23,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.BlendMode
@@ -39,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.launch
 import com.aria.rythme.LocalBackdrop
+import com.aria.rythme.LocalPlayerVisible
+import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
@@ -94,6 +94,9 @@ fun MiniPlayer(
      */
     val pressSpec = spring(1f, 1000f, 0.001f)
 
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val playerVisible = LocalPlayerVisible.current
+
     Row(
         modifier = Modifier
             .drawBackdrop(
@@ -132,14 +135,21 @@ fun MiniPlayer(
         verticalAlignment = Alignment.CenterVertically
     ) {
 
-        CoverItem(
-            modifier = Modifier.padding(start = 16.dp),
-            size = 32.dp,
-            corner = 6.dp,
-            song = song,
-            defaultBgColor = Color(0x99D6D6D5),
-            defaultIconColor = Color(0xFF4A4A49)
-        )
+        with(sharedTransitionScope) {
+            CoverItem(
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .sharedElementWithCallerManagedVisibility(
+                        sharedContentState = rememberSharedContentState(key = "cover"),
+                        visible = !playerVisible
+                    ),
+                size = 32.dp,
+                corner = 6.dp,
+                song = song,
+                defaultBgColor = Color(0x99D6D6D5),
+                defaultIconColor = Color(0xFF4A4A49)
+            )
+        }
 
         Column(modifier = Modifier.weight(1f)) {
             Text(

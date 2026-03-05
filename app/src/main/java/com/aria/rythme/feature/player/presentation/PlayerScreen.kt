@@ -1,10 +1,14 @@
 package com.aria.rythme.feature.player.presentation
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -65,6 +70,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.aria.rythme.LocalPlayerVisible
+import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.extensions.customMarquee
@@ -91,6 +98,8 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsUiState()
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val playerVisible = LocalPlayerVisible.current
 
     val width = LocalWindowInfo.current.containerDpSize.width
 
@@ -109,241 +118,258 @@ fun PlayerScreen(
         }
     )
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
-        .background(Brush.verticalGradient(
-            colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
-            startY = 0f,
-            endY = Float.POSITIVE_INFINITY
-        ))
-        .clickable(interactionSource = null, indication = null) {
-
-        },
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        Spacer(modifier = Modifier.statusBarsPadding().height(16.dp))
-
-        Box(
-            modifier = Modifier
-                .width(62.dp)
-                .height(6.dp)
-                .clip(ContinuousCapsule)
-                .background(Color(0xFFB1B1B9))
+    with(sharedTransitionScope) {
+        AnimatedVisibility(
+            visible = playerVisible,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Column(modifier = Modifier
                 .clickable(interactionSource = null, indication = null) {
-                    onBack()
+
                 }
-        )
-
-        Box(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-
-            CoverItem(
-                size = animateCoverSize,
-                corner = 9.dp,
-                song = state.currentSong,
-                defaultBgColor = Color(0xFF606063),
-                defaultIconColor = Color(0xFF737376)
-            )
-
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                .sharedBounds(
+                    sharedContentState = rememberSharedContentState(key = "playerContainer"),
+                    animatedVisibilityScope = this,
+                    resizeMode = ResizeMode.RemeasureToBounds
+                )
+                .fillMaxSize()
+                .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
+                .background(Brush.verticalGradient(
+                    colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
+                    startY = 0f,
+                    endY = Float.POSITIVE_INFINITY
+                )),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
+                Spacer(modifier = Modifier.statusBarsPadding().height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .width(62.dp)
+                        .height(6.dp)
+                        .clip(ContinuousCapsule)
+                        .background(Color(0xFFB1B1B9))
+                        .clickable(interactionSource = null, indication = null) {
+                            onBack()
+                        }
+                )
+
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+
+                    CoverItem(
+                        modifier = Modifier.sharedElementWithCallerManagedVisibility(
+                            sharedContentState = rememberSharedContentState(key = "cover"),
+                            visible = playerVisible
+                        ),
+                        size = animateCoverSize,
+                        corner = 9.dp,
+                        song = state.currentSong,
+                        defaultBgColor = Color(0xFF606063),
+                        defaultIconColor = Color(0xFF737376)
+                    )
+
+                }
+
                 Column(
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                 ) {
-                    Text(
-                        text = state.currentSong?.title ?: stringResource(R.string.not_play),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                            }
-                            .drawWithContent {
-                                drawContent()
-                                drawRect(
-                                    brush = Brush.horizontalGradient(
-                                        0f to Color.Transparent,
-                                        1f to Color.Black,
-                                        startX = 0f,
-                                        endX = 8.dp.toPx()
-                                    ),
-                                    blendMode = BlendMode.DstIn
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                        ) {
+                            Text(
+                                text = state.currentSong?.title ?: stringResource(R.string.not_play),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer {
+                                        compositingStrategy = CompositingStrategy.Offscreen
+                                    }
+                                    .drawWithContent {
+                                        drawContent()
+                                        drawRect(
+                                            brush = Brush.horizontalGradient(
+                                                0f to Color.Transparent,
+                                                1f to Color.Black,
+                                                startX = 0f,
+                                                endX = 8.dp.toPx()
+                                            ),
+                                            blendMode = BlendMode.DstIn
+                                        )
+                                        drawRect(
+                                            brush = Brush.horizontalGradient(
+                                                0.9f to Color.Black,
+                                                1f to Color.Transparent
+                                            ),
+                                            blendMode = BlendMode.DstIn
+                                        )
+                                    }
+                                    .customMarquee()
+                                    .padding(start = 32.dp)
+                            )
+                            if (!state.currentSong?.artist.isNullOrEmpty()) {
+                                Text(
+                                    text = state.currentSong!!.artist,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0x80FFFFFF),
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(start = 32.dp)
                                 )
-                                drawRect(
-                                    brush = Brush.horizontalGradient(
-                                        0.9f to Color.Black,
-                                        1f to Color.Transparent
-                                    ),
-                                    blendMode = BlendMode.DstIn
+                            }
+                        }
+
+                        if (state.currentSong != null) {
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x30FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_star),
+                                    contentDescription = "",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
-                            .customMarquee()
-                            .padding(start = 32.dp)
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x30FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_more),
+                                    contentDescription = "",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(32.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    ProgressItem(
+                        enabled = state.currentSong != null,
+                        progress = state.progress,
+                        currentPosition = state.currentPosition,
+                        duration = state.duration,
+                        onSeek = { viewModel.sendIntent(PlayerIntent.SeekTo((it * state.duration).toLong())) }
                     )
-                    if (!state.currentSong?.artist.isNullOrEmpty()) {
-                        Text(
-                            text = state.currentSong!!.artist,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0x80FFFFFF),
-                            maxLines = 1,
-                            modifier = Modifier.padding(start = 32.dp)
-                        )
-                    }
-                }
 
-                if (state.currentSong != null) {
+                    Spacer(modifier = Modifier.height(28.dp))
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x30FFFFFF)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_star),
+                            painter = painterResource(R.drawable.ic_previous),
+                            contentDescription = "",
+                            tint = if (state.canPlayPrevious) Color.White else Color(0x33FFFFFF),
+                            modifier = Modifier.size(40.dp)
+                                .clickable(interactionSource = null, indication = null) {
+                                    viewModel.sendIntent(PlayerIntent.Previous)
+                                }
+                        )
+
+                        Icon(
+                            painter = if (state.isPlaying) painterResource(R.drawable.ic_pause) else painterResource(R.drawable.ic_play),
                             contentDescription = "",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(40.dp)
+                                .clickable(interactionSource = null, indication = null) {
+                                    if (state.currentSong == null) {
+                                        // 如果当前没有歌曲播放，加载并随机播放一首
+                                        viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                                    } else {
+                                        // 否则切换播放/暂停状态
+                                        viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                                    }
+                                }
                         )
+
+                        Icon(
+                            painter = painterResource(R.drawable.ic_next),
+                            contentDescription = "",
+                            tint = if (state.canPlayNext) Color.White else Color(0x33FFFFFF),
+                            modifier = Modifier.size(40.dp)
+                                .clickable(interactionSource = null, indication = null) {
+                                    viewModel.sendIntent(PlayerIntent.Next)
+                                }
+                        )
+
                     }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.height(56.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x30FFFFFF)),
-                        contentAlignment = Alignment.Center
+                    VoiceItem(
+                        progress = state.volume / 100f,
+                        onSeek = { viewModel.sendIntent(PlayerIntent.SetVolume((it * 100).toInt())) }
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceAround
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_more),
+                            painter = painterResource(R.drawable.ic_lrc),
                             contentDescription = "",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(24.dp)
+                        )
+
+                        Icon(
+                            painter = painterResource(R.drawable.ic_airplay),
+                            contentDescription = "",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+
+                        Icon(
+                            painter = painterResource(R.drawable.ic_play_list),
+                            contentDescription = "",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(32.dp))
+                    Spacer(modifier = Modifier.height(56.dp))
                 }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            ProgressItem(
-                enabled = state.currentSong != null,
-                progress = state.progress,
-                currentPosition = state.currentPosition,
-                duration = state.duration,
-                onSeek = { viewModel.sendIntent(PlayerIntent.SeekTo((it * state.duration).toLong())) }
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_previous),
-                    contentDescription = "",
-                    tint = if (state.canPlayPrevious) Color.White else Color(0x33FFFFFF),
-                    modifier = Modifier.size(40.dp)
-                        .clickable(interactionSource = null, indication = null) {
-                            viewModel.sendIntent(PlayerIntent.Previous)
-                        }
-                )
-
-                Icon(
-                    painter = if (state.isPlaying) painterResource(R.drawable.ic_pause) else painterResource(R.drawable.ic_play),
-                    contentDescription = "",
-                    tint = Color.White,
-                    modifier = Modifier.size(40.dp)
-                        .clickable(interactionSource = null, indication = null) {
-                            if (state.currentSong == null) {
-                                // 如果当前没有歌曲播放，加载并随机播放一首
-                                viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
-                            } else {
-                                // 否则切换播放/暂停状态
-                                viewModel.sendIntent(PlayerIntent.TogglePlayPause)
-                            }
-                        }
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.ic_next),
-                    contentDescription = "",
-                    tint = if (state.canPlayNext) Color.White else Color(0x33FFFFFF),
-                    modifier = Modifier.size(40.dp)
-                        .clickable(interactionSource = null, indication = null) {
-                            viewModel.sendIntent(PlayerIntent.Next)
-                        }
-                )
 
             }
-
-            Spacer(modifier = Modifier.height(56.dp))
-
-            VoiceItem(
-                progress = state.volume / 100f,
-                onSeek = { viewModel.sendIntent(PlayerIntent.SetVolume((it * 100).toInt())) }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lrc),
-                    contentDescription = "",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.ic_airplay),
-                    contentDescription = "",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.ic_play_list),
-                    contentDescription = "",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(56.dp))
         }
-
     }
 }
 
