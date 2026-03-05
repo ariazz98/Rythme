@@ -25,7 +25,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -89,6 +91,7 @@ fun LiquidBottomTabs(
     onTabSelected: (index: Int) -> Unit,
     backdrop: Backdrop = LocalBackdrop.current
 ) {
+    var searchText by remember { mutableStateOf("") }
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val selectColor = MaterialTheme.rythmeColors.bottomSelected
 
@@ -499,12 +502,29 @@ fun LiquidBottomTabs(
                 if (expandFraction < 0.8f) {
                     Spacer(modifier = Modifier.width(8.dp))
                     // 输入框
-                    Text(
-                        text = stringResource(R.string.search_hint),
-                        color = MaterialTheme.rythmeColors.subTitleColor,
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    BasicTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        singleLine = true,
+                        cursorBrush = SolidColor(MaterialTheme.rythmeColors.primary),
+                        textStyle = TextStyle(
+                            color = MaterialTheme.rythmeColors.subTitleColor,
+                            fontSize = 16.sp
+                        ),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (searchText.isEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.search_hint),
+                                        color = MaterialTheme.rythmeColors.subTitleColor,
+                                        fontSize = 16.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
                         modifier = Modifier.requiredWidth(totalWidthDp - 144.dp).alpha(1f - expandFraction)
                     )
 

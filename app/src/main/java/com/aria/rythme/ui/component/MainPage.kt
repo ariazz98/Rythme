@@ -21,13 +21,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.LocalInnerPadding
-import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
-import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
 fun MainListPage(
@@ -57,7 +54,7 @@ fun MainListPage(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
+        modifier = Modifier.fillMaxSize()
     ) {
         LazyColumn(
             state = listState,
@@ -105,7 +102,7 @@ fun MainGridPage(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
+        modifier = Modifier.fillMaxSize()
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridCount),

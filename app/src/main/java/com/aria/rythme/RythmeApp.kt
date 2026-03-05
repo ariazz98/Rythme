@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -116,6 +117,7 @@ private fun ScaffoldNavigation(
         LocalBackdrop provides backdrop
     ) {
         Scaffold(
+            modifier = Modifier.imePadding(),
             topBar = {
                 // Crossfade 使标题、按钮与页面内容同步切换，避免标题先于内容更新
                 Crossfade(

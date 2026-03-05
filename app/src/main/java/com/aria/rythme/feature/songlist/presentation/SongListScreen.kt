@@ -34,7 +34,6 @@ import coil3.request.crossfade
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.core.music.data.model.Song
-import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousRoundedRectangle
 
@@ -58,7 +57,6 @@ fun SongListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
             .background(MaterialTheme.rythmeColors.surface)
     ) {
         // 顶部导航栏
