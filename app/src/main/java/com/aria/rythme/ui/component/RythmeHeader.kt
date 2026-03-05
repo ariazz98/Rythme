@@ -94,7 +94,7 @@ fun RythmeHeader(
                 .alpha(gradientAlpha)
                 .background(
                     Brush.verticalGradient(listOf(
-                        MaterialTheme.rythmeColors.surface.copy(0.1f), Color.Transparent
+                        MaterialTheme.rythmeColors.surface.copy(0.5f), Color.Transparent
                     ))
                 )
         )

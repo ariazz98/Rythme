@@ -76,17 +76,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.lerp
+import androidx.compose.runtime.mutableStateOf
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
+import androidx.compose.animation.animateColorAsState
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.domain.model.RepeatMode
+import com.aria.rythme.core.utils.GradientColors
+import com.aria.rythme.core.utils.ImageColorExtractor
 import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.component.CoverItem
 import com.aria.rythme.ui.component.ProgressItem
@@ -112,6 +115,16 @@ fun PlayerScreen(
     val state by viewModel.state.collectAsUiState()
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
+
+    var gradientColors by remember { mutableStateOf(GradientColors()) }
+    val animatedTop by animateColorAsState(gradientColors.top, tween(600))
+    val animatedCenter by animateColorAsState(gradientColors.center, tween(600))
+    val animatedBottom by animateColorAsState(gradientColors.bottom, tween(600))
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(animatedTop, animatedCenter, animatedBottom),
+        startY = 0f,
+        endY = Float.POSITIVE_INFINITY
+    )
 
     val width = LocalWindowInfo.current.containerDpSize.width
     val density = LocalDensity.current
@@ -184,11 +197,7 @@ fun PlayerScreen(
                     }
                 )
                 .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
-                .background(Brush.verticalGradient(
-                    colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
-                    startY = 0f,
-                    endY = Float.POSITIVE_INFINITY
-                )),
+                .background(backgroundBrush),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
@@ -199,7 +208,7 @@ fun PlayerScreen(
                         .width(62.dp)
                         .height(6.dp)
                         .clip(ContinuousCapsule)
-                        .background(Color(0xFFB1B1B9))
+                        .background(Color(0x33FFFFFF))
                         .clickable(interactionSource = null, indication = null) {
                             onBack()
                         }
@@ -219,9 +228,18 @@ fun PlayerScreen(
                         corner = 9.dp,
                         song = state.currentSong,
                         defaultBgColor = Color(0xFF606063),
+                        onBitmapReady = { bitmap ->
+                            if (bitmap != null) {
+                                scope.launch {
+                                    gradientColors = ImageColorExtractor.extractGradientColors(bitmap)
+                                    bitmap.recycle()
+                                }
+                            } else {
+                                gradientColors = GradientColors()
+                            }
+                        },
                         defaultIconColor = Color(0xFF737376)
                     )
-
                 }
 
                 Column(

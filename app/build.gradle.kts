@@ -93,4 +93,6 @@ dependencies {
 
     implementation(libs.backdrop)
     implementation(libs.capsule)
+    implementation(libs.haze)
+    implementation(libs.haze.materials)
 }
