@@ -29,6 +29,14 @@ Rythme is an open-source Android music player designed for local audio files, in
 - Bring liquid glass morphism and smooth gesture-driven animations to a music player
 - Stay lightweight and offline — no network dependency, no accounts, just your music
 
+## Screenshots
+
+<div align="center">
+<img src="screenshots/home.png" width="300" alt="Home" />
+&nbsp;&nbsp;
+<img src="screenshots/player.png" width="300" alt="Player" />
+</div>
+
 ## Features
 
 ### Completed
@@ -196,6 +204,14 @@ Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple 
 - 展示现代 Android 开发最佳实践（Compose、MVI、Navigation3、Koin）
 - 将液态玻璃拟态和手势驱动动画带入音乐播放器
 - 保持轻量和离线——无需网络、无需账户，只播放你的音乐
+
+## 截图
+
+<div align="center">
+<img src="screenshots/home.png" width="300" alt="主页" />
+&nbsp;&nbsp;
+<img src="screenshots/player.png" width="300" alt="播放器" />
+</div>
 
 ## 功能
 
