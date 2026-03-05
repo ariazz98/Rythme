@@ -138,7 +138,7 @@ MediaStore / Room DB
 
 ```bash
 # Clone
-git clone https://github.com/user/Rythme.git
+git clone https://github.com/ariazz98/Rythme.git
 cd Rythme
 
 # Build debug APK
@@ -305,7 +305,7 @@ MediaStore / Room 数据库
 
 ```bash
 # 克隆
-git clone https://github.com/user/Rythme.git
+git clone https://github.com/ariazz98/Rythme.git
 cd Rythme
 
 # 构建 debug APK
