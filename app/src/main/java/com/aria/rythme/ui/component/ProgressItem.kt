@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,6 +54,15 @@ fun ProgressItem(
 
     var isDragging by remember { mutableStateOf(false) }
 
+    // 松手后等待状态更新期间，记住估算位置
+    var isSeeking by remember { mutableStateOf(false) }
+    var seekDisplayPosition by remember { mutableLongStateOf(0L) }
+
+    // currentPosition 更新后说明 seek 已生效
+    LaunchedEffect(currentPosition) {
+        isSeeking = false
+    }
+
     val barPadding by animateDpAsState(
         targetValue = if (isDragging) 24.dp else 32.dp,
         label = "barPadding"
@@ -70,6 +80,12 @@ fun ProgressItem(
 
     val textColor = if (isDragging) Color(0xFFFFFFFF) else Color(0x33FFFFFF)
 
+    val displayPosition = when {
+        isDragging -> (sliderPosition * duration).toLong()
+        isSeeking -> seekDisplayPosition
+        else -> currentPosition
+    }
+
     Column(Modifier.fillMaxWidth().height(45.dp)) {
 
         RythmeDraggableProgressBar(
@@ -79,6 +95,8 @@ fun ProgressItem(
                 sliderPosition = newValue
             },
             onProgressChangeFinished = {
+                seekDisplayPosition = (sliderPosition * duration).toLong()
+                isSeeking = true
                 onSeek(sliderPosition)
             },
             onDragStateChange = {
@@ -92,7 +110,7 @@ fun ProgressItem(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = if (enabled) formatPosition(currentPosition) else "--:--",
+                text = if (enabled) formatPosition(displayPosition) else "--:--",
                 fontSize = textSize.sp,
                 fontWeight = FontWeight.Bold,
                 color = textColor,
@@ -100,7 +118,7 @@ fun ProgressItem(
             )
 
             Text(
-                text = if (enabled) formatLeftTime(currentPosition, duration) else "--:--",
+                text = if (enabled) formatLeftTime(displayPosition, duration) else "--:--",
                 fontSize = textSize.sp,
                 fontWeight = FontWeight.Bold,
                 color = textColor,

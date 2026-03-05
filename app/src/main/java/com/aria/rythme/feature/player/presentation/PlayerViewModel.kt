@@ -159,6 +159,8 @@ class PlayerViewModel(
      */
     private fun seekTo(position: Long) {
         playbackController.seekTo(position)
+        // 立即更新状态，避免暂停时进度不刷新
+        reduceAndUpdate(PlayerAction.UpdateProgress(position, currentState.duration))
     }
 
     /**
