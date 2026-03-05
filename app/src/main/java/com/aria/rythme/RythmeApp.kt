@@ -28,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -76,11 +75,6 @@ fun RythmeApp() {
     // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
     var playerVisible by remember { mutableStateOf(false) }
 
-    // 当 Player 可见时拦截系统返回键，关闭 Player 而非退出应用
-    BackHandler(enabled = playerVisible) {
-        playerVisible = false
-    }
-
     SharedTransitionLayout {
         CompositionLocalProvider(
             LocalSharedTransitionScope provides this@SharedTransitionLayout,
@@ -90,8 +84,18 @@ fun RythmeApp() {
                 ScaffoldNavigation(
                     navigationState = navigationState,
                     navigator = navigator,
-                    openPlayer = { playerVisible = true }
+                    openPlayer = { playerVisible = true },
+                    onBack = {
+                        if (playerVisible) {
+                            playerVisible = false
+                        } else {
+                            navigator.goBack()
+                        }
+                    }
                 )
+                BackHandler(enabled = playerVisible) {
+                    playerVisible = false
+                }
                 PlayerScreen(onBack = { playerVisible = false })
             }
         }
@@ -102,7 +106,8 @@ fun RythmeApp() {
 private fun ScaffoldNavigation(
     navigationState: NavigationState,
     navigator: Navigator,
-    openPlayer: () -> Unit
+    openPlayer: () -> Unit,
+    onBack: () -> Unit
 ) {
     val backdrop = rememberLayerBackdrop {
         drawRect(Color.White)
@@ -175,7 +180,7 @@ private fun ScaffoldNavigation(
                         .fillMaxSize()
                         .layerBackdrop(backdrop)
                         .background(MaterialTheme.rythmeColors.surface),
-                    onBack = navigator::goBack,
+                    onBack = onBack,
                     transitionSpec = {
                         fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
                     },
