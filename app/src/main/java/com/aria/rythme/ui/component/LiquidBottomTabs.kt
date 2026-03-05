@@ -14,15 +14,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -47,13 +50,16 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.aria.rythme.LocalBackdrop
+import com.aria.rythme.R
 import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.utils.DampedDragAnimation
@@ -120,18 +126,30 @@ fun LiquidBottomTabs(
         // 总宽度
         val totalWidthDp = with(density) { constraints.maxWidth.toDp() }
         // 当前高度
-        val currentHeight = androidx.compose.ui.unit.lerp(50.dp, 64.dp, expandFraction)
+        val currentHeight = lerp(50.dp, 64.dp, expandFraction)
         //主tab宽度
-        val mainTabWidth = androidx.compose.ui.unit.lerp(
+        val mainTabWidth = lerp(
             50.dp,
             totalWidthDp - 72.dp,
             expandFraction
         )
 
         //action宽度
-        val actionWidth = androidx.compose.ui.unit.lerp(
+        val actionWidth = lerp(
             (totalWidthDp - 58.dp),
             64.dp,
+            expandFraction
+        )
+
+        val actionIconSize = lerp(
+            18.dp,
+            24.dp,
+            expandFraction
+        )
+
+        val actionIconPadding = lerp(
+            16.dp,
+            20.dp,
             expandFraction
         )
 
@@ -423,7 +441,7 @@ fun LiquidBottomTabs(
                 }
             }
 
-            Box(
+            Row(
                 modifier = Modifier
                     .drawBackdrop(
                         backdrop = backdrop,
@@ -434,7 +452,6 @@ fun LiquidBottomTabs(
                             lens(24f.dp.toPx(), 24f.dp.toPx())
                         },
                         layerBlock = {
-                            // 按压时胶囊背景轻微膨胀，scale 最大约 1.05（16dp / width）
                             val progress = actionPressAnimation.value
                             val scale = lerp(1f, 1f + 8f.dp.toPx() / size.width, progress)
                             scaleX = scale
@@ -467,15 +484,43 @@ fun LiquidBottomTabs(
                             }
                         }
                     ),
-                contentAlignment = Alignment.Center
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Spacer(modifier = Modifier.width(actionIconPadding))
+
                 Icon(
                     painter = painterResource(searchItem.icon),
                     contentDescription = "",
                     tint = MaterialTheme.rythmeColors.textColor,
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(actionIconSize)
                 )
+
+                if (expandFraction < 0.8f) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // 输入框
+                    Text(
+                        text = stringResource(R.string.search_hint),
+                        color = MaterialTheme.rythmeColors.subTitleColor,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.requiredWidth(totalWidthDp - 144.dp).alpha(1f - expandFraction)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Icon(
+                        painter = painterResource(R.drawable.ic_mic),
+                        contentDescription = "",
+                        tint = MaterialTheme.rythmeColors.textColor,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .alpha(1f - expandFraction)
+                    )
+
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
             }
         }
 

@@ -8,4 +8,5 @@
     <string name="permission_required">需要音频权限才能播放音乐</string>
     <string name="permission_required_storage">需要音频权限来扫描本地音乐</string>
     <string name="not_play">未在播放</string>
+    <string name="search_hint">艺人、歌曲、歌词以及更多内容</string>
 </resources>
