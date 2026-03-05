@@ -188,10 +188,7 @@ fun PlayerScreen(
                             onBack()
                         } else {
                             scope.launch {
-                                dragOffsetY.animateTo(
-                                    0f,
-                                    spring(dampingRatio = 0.7f, stiffness = 400f)
-                                )
+                                dragOffsetY.animateTo(0f)
                             }
                         }
                     }
