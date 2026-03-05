@@ -49,8 +49,12 @@ class MusicRepository(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
     
+    /** 上次成功扫描的时间戳，用于防抖 */
+    @Volatile
+    private var lastScanTimeMs = 0L
+
     init {
-        // 自动启动 MediaStore 监听
+        // 只启动监听，不立即扫描（扫描由 MainActivity 在权限确认后触发）
         observeMediaStoreChanges()
     }
     
@@ -115,58 +119,67 @@ class MusicRepository(
     
     // ==================== 业务操作 ====================
 
-    
     /**
-     * 初始化加载歌曲
-     * 
-     * 首次启动时调用：
-     * 1. 触发 MediaStore 扫描
-     * 2. 同步到 Room 数据库
-     * 3. Room 数据变化会通过 Flow 自动通知
-     * 
-     * @return 扫描结果（成功/失败）
+     * 加载歌曲（权限确认后调用）
+     *
+     * 内置防抖：短时间内重复调用会跳过扫描。
+     * 空结果保护：扫描结果为空但有缓存时不清空（可能是权限问题）。
      */
     suspend fun loadSongs(): Result<ScanResult> {
-        RythmeLogger.d(TAG, "初始化加载歌曲列表")
         _isLoading.value = true
         _error.value = null
-        
-        return try {
-            val songs = mediaStoreSource.scanFromMediaStore()
-            syncSongsToDb(songs)
-            RythmeLogger.d(TAG, "加载完成: ${songs.size} 首歌曲")
-            _isLoading.value = false
-            Result.success(ScanResult(scannedCount = songs.size))
-        } catch (e: Exception) {
-            RythmeLogger.e(TAG, "加载失败", e)
-            _error.value = e.message
-            _isLoading.value = false
-            Result.failure(e)
-        }
+        val result = performScan(allowEmptySync = false)
+        result.onFailure { _error.value = it.message }
+        _isLoading.value = false
+        return result
     }
-    
+
     /**
      * 强制刷新歌曲列表
-     * 
-     * 用户手动刷新时调用，重新扫描 MediaStore
-     * 
-     * @return 扫描结果（成功/失败）
+     *
+     * 用户手动刷新时调用，重置防抖并允许空结果同步。
      */
     suspend fun refreshSongs(): Result<ScanResult> {
-        RythmeLogger.d(TAG, "强制刷新歌曲列表")
+        lastScanTimeMs = 0L
         _isLoading.value = true
         _error.value = null
-        
+        val result = performScan(allowEmptySync = true)
+        result.onFailure { _error.value = it.message }
+        _isLoading.value = false
+        return result
+    }
+
+    /**
+     * 执行扫描并同步到数据库
+     *
+     * @param allowEmptySync 是否允许空结果清空缓存（强制刷新时为 true）
+     */
+    private suspend fun performScan(allowEmptySync: Boolean = false): Result<ScanResult> {
+        val now = System.currentTimeMillis()
+        if (now - lastScanTimeMs < SCAN_DEBOUNCE_MS) {
+            RythmeLogger.d(TAG, "距上次扫描不足 ${SCAN_DEBOUNCE_MS / 1000}s，跳过")
+            return Result.success(ScanResult(scannedCount = 0))
+        }
+
         return try {
             val songs = mediaStoreSource.scanFromMediaStore()
+
+            // 空结果保护：扫描为空但有缓存时跳过同步（可能无权限或 MediaStore 未就绪）
+            if (songs.isEmpty() && !allowEmptySync) {
+                val cachedCount = songDao.getSongCount()
+                if (cachedCount > 0) {
+                    RythmeLogger.d(TAG, "扫描结果为空但有 ${cachedCount} 条缓存，跳过同步")
+                    lastScanTimeMs = now
+                    return Result.success(ScanResult(scannedCount = 0))
+                }
+            }
+
             syncSongsToDb(songs)
-            RythmeLogger.d(TAG, "刷新完成: ${songs.size} 首歌曲")
-            _isLoading.value = false
+            lastScanTimeMs = System.currentTimeMillis()
+            RythmeLogger.d(TAG, "扫描完成: ${songs.size} 首歌曲")
             Result.success(ScanResult(scannedCount = songs.size))
         } catch (e: Exception) {
-            RythmeLogger.e(TAG, "刷新失败", e)
-            _error.value = e.message
-            _isLoading.value = false
+            RythmeLogger.e(TAG, "扫描失败", e)
             Result.failure(e)
         }
     }
@@ -177,16 +190,16 @@ class MusicRepository(
      * 同步歌曲到数据库（添加新的，删除不存在的）
      */
     private suspend fun syncSongsToDb(currentSongs: List<Song>) {
-        val currentIds = currentSongs.map { it.id }
+        val currentIds = currentSongs.map { it.id }.toSet()
         val cachedIds = songDao.getAllSongIds()
-        
+
         // 删除已不存在的歌曲
         val toDelete = cachedIds.filter { it !in currentIds }
         if (toDelete.isNotEmpty()) {
             songDao.deleteByIds(toDelete)
             RythmeLogger.d(TAG, "删除 ${toDelete.size} 首已移除的歌曲")
         }
-        
+
         // 更新/插入当前歌曲
         val entities = currentSongs.map { SongEntity.fromSong(it) }
         songDao.upsertAll(entities)
@@ -195,8 +208,8 @@ class MusicRepository(
     
     /**
      * 监听 MediaStore 变化
-     * 
-     * 检测到音频文件变化时自动触发后台扫描
+     *
+     * 检测到音频文件变化时自动触发后台扫描（复用 performScan 的防抖和空结果保护）
      */
     private fun observeMediaStoreChanges() {
         scope.launch {
@@ -204,21 +217,14 @@ class MusicRepository(
                 .collect { change ->
                     if (change.type == ChangeType.AUDIO_CHANGED) {
                         RythmeLogger.d(TAG, "检测到音频文件变化，触发后台扫描")
-                        
-                        // 后台静默扫描
-                        try {
-                            val songs = mediaStoreSource.scanFromMediaStore()
-                            syncSongsToDb(songs)
-                            RythmeLogger.d(TAG, "后台扫描完成: ${songs.size} 首歌曲")
-                        } catch (e: Exception) {
-                            RythmeLogger.e(TAG, "后台扫描失败", e)
-                        }
+                        performScan()
                     }
                 }
         }
     }
-    
+
     companion object {
         private const val TAG = "MusicRepository"
+        private const val SCAN_DEBOUNCE_MS = 5_000L
     }
 }

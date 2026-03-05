@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import androidx.core.net.toUri
+import java.io.File
 
 /**
  * 扫描结果
@@ -90,21 +91,26 @@ class MediaStoreSource(
      * @return 是否应包含
      */
     private fun shouldIncludeSong(song: Song, settings: ScanSettings): Boolean {
+        // 检查文件是否存在（MediaStore 索引可能滞后于实际文件删除）
+        if (song.path.isNotEmpty() && !File(song.path).exists()) {
+            return false
+        }
+
         // 检查最小时长
         if (song.duration < settings.minDurationMs) {
             return false
         }
-        
+
         // 检查最小大小
         if (song.size < settings.minSizeBytes) {
             return false
         }
-        
+
         // 检查是否在系统音效目录
         if (settings.excludeSystemDirs && isInSystemAudioDir(song.path)) {
             return false
         }
-        
+
         return true
     }
     
@@ -223,6 +229,9 @@ class MediaStoreSource(
 
     /**
      * 查询歌曲游标
+     *
+     * 默认过滤条件：IS_MUSIC = 1, IS_PENDING = 0, IS_TRASHED = 0
+     * 排除非音乐文件、未完成下载、已删除文件
      */
     private fun querySongs(selection: String? = null, selectionArgs: Array<String>? = null): Cursor? {
         val projection = arrayOf(
@@ -241,13 +250,24 @@ class MediaStoreSource(
             MediaStore.Audio.Media.MIME_TYPE
         )
 
+        // 基础过滤：仅音乐文件，排除未完成和已删除
+        val baseSelection = "${MediaStore.Audio.Media.IS_MUSIC} = 1" +
+                " AND ${MediaStore.Audio.Media.IS_PENDING} = 0" +
+                " AND ${MediaStore.Audio.Media.IS_TRASHED} = 0"
+
+        val finalSelection = if (selection != null) {
+            "$baseSelection AND ($selection)"
+        } else {
+            baseSelection
+        }
+
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
         return try {
             contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                selection,
+                finalSelection,
                 selectionArgs,
                 sortOrder
             )

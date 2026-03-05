@@ -13,7 +13,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.ui.theme.RythmeTheme
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 /**
  * 主 Activity
@@ -211,6 +215,8 @@ import com.aria.rythme.ui.theme.RythmeTheme
  */
 class MainActivity : ComponentActivity() {
 
+    private val musicRepository: MusicRepository by inject()
+
     /**
      * 权限请求启动器
      */
@@ -218,10 +224,9 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            // 权限已授予，刷新歌曲列表
             Toast.makeText(this, R.string.permission_granted, Toast.LENGTH_SHORT).show()
+            triggerMusicScan()
         } else {
-            // 权限被拒绝
             Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show()
         }
     }
@@ -254,7 +259,8 @@ class MainActivity : ComponentActivity() {
         when {
             ContextCompat.checkSelfPermission(this, permission) ==
                     PackageManager.PERMISSION_GRANTED -> {
-                // 权限已授予
+                // 权限已授予，触发扫描（应用重启时走这里）
+                triggerMusicScan()
             }
             shouldShowRequestPermissionRationale(permission) -> {
                 // 显示权限说明
@@ -265,6 +271,17 @@ class MainActivity : ComponentActivity() {
                 // 直接请求权限
                 permissionLauncher.launch(permission)
             }
+        }
+    }
+
+    /**
+     * 触发音乐扫描
+     *
+     * 权限确认后调用，MusicRepository 内部有防抖，重复调用安全。
+     */
+    private fun triggerMusicScan() {
+        lifecycleScope.launch {
+            musicRepository.loadSongs()
         }
     }
 }
