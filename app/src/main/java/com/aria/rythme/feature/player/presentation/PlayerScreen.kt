@@ -2,6 +2,7 @@ package com.aria.rythme.feature.player.presentation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -11,6 +12,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -46,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,13 +66,16 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -83,6 +92,8 @@ import com.aria.rythme.ui.component.ProgressItem
 import com.aria.rythme.ui.component.VoiceItem
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -102,6 +113,22 @@ fun PlayerScreen(
     val playerVisible = LocalPlayerVisible.current
 
     val width = LocalWindowInfo.current.containerDpSize.width
+    val density = LocalDensity.current
+    val screenHeightPx = with(density) {
+        LocalWindowInfo.current.containerDpSize.height.toPx()
+    }
+    val dismissThreshold = screenHeightPx * 0.35f
+    val velocityThreshold = 2000f
+
+    val scope = rememberCoroutineScope()
+    val dragOffsetY = remember { Animatable(0f) }
+
+    // 当播放器打开时重置拖动偏移
+    LaunchedEffect(playerVisible) {
+        if (playerVisible) {
+            dragOffsetY.snapTo(0f)
+        }
+    }
 
     val animateCoverSize by animateDpAsState(
         targetValue = if (state.isPlaying) min(width * 6 / 7, 350.dp) else min(width * 2 / 3, 256.dp),
@@ -128,12 +155,33 @@ fun PlayerScreen(
                 .clickable(interactionSource = null, indication = null) {
 
                 }
+                .offset { IntOffset(0, dragOffsetY.value.roundToInt()) }
                 .sharedBounds(
                     sharedContentState = rememberSharedContentState(key = "playerContainer"),
                     animatedVisibilityScope = this,
                     resizeMode = ResizeMode.RemeasureToBounds
                 )
                 .fillMaxSize()
+                .draggable(
+                    state = rememberDraggableState { delta ->
+                        scope.launch {
+                            dragOffsetY.snapTo((dragOffsetY.value + delta).coerceAtLeast(0f))
+                        }
+                    },
+                    orientation = Orientation.Vertical,
+                    onDragStopped = { velocity ->
+                        if (dragOffsetY.value > dismissThreshold || velocity > velocityThreshold) {
+                            onBack()
+                        } else {
+                            scope.launch {
+                                dragOffsetY.animateTo(
+                                    0f,
+                                    spring(dampingRatio = 0.7f, stiffness = 400f)
+                                )
+                            }
+                        }
+                    }
+                )
                 .clip(RoundedCornerShape(rememberScreenCornerRadiusDp()))
                 .background(Brush.verticalGradient(
                     colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
