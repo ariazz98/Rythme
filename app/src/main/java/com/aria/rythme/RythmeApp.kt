@@ -142,10 +142,22 @@ private fun ScaffoldNavigation(
             },
             bottomBar = {
                 BottomNavigationBar(
-                    backdrop = backdrop,
-                    selectedKey = navigationState.topLevelRoute,
-                    onSelectKey = {
-                        navigator.navigate(it)
+                    selectedTabIndex = {
+                        when (navigationState.topLevelRoute) {
+                            RythmeRoute.Home -> 0
+                            RythmeRoute.Playlist -> 1
+                            RythmeRoute.Library -> 2
+                            RythmeRoute.Search -> 3
+                            else -> 0
+                        }
+                    },
+                    onTabSelected = {
+                        when (it) {
+                            0 -> navigator.navigate(RythmeRoute.Home)
+                            1 -> navigator.navigate(RythmeRoute.Playlist)
+                            2 -> navigator.navigate(RythmeRoute.Library)
+                            3 -> navigator.navigate(RythmeRoute.Search)
+                        }
                     },
                     onClickPlayer = {
                         openPlayer()
