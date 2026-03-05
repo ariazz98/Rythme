@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recommend
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import com.aria.rythme.R
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.RythmeListItem
@@ -30,8 +31,8 @@ fun LibraryScreen(
             // 播放列表
             item {
                 RythmeListItem(
-                    icon = Icons.AutoMirrored.Filled.QueueMusic,
-                    title = "播放列表",
+                    icon = R.drawable.ic_music_list,
+                    title = R.string.music_play_list,
                     iconColor = MaterialTheme.rythmeColors.primary
                 )
             }
@@ -39,8 +40,8 @@ fun LibraryScreen(
             // 艺人
             item {
                 RythmeListItem(
-                    icon = Icons.Default.Person,
-                    title = "艺人",
+                    icon = R.drawable.ic_artist,
+                    title = R.string.music_artist,
                     iconColor = MaterialTheme.rythmeColors.primary
                 )
             }
@@ -48,8 +49,8 @@ fun LibraryScreen(
             // 专辑
             item {
                 RythmeListItem(
-                    icon = Icons.Default.Album,
-                    title = "专辑",
+                    icon = R.drawable.ic_album,
+                    title = R.string.music_album,
                     iconColor = MaterialTheme.rythmeColors.primary
                 )
             }
@@ -57,36 +58,27 @@ fun LibraryScreen(
             // 歌曲
             item {
                 RythmeListItem(
-                    icon = Icons.Default.MusicNote,
-                    title = "歌曲",
+                    icon = R.drawable.ic_music_library,
+                    title = R.string.music_song,
                     iconColor = MaterialTheme.rythmeColors.primary,
                     onClick = { viewModel.sendIntent(LibraryIntent.NavToSongList) }
-                )
-            }
-
-            // 专属推荐
-            item {
-                RythmeListItem(
-                    icon = Icons.Default.Recommend,
-                    title = "专属推荐",
-                    iconColor = MaterialTheme.rythmeColors.primary
                 )
             }
 
             // 类型
             item {
                 RythmeListItem(
-                    icon = Icons.Default.Category,
-                    title = "类型",
+                    icon = R.drawable.ic_type,
+                    title = R.string.music_type,
                     iconColor = MaterialTheme.rythmeColors.primary
                 )
             }
 
-            // 合辑
+            // 作曲者
             item {
                 RythmeListItem(
-                    icon = Icons.Default.Group,
-                    title = "合辑",
+                    icon = R.drawable.ic_composer,
+                    title = R.string.music_composer,
                     iconColor = MaterialTheme.rythmeColors.primary
                 )
             }

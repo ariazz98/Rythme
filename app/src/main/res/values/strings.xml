@@ -8,5 +8,11 @@
     <string name="permission_required">需要音频权限才能播放音乐</string>
     <string name="permission_required_storage">需要音频权限来扫描本地音乐</string>
     <string name="not_play">未在播放</string>
+    <string name="music_play_list">播放列表</string>
+    <string name="music_artist">艺人</string>
+    <string name="music_song">歌曲</string>
+    <string name="music_album">专辑</string>
+    <string name="music_composer">作曲者</string>
+    <string name="music_type">类型</string>
     <string name="search_hint">艺人、歌曲、歌词以及更多内容</string>
 </resources>

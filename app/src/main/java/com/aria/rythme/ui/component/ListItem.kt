@@ -17,8 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
@@ -26,8 +26,8 @@ import com.aria.rythme.ui.theme.rythmeColors
 
 @Composable
 fun RythmeListItem(
-    icon: ImageVector,
-    title: String,
+    icon: Int,
+    title: Int,
     iconColor: Color,
     showDivider: Boolean = true,
     onClick: () -> Unit = {}
@@ -42,17 +42,17 @@ fun RythmeListItem(
         ) {
             // 图标
             Icon(
-                imageVector = icon,
-                contentDescription = title,
+                painter = painterResource(icon),
+                contentDescription = stringResource(title),
                 tint = iconColor,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(24.dp)
             )
 
             Spacer(modifier = Modifier.width(16.dp))
 
             // 标题
             Text(
-                text = title,
+                text = stringResource(title),
                 fontSize = 17.sp,
                 color = MaterialTheme.rythmeColors.textColor,
                 modifier = Modifier.weight(1f)
