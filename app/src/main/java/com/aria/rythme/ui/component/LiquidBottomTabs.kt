@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -121,7 +122,7 @@ fun LiquidBottomTabs(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp),
+            .wrapContentHeight(),
         contentAlignment = Alignment.CenterStart
     ) {
         val density = LocalDensity.current

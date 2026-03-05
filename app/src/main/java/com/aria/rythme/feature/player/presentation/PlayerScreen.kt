@@ -116,7 +116,10 @@ fun PlayerScreen(
             colors = listOf(Color(0xFF6B6B6E), Color(0xFF6A6A6D), Color(0xFF404042)),
             startY = 0f,
             endY = Float.POSITIVE_INFINITY
-        )),
+        ))
+        .clickable(interactionSource = null, indication = null) {
+
+        },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
