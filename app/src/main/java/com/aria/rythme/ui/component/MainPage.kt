@@ -28,6 +28,7 @@ import com.aria.rythme.LocalInnerPadding
 
 @Composable
 fun MainListPage(
+    modifier: Modifier = Modifier,
     routeKey: NavKey,
     mainContent: LazyListScope.() -> Unit
 ) {
@@ -53,23 +54,19 @@ fun MainListPage(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize()
     ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // 顶部占位空间（为全局 TopBar 留出空间）
-            item {
-                Spacer(modifier = Modifier.height(topPadding))
-            }
+        // 顶部占位空间（为全局 TopBar 留出空间）
+        item {
+            Spacer(modifier = Modifier.height(topPadding))
+        }
 
-            mainContent()
+        mainContent()
 
-            item {
-                Spacer(modifier = Modifier.height(bottomPadding))
-            }
+        item {
+            Spacer(modifier = Modifier.height(bottomPadding))
         }
     }
 }
@@ -101,26 +98,22 @@ fun MainGridPage(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(gridCount),
+        state = gridState,
+        modifier = Modifier.fillMaxSize().padding(horizontal = 21.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(gridCount),
-            state = gridState,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 21.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // 顶部占位空间（为全局 TopBar 留出空间）
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Spacer(modifier = Modifier.height(topPadding))
-            }
+        // 顶部占位空间（为全局 TopBar 留出空间）
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Spacer(modifier = Modifier.height(topPadding))
+        }
 
-            mainContent()
+        mainContent()
 
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Spacer(modifier = Modifier.height(bottomPadding))
-            }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Spacer(modifier = Modifier.height(bottomPadding))
         }
     }
 }

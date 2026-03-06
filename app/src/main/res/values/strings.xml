@@ -15,4 +15,6 @@
     <string name="music_composer">作曲者</string>
     <string name="music_type">类型</string>
     <string name="search_hint">艺人、歌曲、歌词以及更多内容</string>
+    <string name="music_play">播放</string>
+    <string name="music_random_play">随机播放</string>
 </resources>

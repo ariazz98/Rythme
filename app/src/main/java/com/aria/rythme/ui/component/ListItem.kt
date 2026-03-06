@@ -1,5 +1,6 @@
 package com.aria.rythme.ui.component
 
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,9 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
+import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
 
 @Composable
@@ -70,7 +73,68 @@ fun RythmeListItem(
         // 分割线
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = 65.dp, end = 21.dp),
+                modifier = Modifier.padding(start = 65.dp, end = 18.dp),
+                thickness = DividerDefaults.Thickness,
+                color = MaterialTheme.rythmeColors.weakColor
+            )
+        }
+    }
+}
+
+@Composable
+fun SongListItem(
+    song: Song,
+    showDivider: Boolean = true,
+    onClick: () -> Unit,
+    onMoreClick: () -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 4.dp, horizontal = 21.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CoverItem(
+                size = 48.dp,
+                corner = 6.dp,
+                song = song,
+                defaultBgColor = Color(0x99D6D6D5),
+                defaultIconColor = Color(0xFF4A4A49)
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.rythmeColors.textColor
+                )
+                Text(
+                    text = song.artist,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.rythmeColors.subTitleColor
+                )
+            }
+
+            Icon(
+                painter = painterResource(R.drawable.ic_more),
+                contentDescription = "",
+                tint = MaterialTheme.rythmeColors.textColor,
+                modifier = Modifier.size(18.dp).clickable(interactionSource = null, indication = null) { onMoreClick() }
+            )
+        }
+
+        // 分割线
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 80.dp, end = 18.dp),
                 thickness = DividerDefaults.Thickness,
                 color = MaterialTheme.rythmeColors.weakColor
             )
