@@ -16,6 +16,18 @@ class LibraryViewModel(
             LibraryIntent.NavToSongList -> {
                 navigator.navigate(RythmeRoute.SongList)
             }
+            LibraryIntent.NavToAlbumList -> {
+                navigator.navigate(RythmeRoute.AlbumList)
+            }
+            LibraryIntent.NavToArtistList -> {
+                navigator.navigate(RythmeRoute.ArtistList)
+            }
+            LibraryIntent.NavToGenreList -> {
+                navigator.navigate(RythmeRoute.GenreList)
+            }
+            LibraryIntent.NavToComposerList -> {
+                navigator.navigate(RythmeRoute.ComposerList)
+            }
         }
     }
 

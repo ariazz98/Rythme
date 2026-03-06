@@ -225,6 +225,7 @@ fun PlayerScreen(
                         corner = 9.dp,
                         song = state.currentSong,
                         defaultBgColor = Color(0xFF606063),
+                        defaultIconColor = Color(0xFF737376),
                         onBitmapReady = { bitmap ->
                             if (bitmap != null) {
                                 scope.launch {
@@ -234,8 +235,7 @@ fun PlayerScreen(
                             } else {
                                 gradientColors = GradientColors()
                             }
-                        },
-                        defaultIconColor = Color(0xFF737376)
+                        }
                     )
                 }
 

@@ -14,6 +14,10 @@ import com.aria.rythme.core.music.data.settings.AppSettingsRepository
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.feature.playlist.presentation.PlayListViewModel
 import com.aria.rythme.feature.search.presentation.SearchViewModel
+import com.aria.rythme.feature.albumlist.presentation.AlbumListViewModel
+import com.aria.rythme.feature.artistlist.presentation.ArtistListViewModel
+import com.aria.rythme.feature.composerlist.presentation.ComposerListViewModel
+import com.aria.rythme.feature.genrelist.presentation.GenreListViewModel
 import com.aria.rythme.feature.songlist.presentation.SongListViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.annotation.KoinExperimentalAPI
@@ -42,6 +46,42 @@ val playerModule = module {
     viewModel {
         PlayerViewModel(
             playbackController = get(),
+            musicRepository = get()
+        )
+    }
+}
+
+val albumListModule = module {
+    viewModel { params ->
+        AlbumListViewModel(
+            navigator = params.get(),
+            musicRepository = get()
+        )
+    }
+}
+
+val artistListModule = module {
+    viewModel { params ->
+        ArtistListViewModel(
+            navigator = params.get(),
+            musicRepository = get()
+        )
+    }
+}
+
+val genreListModule = module {
+    viewModel { params ->
+        GenreListViewModel(
+            navigator = params.get(),
+            musicRepository = get()
+        )
+    }
+}
+
+val composerListModule = module {
+    viewModel { params ->
+        ComposerListViewModel(
+            navigator = params.get(),
             musicRepository = get()
         )
     }
@@ -84,6 +124,10 @@ val searchModule = module {
 val appModules = listOf(
     playModule,
     playerModule,
+    albumListModule,
+    artistListModule,
+    genreListModule,
+    composerListModule,
     songListModule,
     homeModule,
     playListModule,

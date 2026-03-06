@@ -48,6 +48,10 @@ import com.aria.rythme.feature.navigationbar.presentation.BottomNavigationBar
 import com.aria.rythme.feature.player.presentation.PlayerScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
+import com.aria.rythme.feature.albumlist.presentation.AlbumListScreen
+import com.aria.rythme.feature.artistlist.presentation.ArtistListScreen
+import com.aria.rythme.feature.composerlist.presentation.ComposerListScreen
+import com.aria.rythme.feature.genrelist.presentation.GenreListScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.RythmeHeader
@@ -175,6 +179,8 @@ private fun ScaffoldNavigation(
                 LocalTopBarState provides topBarState
             ) {
                 // 页面内容区域：作为 backdrop 的背景录制源
+                val fadeSpec = fadeIn(tween(100)) togetherWith fadeOut(tween(100))
+
                 NavDisplay(
                     modifier = Modifier
                         .fillMaxSize()
@@ -182,13 +188,27 @@ private fun ScaffoldNavigation(
                         .background(MaterialTheme.rythmeColors.surface),
                     onBack = onBack,
                     transitionSpec = {
-                        fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+                        if (navigationState.isTabSwitch) fadeSpec
+                        else slideInHorizontally(
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) { it } togetherWith slideOutHorizontally(
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) { -it / 2 }
                     },
                     popTransitionSpec = {
-                        fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+                        if (navigationState.isTabSwitch) fadeSpec
+                        else slideInHorizontally(
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) { -it / 2 } togetherWith slideOutHorizontally(
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) { it }
                     },
                     predictivePopTransitionSpec = {
-                        fadeIn(animationSpec = tween(durationMillis = 100)) togetherWith fadeOut(animationSpec = tween(durationMillis = 100))
+                        slideInHorizontally(
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) { -it / 2 } togetherWith slideOutHorizontally(
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) { it }
                     },
                     sceneStrategy = remember { DialogSceneStrategy() },
                     entries = navigationState.toEntries(
@@ -205,28 +225,20 @@ private fun ScaffoldNavigation(
                             entry<RythmeRoute.Search> {
                                 SearchScreen(viewModel = koinViewModel { parametersOf(navigator) })
                             }
-                            entry<RythmeRoute.SongList>(
-                                metadata = NavDisplay.transitionSpec {
-                                    slideInHorizontally(
-                                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                    ) { it } togetherWith slideOutHorizontally(
-                                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                    ) { -it / 2 }
-                                } + NavDisplay.popTransitionSpec {
-                                    slideInHorizontally(
-                                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                    ) { -it / 2 } togetherWith slideOutHorizontally(
-                                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                    ) { it }
-                                } + NavDisplay.predictivePopTransitionSpec {
-                                    slideInHorizontally(
-                                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                    ) { -it / 2 } togetherWith slideOutHorizontally(
-                                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                    ) { it }
-                                }
-                            ) {
+                            entry<RythmeRoute.SongList>{
                                 SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                            }
+                            entry<RythmeRoute.AlbumList>{
+                                AlbumListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                            }
+                            entry<RythmeRoute.ArtistList>{
+                                ArtistListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                            }
+                            entry<RythmeRoute.GenreList> {
+                                GenreListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                            }
+                            entry<RythmeRoute.ComposerList> {
+                                ComposerListScreen(viewModel = koinViewModel { parametersOf(navigator) })
                             }
                         }
                     )

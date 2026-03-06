@@ -7,6 +7,10 @@ import com.aria.rythme.core.mvi.UserIntent
 
 sealed interface LibraryIntent: UserIntent {
     data object NavToSongList: LibraryIntent
+    data object NavToAlbumList: LibraryIntent
+    data object NavToArtistList: LibraryIntent
+    data object NavToGenreList: LibraryIntent
+    data object NavToComposerList: LibraryIntent
 }
 
 data class LibraryState(

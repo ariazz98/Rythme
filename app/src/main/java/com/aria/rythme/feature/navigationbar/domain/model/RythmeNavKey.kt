@@ -81,6 +81,18 @@ sealed interface RythmeRoute: NavKey {
      */
     @Serializable
     data object SongList : RythmeRoute
+
+    @Serializable
+    data object AlbumList: RythmeRoute
+
+    @Serializable
+    data object ArtistList: RythmeRoute
+
+    @Serializable
+    data object GenreList : RythmeRoute
+
+    @Serializable
+    data object ComposerList : RythmeRoute
 }
 
 val ALL_TOP_LEVEL_ROUTES = setOf(

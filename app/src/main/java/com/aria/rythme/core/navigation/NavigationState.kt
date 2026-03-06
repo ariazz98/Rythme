@@ -58,6 +58,11 @@ class NavigationState(
     val backStacks: Map<NavKey, NavBackStack<NavKey>>
 ) {
     var topLevelRoute: NavKey by topLevelRoute
+
+    /** 最近一次导航是否为 Tab 切换（而非栈内 push/pop） */
+    var isTabSwitch: Boolean by mutableStateOf(false)
+        internal set
+
     val stacksInUse: List<NavKey>
         get() = if (topLevelRoute == startRoute) {
             listOf(startRoute)

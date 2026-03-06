@@ -73,6 +73,7 @@ fun MainListPage(
 
 @Composable
 fun MainGridPage(
+    modifier: Modifier = Modifier,
     routeKey: NavKey,
     gridCount: Int = 2,
     mainContent: LazyGridScope.() -> Unit
@@ -101,7 +102,7 @@ fun MainGridPage(
     LazyVerticalGrid(
         columns = GridCells.Fixed(gridCount),
         state = gridState,
-        modifier = Modifier.fillMaxSize().padding(horizontal = 21.dp),
+        modifier = modifier.fillMaxSize().padding(horizontal = 21.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
