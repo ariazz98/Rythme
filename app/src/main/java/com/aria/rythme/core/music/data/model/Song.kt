@@ -1,6 +1,7 @@
 package com.aria.rythme.core.music.data.model
 
 import android.net.Uri
+import java.util.Locale
 
 /**
  * 歌曲数据类
@@ -38,7 +39,17 @@ data class Song(
     val dateAdded: Long = 0,
     val dateModified: Long = 0,
     val size: Long = 0,
-    val mimeType: String = ""
+    val mimeType: String = "",
+    val genre: String = "",
+    val composer: String = "",
+    val bitrate: Int = 0,
+    val year: Int = 0,
+    val discNumber: Int = 0,
+    val albumArtist: String = "",
+    val folderName: String = "",
+    val folderId: Long = 0,
+    val generationAdded: Long = 0,
+    val generationModified: Long = 0
 ) {
     /**
      * 获取格式化的时长字符串
@@ -52,9 +63,9 @@ data class Song(
             val seconds = totalSeconds % 60
             
             return if (hours > 0) {
-                String.format("%d:%02d:%02d", hours, minutes, seconds)
+                String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
             } else {
-                String.format("%02d:%02d", minutes, seconds)
+                String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
             }
         }
     

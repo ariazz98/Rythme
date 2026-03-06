@@ -7,68 +7,125 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.MediaStore
 import com.aria.rythme.core.utils.RythmeLogger
-import com.aria.rythme.core.music.data.model.Album
-import com.aria.rythme.core.music.data.model.Artist
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.settings.ScanSettings
 import com.aria.rythme.core.music.data.settings.AppSettingsRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import androidx.core.net.toUri
-import java.io.File
 
 /**
- * 扫描结果
+ * MediaStore 指纹 — 轻量级，用于增量对比
  */
-data class ScanResult(
-    val scannedCount: Int,
-    val addedCount: Int = 0,
-    val removedCount: Int = 0
+data class MediaStoreFingerprint(
+    val id: Long,
+    val dateModified: Long,
+    val size: Long,
+    val generationModified: Long
 )
 
 /**
  * MediaStore 数据源
  *
- * 通过 Android MediaStore API 扫描设备上的本地音乐文件。
- * 只负责扫描，不负责数据存储。
- *
- * ## 权限要求
- * - Android 13+: READ_MEDIA_AUDIO
- * - Android 12及以下: READ_EXTERNAL_STORAGE
- *
- * ## 过滤规则
- * - 最小时长：默认 30 秒（可配置）
- * - 最小大小：默认 100KB（可配置）
- * - 排除系统音效目录：Ringtones/Alarms/Notifications
- *
- * @param context 应用上下文
- * @param settingsRepository 扫描设置仓库
+ * 支持两种查询模式：
+ * 1. 指纹查询（4 列）— 快速获取 MediaStore 状态用于增量对比
+ * 2. 完整查询（全部列）— 获取完整元数据用于插入/更新
  */
 class MediaStoreSource(
     private val context: Context,
     private val settingsRepository: AppSettingsRepository
 ) {
-
     private val contentResolver: ContentResolver = context.contentResolver
 
     /**
-     * 从 MediaStore 扫描歌曲
-     * 
-     * 扫描设备上的所有音频文件，根据过滤规则过滤。
-     * 
-     * @return 符合条件的歌曲列表
-     * @throws Exception 扫描失败时抛出异常
+     * 获取当前 MediaStore version
      */
-    suspend fun scanFromMediaStore(): List<Song> = withContext(Dispatchers.IO) {
+    fun getMediaStoreVersion(): String {
+        return MediaStore.getVersion(context)
+    }
+
+    /**
+     * 获取当前 MediaStore generation
+     */
+    fun getMediaStoreGeneration(): Long {
+        return MediaStore.getGeneration(context, MediaStore.VOLUME_EXTERNAL)
+    }
+
+    /**
+     * 指纹查询 — 仅 4 列，用于增量对比
+     */
+    suspend fun queryFingerprints(): List<MediaStoreFingerprint> = withContext(Dispatchers.IO) {
         val settings = settingsRepository.settings.first()
-        RythmeLogger.d(TAG, "开始扫描歌曲，过滤配置: 最小时长=${settings.minDurationMs}ms, 最小大小=${settings.minSizeBytes}bytes")
-        
+        val fingerprints = mutableListOf<MediaStoreFingerprint>()
+
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.GENERATION_MODIFIED,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA
+        )
+
+        val cursor = queryBase(projection)
+        cursor?.use {
+            while (it.moveToNext()) {
+                val duration = it.getLongOrDefault(MediaStore.Audio.Media.DURATION, 0L)
+                val size = it.getLongOrDefault(MediaStore.Audio.Media.SIZE, 0L)
+                val path = it.getStringOrDefault(MediaStore.Audio.Media.DATA, "")
+
+                // 应用基础过滤（时长/大小/系统目录）
+                if (duration < settings.minDurationMs) continue
+                if (size < settings.minSizeBytes) continue
+                if (settings.excludeSystemDirs && isInSystemAudioDir(path)) continue
+
+                fingerprints.add(
+                    MediaStoreFingerprint(
+                        id = it.getLongOrDefault(MediaStore.Audio.Media._ID, 0L),
+                        dateModified = it.getLongOrDefault(MediaStore.Audio.Media.DATE_MODIFIED, 0L),
+                        size = size,
+                        generationModified = it.getLongOrDefault(MediaStore.Audio.Media.GENERATION_MODIFIED, 0L)
+                    )
+                )
+            }
+        }
+
+        RythmeLogger.d(TAG, "指纹查询完成: ${fingerprints.size} 条")
+        fingerprints
+    }
+
+    /**
+     * 按 ID 列表查询完整歌曲数据
+     */
+    suspend fun querySongsByIds(ids: List<Long>): List<Song> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyList()
+
         val songs = mutableListOf<Song>()
-        val cursor = querySongs()
+        // 分批查询避免 SQL IN 子句过长
+        ids.chunked(500).forEach { chunk ->
+            val placeholders = chunk.joinToString(",") { "?" }
+            val selection = "${MediaStore.Audio.Media._ID} IN ($placeholders)"
+            val selectionArgs = chunk.map { it.toString() }.toTypedArray()
+            val cursor = queryFull(selection, selectionArgs)
+            cursor?.use {
+                while (it.moveToNext()) {
+                    songs.add(parseSongCursor(it))
+                }
+            }
+        }
+        songs
+    }
+
+    /**
+     * 全量扫描（首次安装或 MediaStore version 变化时使用）
+     */
+    suspend fun scanAllSongs(): List<Song> = withContext(Dispatchers.IO) {
+        val settings = settingsRepository.settings.first()
+        RythmeLogger.d(TAG, "全量扫描开始")
+
+        val songs = mutableListOf<Song>()
+        val cursor = queryFull()
 
         cursor?.use {
             while (it.moveToNext()) {
@@ -78,48 +135,49 @@ class MediaStoreSource(
                 }
             }
         }
-        
-        RythmeLogger.d(TAG, "扫描完成，共 ${songs.size} 首歌曲符合条件")
-        return@withContext songs
+
+        RythmeLogger.d(TAG, "全量扫描完成: ${songs.size} 首歌曲")
+        songs
     }
-    
-    /**
-     * 判断歌曲是否应被包含
-     *
-     * @param song 歌曲
-     * @param settings 扫描设置
-     * @return 是否应包含
-     */
+
+    // ==================== 内部方法 ====================
+
+    private fun queryBase(projection: Array<String>, selection: String? = null, selectionArgs: Array<String>? = null): Cursor? {
+        val baseSelection = "${MediaStore.Audio.Media.IS_MUSIC} = 1" +
+                " AND ${MediaStore.Audio.Media.IS_PENDING} = 0" +
+                " AND ${MediaStore.Audio.Media.IS_TRASHED} = 0"
+
+        val finalSelection = if (selection != null) {
+            "$baseSelection AND ($selection)"
+        } else {
+            baseSelection
+        }
+
+        return try {
+            contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                finalSelection,
+                selectionArgs,
+                "${MediaStore.Audio.Media.TITLE} ASC"
+            )
+        } catch (e: Exception) {
+            RythmeLogger.e(TAG, "MediaStore 查询失败", e)
+            null
+        }
+    }
+
+    private fun queryFull(selection: String? = null, selectionArgs: Array<String>? = null): Cursor? {
+        return queryBase(FULL_PROJECTION, selection, selectionArgs)
+    }
+
     private fun shouldIncludeSong(song: Song, settings: ScanSettings): Boolean {
-        // 检查文件是否存在（MediaStore 索引可能滞后于实际文件删除）
-        if (song.path.isNotEmpty() && !File(song.path).exists()) {
-            return false
-        }
-
-        // 检查最小时长
-        if (song.duration < settings.minDurationMs) {
-            return false
-        }
-
-        // 检查最小大小
-        if (song.size < settings.minSizeBytes) {
-            return false
-        }
-
-        // 检查是否在系统音效目录
-        if (settings.excludeSystemDirs && isInSystemAudioDir(song.path)) {
-            return false
-        }
-
+        if (song.duration < settings.minDurationMs) return false
+        if (song.size < settings.minSizeBytes) return false
+        if (settings.excludeSystemDirs && isInSystemAudioDir(song.path)) return false
         return true
     }
-    
-    /**
-     * 判断路径是否在系统音效目录
-     *
-     * @param path 文件路径
-     * @return 是否在系统音效目录
-     */
+
     private fun isInSystemAudioDir(path: String): Boolean {
         val lowerPath = path.lowercase()
         return ScanSettings.SYSTEM_AUDIO_DIRS.any { dir ->
@@ -128,113 +186,77 @@ class MediaStoreSource(
         }
     }
 
-    /**
-     * 按专辑获取歌曲
-     *
-     * @param albumId 专辑ID
-     * @return 歌曲列表流
-     */
-    fun getSongsByAlbum(albumId: Long): Flow<List<Song>> = flow {
-        val songs = mutableListOf<Song>()
-        val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
-        val selectionArgs = arrayOf(albumId.toString())
-        val cursor = querySongs(selection, selectionArgs)
+    private fun parseSongCursor(cursor: Cursor): Song {
+        val id = cursor.getLongOrDefault(MediaStore.Audio.Media._ID, 0L)
+        val albumId = cursor.getLongOrDefault(MediaStore.Audio.Media.ALBUM_ID, 0L)
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+        val coverUri = getAlbumCoverUri(albumId)
 
-        cursor?.use {
-            while (it.moveToNext()) {
-                songs.add(parseSongCursor(it))
-            }
+        return Song(
+            id = id,
+            title = cursor.getStringOrDefault(MediaStore.Audio.Media.TITLE, "未知歌曲"),
+            artist = cursor.getStringOrDefault(MediaStore.Audio.Media.ARTIST, "未知艺术家"),
+            artistId = cursor.getLongOrDefault(MediaStore.Audio.Media.ARTIST_ID, 0L),
+            album = cursor.getStringOrDefault(MediaStore.Audio.Media.ALBUM, "未知专辑"),
+            albumId = albumId,
+            duration = cursor.getLongOrDefault(MediaStore.Audio.Media.DURATION, 0L),
+            trackNumber = cursor.getIntOrDefault(MediaStore.Audio.Media.TRACK, 0),
+            path = cursor.getStringOrDefault(MediaStore.Audio.Media.DATA, ""),
+            uri = uri,
+            coverUri = coverUri,
+            dateAdded = cursor.getLongOrDefault(MediaStore.Audio.Media.DATE_ADDED, 0L),
+            dateModified = cursor.getLongOrDefault(MediaStore.Audio.Media.DATE_MODIFIED, 0L),
+            size = cursor.getLongOrDefault(MediaStore.Audio.Media.SIZE, 0L),
+            mimeType = cursor.getStringOrDefault(MediaStore.Audio.Media.MIME_TYPE, "audio/*"),
+            genre = cursor.getStringOrDefault(MediaStore.Audio.Media.GENRE, ""),
+            composer = cursor.getStringOrDefault(MediaStore.Audio.Media.COMPOSER, ""),
+            bitrate = cursor.getIntOrDefault(MediaStore.Audio.Media.BITRATE, 0),
+            year = cursor.getIntOrDefault(MediaStore.Audio.Media.YEAR, 0),
+            discNumber = parseDiscNumber(cursor.getStringOrDefault(MediaStore.Audio.Media.DISC_NUMBER, "")),
+            albumArtist = cursor.getStringOrDefault(MediaStore.Audio.Media.ALBUM_ARTIST, ""),
+            folderName = cursor.getStringOrDefault(MediaStore.Audio.Media.BUCKET_DISPLAY_NAME, ""),
+            folderId = cursor.getLongOrDefault(MediaStore.Audio.Media.BUCKET_ID, 0L),
+            generationAdded = cursor.getLongOrDefault(MediaStore.Audio.Media.GENERATION_ADDED, 0L),
+            generationModified = cursor.getLongOrDefault(MediaStore.Audio.Media.GENERATION_MODIFIED, 0L)
+        )
+    }
+
+    private fun parseDiscNumber(raw: String): Int {
+        // DISC_NUMBER 格式可能是 "1/2" 或 "1"
+        return raw.split("/").firstOrNull()?.trim()?.toIntOrNull() ?: 0
+    }
+
+    private fun getAlbumCoverUri(albumId: Long): Uri? {
+        return if (albumId > 0) {
+            ContentUris.withAppendedId(
+                "content://media/external/audio/albumart".toUri(),
+                albumId
+            )
+        } else {
+            null
         }
+    }
 
-        emit(songs)
-    }.flowOn(Dispatchers.IO)
+    // Cursor 安全扩展
+    private fun Cursor.getStringOrDefault(column: String, default: String): String {
+        val index = getColumnIndex(column)
+        return if (index >= 0) getString(index) ?: default else default
+    }
 
-    /**
-     * 按艺术家获取歌曲
-     *
-     * @param artistId 艺术家ID
-     * @return 歌曲列表流
-     */
-    fun getSongsByArtist(artistId: Long): Flow<List<Song>> = flow {
-        val songs = mutableListOf<Song>()
-        val selection = "${MediaStore.Audio.Media.ARTIST_ID} = ?"
-        val selectionArgs = arrayOf(artistId.toString())
-        val cursor = querySongs(selection, selectionArgs)
+    private fun Cursor.getLongOrDefault(column: String, default: Long): Long {
+        val index = getColumnIndex(column)
+        return if (index >= 0) getLong(index) else default
+    }
 
-        cursor?.use {
-            while (it.moveToNext()) {
-                songs.add(parseSongCursor(it))
-            }
-        }
+    private fun Cursor.getIntOrDefault(column: String, default: Int): Int {
+        val index = getColumnIndex(column)
+        return if (index >= 0) getInt(index) else default
+    }
 
-        emit(songs)
-    }.flowOn(Dispatchers.IO)
+    companion object {
+        private const val TAG = "MediaStoreSource"
 
-    /**
-     * 获取所有专辑
-     *
-     * @return 专辑列表流
-     */
-    fun getAllAlbums(): Flow<List<Album>> = flow {
-        val albums = mutableListOf<Album>()
-        val cursor = queryAlbums()
-
-        cursor?.use {
-            while (it.moveToNext()) {
-                albums.add(parseAlbumCursor(it))
-            }
-        }
-
-        emit(albums)
-    }.flowOn(Dispatchers.IO)
-
-    /**
-     * 获取所有艺术家
-     *
-     * @return 艺术家列表流
-     */
-    fun getAllArtists(): Flow<List<Artist>> = flow {
-        val artists = mutableListOf<Artist>()
-        val cursor = queryArtists()
-
-        cursor?.use {
-            while (it.moveToNext()) {
-                artists.add(parseArtistCursor(it))
-            }
-        }
-
-        emit(artists)
-    }.flowOn(Dispatchers.IO)
-
-    /**
-     * 搜索歌曲
-     *
-     * @param query 搜索关键词
-     * @return 歌曲列表流
-     */
-    fun searchSongs(query: String): Flow<List<Song>> = flow {
-        val songs = mutableListOf<Song>()
-        val selection = "${MediaStore.Audio.Media.TITLE} LIKE ? OR ${MediaStore.Audio.Media.ARTIST} LIKE ?"
-        val selectionArgs = arrayOf("%$query%", "%$query%")
-        val cursor = querySongs(selection, selectionArgs)
-
-        cursor?.use {
-            while (it.moveToNext()) {
-                songs.add(parseSongCursor(it))
-            }
-        }
-
-        emit(songs)
-    }.flowOn(Dispatchers.IO)
-
-    /**
-     * 查询歌曲游标
-     *
-     * 默认过滤条件：IS_MUSIC = 1, IS_PENDING = 0, IS_TRASHED = 0
-     * 排除非音乐文件、未完成下载、已删除文件
-     */
-    private fun querySongs(selection: String? = null, selectionArgs: Array<String>? = null): Cursor? {
-        val projection = arrayOf(
+        private val FULL_PROJECTION = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
@@ -247,205 +269,17 @@ class MediaStoreSource(
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.DATE_MODIFIED,
             MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.MIME_TYPE
+            MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.GENRE,
+            MediaStore.Audio.Media.COMPOSER,
+            MediaStore.Audio.Media.BITRATE,
+            MediaStore.Audio.Media.YEAR,
+            MediaStore.Audio.Media.DISC_NUMBER,
+            MediaStore.Audio.Media.ALBUM_ARTIST,
+            MediaStore.Audio.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Audio.Media.BUCKET_ID,
+            MediaStore.Audio.Media.GENERATION_ADDED,
+            MediaStore.Audio.Media.GENERATION_MODIFIED
         )
-
-        // 基础过滤：仅音乐文件，排除未完成和已删除
-        val baseSelection = "${MediaStore.Audio.Media.IS_MUSIC} = 1" +
-                " AND ${MediaStore.Audio.Media.IS_PENDING} = 0" +
-                " AND ${MediaStore.Audio.Media.IS_TRASHED} = 0"
-
-        val finalSelection = if (selection != null) {
-            "$baseSelection AND ($selection)"
-        } else {
-            baseSelection
-        }
-
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
-
-        return try {
-            contentResolver.query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection,
-                finalSelection,
-                selectionArgs,
-                sortOrder
-            )
-        } catch (e: Exception) {
-            RythmeLogger.e(TAG, "查询歌曲失败", e)
-            null
-        }
-    }
-
-    /**
-     * 查询专辑游标
-     */
-    private fun queryAlbums(): Cursor? {
-        val projection = arrayOf(
-            MediaStore.Audio.Albums._ID,
-            MediaStore.Audio.Albums.ALBUM,
-            MediaStore.Audio.Albums.ARTIST,
-            MediaStore.Audio.Albums.ARTIST_ID,
-            MediaStore.Audio.Albums.NUMBER_OF_SONGS,
-            MediaStore.Audio.Albums.FIRST_YEAR
-        )
-
-        val sortOrder = "${MediaStore.Audio.Albums.ALBUM} ASC"
-
-        return try {
-            contentResolver.query(
-                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                projection,
-                null,
-                null,
-                sortOrder
-            )
-        } catch (e: Exception) {
-            RythmeLogger.e(TAG, "查询专辑失败", e)
-            null
-        }
-    }
-
-    /**
-     * 查询艺术家游标
-     */
-    private fun queryArtists(): Cursor? {
-        val projection = arrayOf(
-            MediaStore.Audio.Artists._ID,
-            MediaStore.Audio.Artists.ARTIST,
-            MediaStore.Audio.Artists.NUMBER_OF_ALBUMS,
-            MediaStore.Audio.Artists.NUMBER_OF_TRACKS
-        )
-
-        val sortOrder = "${MediaStore.Audio.Artists.ARTIST} ASC"
-
-        return try {
-            contentResolver.query(
-                MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI,
-                projection,
-                null,
-                null,
-                sortOrder
-            )
-        } catch (e: Exception) {
-            RythmeLogger.e(TAG, "查询艺术家失败", e)
-            null
-        }
-    }
-
-    /**
-     * 解析歌曲游标
-     * 
-     * 安全地解析游标数据，避免列不存在时崩溃
-     */
-    private fun parseSongCursor(cursor: Cursor): Song {
-        val id = cursor.getLongOrDefault(MediaStore.Audio.Media._ID, 0L)
-        val title = cursor.getStringOrDefault(MediaStore.Audio.Media.TITLE, "未知歌曲")
-        val artist = cursor.getStringOrDefault(MediaStore.Audio.Media.ARTIST, "未知艺术家")
-        val artistId = cursor.getLongOrDefault(MediaStore.Audio.Media.ARTIST_ID, 0L)
-        val album = cursor.getStringOrDefault(MediaStore.Audio.Media.ALBUM, "未知专辑")
-        val albumId = cursor.getLongOrDefault(MediaStore.Audio.Media.ALBUM_ID, 0L)
-        val duration = cursor.getLongOrDefault(MediaStore.Audio.Media.DURATION, 0L)
-        val trackNumber = cursor.getIntOrDefault(MediaStore.Audio.Media.TRACK, 0)
-        val path = cursor.getStringOrDefault(MediaStore.Audio.Media.DATA, "")
-        val dateAdded = cursor.getLongOrDefault(MediaStore.Audio.Media.DATE_ADDED, 0L)
-        val dateModified = cursor.getLongOrDefault(MediaStore.Audio.Media.DATE_MODIFIED, 0L)
-        val size = cursor.getLongOrDefault(MediaStore.Audio.Media.SIZE, 0L)
-        val mimeType = cursor.getStringOrDefault(MediaStore.Audio.Media.MIME_TYPE, "audio/*")
-
-        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-        val coverUri = getAlbumCoverUri(albumId)
-
-        return Song(
-            id = id,
-            title = title,
-            artist = artist,
-            artistId = artistId,
-            album = album,
-            albumId = albumId,
-            duration = duration,
-            trackNumber = trackNumber,
-            path = path,
-            uri = uri,
-            coverUri = coverUri,
-            dateAdded = dateAdded,
-            dateModified = dateModified,
-            size = size,
-            mimeType = mimeType
-        )
-    }
-    
-    // Cursor 安全扩展函数
-    private fun Cursor.getStringOrDefault(column: String, default: String): String {
-        val index = getColumnIndex(column)
-        return if (index >= 0) getString(index) ?: default else default
-    }
-    
-    private fun Cursor.getLongOrDefault(column: String, default: Long): Long {
-        val index = getColumnIndex(column)
-        return if (index >= 0) getLong(index) else default
-    }
-    
-    private fun Cursor.getIntOrDefault(column: String, default: Int): Int {
-        val index = getColumnIndex(column)
-        return if (index >= 0) getInt(index) else default
-    }
-
-    /**
-     * 解析专辑游标
-     */
-    private fun parseAlbumCursor(cursor: Cursor): Album {
-        val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID))
-        val title = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM))
-        val artist = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST))
-        val artistId = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST_ID))
-        val songCount = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS))
-        val year = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.FIRST_YEAR))
-        val coverUri = getAlbumCoverUri(id)
-
-        return Album(
-            id = id,
-            title = title,
-            artist = artist,
-            artistId = artistId,
-            songCount = songCount,
-            coverUri = coverUri,
-            year = year
-        )
-    }
-
-    /**
-     * 解析艺术家游标
-     */
-    private fun parseArtistCursor(cursor: Cursor): Artist {
-        val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID))
-        val name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST))
-        val albumCount = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_ALBUMS))
-        val songCount = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS))
-
-        return Artist(
-            id = id,
-            name = name,
-            albumCount = albumCount,
-            songCount = songCount
-        )
-    }
-
-    /**
-     * 获取专辑封面URI
-     */
-    private fun getAlbumCoverUri(albumId: Long): Uri? {
-        return if (albumId > 0) {
-            ContentUris.withAppendedId(
-                "content://media/external/audio/albumart".toUri(),
-                albumId
-            )
-        } else {
-            null
-        }
-    }
-    
-    companion object {
-        private const val TAG = "MediaStoreSource"
     }
 }

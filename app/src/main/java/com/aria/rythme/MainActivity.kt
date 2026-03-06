@@ -14,7 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import com.aria.rythme.core.music.data.repository.MusicRepository
+import com.aria.rythme.core.music.data.indexer.MusicIndexer
 import com.aria.rythme.ui.theme.RythmeTheme
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
@@ -215,7 +215,7 @@ import org.koin.android.ext.android.inject
  */
 class MainActivity : ComponentActivity() {
 
-    private val musicRepository: MusicRepository by inject()
+    private val musicIndexer: MusicIndexer by inject()
 
     /**
      * 权限请求启动器
@@ -281,7 +281,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun triggerMusicScan() {
         lifecycleScope.launch {
-            musicRepository.loadSongs()
+            musicIndexer.initialize()
         }
     }
 }

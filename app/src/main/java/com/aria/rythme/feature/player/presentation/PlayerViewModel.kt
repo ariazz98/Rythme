@@ -32,16 +32,9 @@ class PlayerViewModel(
 
     /** 进度更新任务 */
     private var progressUpdateJob: Job? = null
-    
-    /** 歌曲列表观察任务 */
-    private var songsObserverJob: Job? = null
 
     init {
-        // 监听播放控制器状态
         observePlaybackState()
-        
-        // 监听数据仓库加载状态
-        observeRepositoryState()
     }
 
     /**
@@ -65,8 +58,6 @@ class PlayerViewModel(
             is PlayerIntent.Rewind -> rewind()
             is PlayerIntent.ToggleRepeatMode -> toggleRepeatMode()
             is PlayerIntent.ToggleShuffleMode -> toggleShuffleMode()
-            is PlayerIntent.LoadSongs -> loadSongs()
-            is PlayerIntent.RefreshSongs -> refreshSongs()
             is PlayerIntent.LoadAndPlayRandom -> loadAndPlayRandom()
             is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
             is PlayerIntent.SetVolume -> setVolume(intent.percentage)
@@ -89,8 +80,6 @@ class PlayerViewModel(
             is PlayerAction.UpdateRepeatMode -> currentState.copy(repeatMode = action.mode)
             is PlayerAction.UpdateShuffleMode -> currentState.copy(isShuffleEnabled = action.enabled)
             is PlayerAction.UpdateThemeColor -> currentState.copy(themeColor = action.color)
-            is PlayerAction.SetLoading -> currentState.copy(isLoading = action.isLoading)
-            is PlayerAction.SetError -> currentState.copy(errorMessage = action.message)
             is PlayerAction.UpdateVolume -> currentState.copy(volume = action.volume)
         }
     }
@@ -194,86 +183,25 @@ class PlayerViewModel(
     }
 
     /**
-     * 加载歌曲列表
-     * 
-     * 委托给 MusicRepository 处理：
-     * 1. 订阅 Repository 的歌曲流
-     * 2. Repository 自动触发扫描和同步
-     */
-    private fun loadSongs() {
-        RythmeLogger.d(TAG, "开始加载歌曲列表")
-        
-        // 取消之前的订阅
-        songsObserverJob?.cancel()
-        
-        // 订阅 Repository 的歌曲流
-        songsObserverJob = musicRepository.getAllSongs()
-            .onEach { songs ->
-                RythmeLogger.d(TAG, "歌曲列表更新: ${songs.size} 首")
-                reduceAndUpdate(PlayerAction.UpdatePlaylist(songs))
-                
-                // 设置默认歌曲
-                if (songs.isNotEmpty() && currentState.currentSong == null) {
-                    RythmeLogger.d(TAG, "设置默认歌曲: ${songs.first().title}")
-                    reduceAndUpdate(PlayerAction.UpdateCurrentSong(songs.first()))
-                    reduceAndUpdate(PlayerAction.UpdateCurrentIndex(0))
-                }
-            }
-            .launchIn(viewModelScope)
-        
-        // 触发数据加载（Repository 内部处理）
-        viewModelScope.launch {
-            val result = musicRepository.loadSongs()
-            result.onFailure { error ->
-                RythmeLogger.e(TAG, "加载失败", error)
-                sendEffect(PlayerEffect.ShowError("加载失败: ${error.message}"))
-            }
-        }
-    }
-
-    /**
-     * 强制刷新歌曲列表
-     * 
-     * 委托给 MusicRepository 处理刷新逻辑
-     */
-    private fun refreshSongs() {
-        RythmeLogger.d(TAG, "强制刷新歌曲列表")
-        viewModelScope.launch {
-            val result = musicRepository.refreshSongs()
-            result.onSuccess { scanResult ->
-                sendEffect(PlayerEffect.ShowMessage("已刷新 ${scanResult.scannedCount} 首歌曲"))
-            }.onFailure { error ->
-                RythmeLogger.e(TAG, "刷新失败", error)
-                sendEffect(PlayerEffect.ShowError("刷新失败: ${error.message}"))
-            }
-        }
-    }
-
-    /**
-     * 加载歌曲列表并随机播放一首
-     * 
-     * 当当前没有歌曲播放时，加载所有歌曲并随机播放一首
+     * 随机播放一首歌曲
+     *
+     * 从数据库读取全部歌曲并随机播放。MusicIndexer 已由 MainActivity 初始化。
      */
     private fun loadAndPlayRandom() {
-        RythmeLogger.d(TAG, "加载歌曲列表并随机播放")
+        RythmeLogger.d(TAG, "随机播放")
         viewModelScope.launch {
-            // 先加载歌曲列表
-            val result = musicRepository.loadSongs()
-            result.onSuccess {
-                // 获取所有歌曲
+            try {
                 val songs = musicRepository.getAllSongsOnce()
                 if (songs.isNotEmpty()) {
-                    // 随机选择一首歌曲
                     val randomSong = songs.random()
                     RythmeLogger.d(TAG, "随机播放: ${randomSong.title}")
-                    // 播放选中的歌曲
                     playbackController.play(randomSong, songs)
                 } else {
                     sendEffect(PlayerEffect.ShowMessage("没有找到可播放的歌曲"))
                 }
-            }.onFailure { error ->
-                RythmeLogger.e(TAG, "加载失败", error)
-                sendEffect(PlayerEffect.ShowError("加载失败: ${error.message}"))
+            } catch (e: Exception) {
+                RythmeLogger.e(TAG, "加载失败", e)
+                sendEffect(PlayerEffect.ShowError("加载失败: ${e.message}"))
             }
         }
     }
@@ -378,38 +306,9 @@ class PlayerViewModel(
         progressUpdateJob = null
     }
 
-   /**
-     * 监听数据仓库状态
-     * 
-     * 同步 Repository 的加载状态和错误信息到 UI 状态
-     */
-    private fun observeRepositoryState() {
-        // 监听加载状态
-        musicRepository.isLoading
-            .onEach { isLoading ->
-                reduceAndUpdate(PlayerAction.SetLoading(isLoading))
-            }
-            .launchIn(viewModelScope)
-        
-        // 监听错误信息
-        musicRepository.error
-            .onEach { error ->
-                error?.let {
-                    reduceAndUpdate(PlayerAction.SetError(it))
-                }
-            }
-            .launchIn(viewModelScope)
-    }
-    
-    /**
-     * 清理资源
-     * 
-     * 注意：PlaybackController 和 MusicRepository 都是单例，不需要在此处释放
-     */
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdate()
-        songsObserverJob?.cancel()
     }
     
     companion object {

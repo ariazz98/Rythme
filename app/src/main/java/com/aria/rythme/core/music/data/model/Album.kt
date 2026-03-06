@@ -22,7 +22,8 @@ data class Album(
     val artistId: Long = 0,
     val songCount: Int = 0,
     val coverUri: Uri? = null,
-    val year: Int = 0
+    val year: Int = 0,
+    val totalDuration: Long = 0
 ) {
     /**
      * 获取专辑描述文本

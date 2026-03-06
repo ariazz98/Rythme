@@ -14,8 +14,6 @@ import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import com.aria.rythme.feature.player.presentation.PlayerIntent
-import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.ui.component.CapsuleButton
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.SongListItem
@@ -27,11 +25,10 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun SongListScreen(
-    viewModel: PlayerViewModel = koinViewModel()
+    viewModel: SongListViewModel = koinViewModel()
 ) {
     val state = viewModel.state.collectAsUiState()
-
-    val playList = state.value.playlist
+    val songs = state.value.songs
 
     MainListPage(
         modifier = Modifier.background(MaterialTheme.rythmeColors.surface),
@@ -48,23 +45,23 @@ fun SongListScreen(
                     icon = R.drawable.ic_play,
                     iconSize = 14.dp,
                     text = R.string.music_play,
-                    onClick = { viewModel.sendIntent(PlayerIntent.Play) }
+                    onClick = { viewModel.sendIntent(SongListIntent.PlayAll) }
                 )
 
                 CapsuleButton(
                     modifier = Modifier.weight(1f).height(48.dp),
                     icon = R.drawable.ic_shuffle,
                     text = R.string.music_random_play,
-                    onClick = { viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom) }
+                    onClick = { viewModel.sendIntent(SongListIntent.ShufflePlay) }
                 )
             }
         }
 
-        itemsIndexed(state.value.playlist) { index, song ->
+        itemsIndexed(songs) { index, song ->
             SongListItem(
                 song = song,
-                showDivider = index != playList.size - 1,
-                onClick = { viewModel.sendIntent(PlayerIntent.PlaySong(song)) },
+                showDivider = index != songs.size - 1,
+                onClick = { viewModel.sendIntent(SongListIntent.PlaySong(song)) },
                 onMoreClick = {}
             )
         }

@@ -50,13 +50,15 @@ interface SongDao {
     suspend fun getSongCount(): Int
     
     /**
-     * 搜索歌曲（按标题、艺术家、专辑）
+     * 搜索歌曲（按标题、艺术家、专辑、流派、作曲者）
      */
     @Query("""
-        SELECT * FROM songs 
-        WHERE title LIKE '%' || :query || '%' 
-           OR artist LIKE '%' || :query || '%' 
+        SELECT * FROM songs
+        WHERE title LIKE '%' || :query || '%'
+           OR artist LIKE '%' || :query || '%'
            OR album LIKE '%' || :query || '%'
+           OR genre LIKE '%' || :query || '%'
+           OR composer LIKE '%' || :query || '%'
         ORDER BY title ASC
     """)
     fun searchSongs(query: String): Flow<List<SongEntity>>
@@ -78,6 +80,42 @@ interface SongDao {
      */
     @Query("SELECT * FROM songs ORDER BY dateAdded DESC LIMIT :limit")
     fun getRecentlyAdded(limit: Int = 50): Flow<List<SongEntity>>
+
+    /**
+     * 按流派获取歌曲
+     */
+    @Query("SELECT * FROM songs WHERE genre = :genre ORDER BY title ASC")
+    fun getSongsByGenre(genre: String): Flow<List<SongEntity>>
+
+    /**
+     * 按作曲者获取歌曲
+     */
+    @Query("SELECT * FROM songs WHERE composer = :composer ORDER BY title ASC")
+    fun getSongsByComposer(composer: String): Flow<List<SongEntity>>
+
+    /**
+     * 按文件夹获取歌曲
+     */
+    @Query("SELECT * FROM songs WHERE folderId = :folderId ORDER BY title ASC")
+    fun getSongsByFolder(folderId: Long): Flow<List<SongEntity>>
+
+    /**
+     * 获取所有不重复的流派
+     */
+    @Query("SELECT DISTINCT genre FROM songs WHERE genre != '' ORDER BY genre ASC")
+    fun getAllGenres(): Flow<List<String>>
+
+    /**
+     * 获取所有不重复的作曲者
+     */
+    @Query("SELECT DISTINCT composer FROM songs WHERE composer != '' ORDER BY composer ASC")
+    fun getAllComposers(): Flow<List<String>>
+
+    /**
+     * 获取所有歌曲的指纹数据（用于增量同步对比）
+     */
+    @Query("SELECT id, dateModified, size, generationModified FROM songs")
+    suspend fun getAllFingerprints(): List<SongFingerprint>
     
     /**
      * 获取所有已缓存歌曲的ID

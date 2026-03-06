@@ -51,12 +51,6 @@ sealed interface PlayerIntent : UserIntent {
     /** 切换随机播放 */
     data object ToggleShuffleMode : PlayerIntent
 
-    /** 加载歌曲列表 */
-    data object LoadSongs : PlayerIntent
-    
-    /** 强制刷新歌曲列表 */
-    data object RefreshSongs : PlayerIntent
-
     /** 加载歌曲列表并随机播放一首 */
     data object LoadAndPlayRandom : PlayerIntent
 
@@ -94,12 +88,6 @@ data class PlayerState(
 
     /** 是否随机播放 */
     val isShuffleEnabled: Boolean = false,
-
-    /** 是否正在加载 */
-    val isLoading: Boolean = false,
-
-    /** 错误信息 */
-    val errorMessage: String? = null,
 
     /** 封面主题色 */
     val themeColor: Int? = null,
@@ -180,12 +168,6 @@ sealed interface PlayerAction : InternalAction {
 
     /** 更新主题色 */
     data class UpdateThemeColor(val color: Int?) : PlayerAction
-
-    /** 设置加载状态 */
-    data class SetLoading(val isLoading: Boolean) : PlayerAction
-
-    /** 设置错误信息 */
-    data class SetError(val message: String?) : PlayerAction
 
     /** 更新音量 */
     data class UpdateVolume(val volume: Int) : PlayerAction
