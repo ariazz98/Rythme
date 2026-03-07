@@ -201,34 +201,20 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        Icon(
-            painter = painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
-            contentDescription = "",
-            modifier = Modifier
-                .padding(end = 21.dp)
-                .size(18.dp)
-                .clickable(interactionSource = null, indication = null) {
-                    onPlayPauseClick()
-                }
+        PlayPauseIcon(
+            isPlaying = isPlaying,
+            size = 18.dp,
+            onClick = onPlayPauseClick
         )
 
-        Icon(
-            painter = painterResource(R.drawable.ic_next),
-            contentDescription = "",
+        Spacer(modifier = Modifier.width(21.dp))
+
+        NextIcon(
+            enable = canPlayNext,
+            height = 15.dp,
             tint = if (canPlayNext) Color.Black else Color(0xFFBFBFBE),
-            modifier = Modifier
-                .padding(end = 21.dp)
-                .size(28.dp)
-                // canPlayNext = false 时不挂载 clickable，完全禁用点击而非仅视觉置灰
-                .then(
-                    if (canPlayNext) {
-                        Modifier.clickable(interactionSource = null, indication = null) {
-                            onNextClick()
-                        }
-                    } else {
-                        Modifier
-                    }
-                )
+            onClick = onNextClick
         )
+        Spacer(modifier = Modifier.width(21.dp))
     }
 }
