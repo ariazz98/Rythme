@@ -20,7 +20,6 @@ fun ComposerListScreen(
     val composers = state.value.composers
 
     MainListPage(
-        modifier = Modifier.background(MaterialTheme.rythmeColors.surface),
         routeKey = RythmeRoute.ComposerList
     ) {
         itemsIndexed(composers, key = { _, composer -> composer }) { index, composer ->

@@ -2,6 +2,7 @@ package com.aria.rythme.feature.library.presentation
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import com.aria.rythme.R
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.MainListPage
@@ -18,6 +19,7 @@ fun LibraryScreen(
 ) {
 
     MainListPage(
+        title = stringResource(R.string.title_library),
         routeKey = RythmeRoute.Library,
         mainContent = {
 

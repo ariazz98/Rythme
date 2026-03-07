@@ -131,15 +131,7 @@ private fun ScaffoldNavigation(
                     targetState = navigationState.topLevelRoute,
                     animationSpec = tween(durationMillis = 100)
                 ) { route ->
-                    val titleRes = when (route) {
-                        RythmeRoute.Home -> R.string.title_home
-                        RythmeRoute.Library -> R.string.title_library
-                        RythmeRoute.Search -> R.string.title_search
-                        RythmeRoute.Playlist -> R.string.title_play_list
-                        else -> R.string.title_home
-                    }
                     RythmeHeader(
-                        title = stringResource(titleRes),
                         hasMoreMenu = route == RythmeRoute.Library,
                         hasAvatar = true,
                         // 使用该路由自己的滚动缓存，而非全局当前值
@@ -184,8 +176,7 @@ private fun ScaffoldNavigation(
                 NavDisplay(
                     modifier = Modifier
                         .fillMaxSize()
-                        .layerBackdrop(backdrop)
-                        .background(MaterialTheme.rythmeColors.surface),
+                        .layerBackdrop(backdrop),
                     onBack = onBack,
                     transitionSpec = {
                         if (navigationState.isTabSwitch) fadeSpec

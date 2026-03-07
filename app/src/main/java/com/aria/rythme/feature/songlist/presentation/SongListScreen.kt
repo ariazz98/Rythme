@@ -31,7 +31,6 @@ fun SongListScreen(
     val songs = state.value.songs
 
     MainListPage(
-        modifier = Modifier.background(MaterialTheme.rythmeColors.surface),
         routeKey = RythmeRoute.SongList
     ) {
         item {

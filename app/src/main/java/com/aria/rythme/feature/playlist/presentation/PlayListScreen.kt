@@ -2,6 +2,8 @@ package com.aria.rythme.feature.playlist.presentation
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.aria.rythme.R
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.MainListPage
 
@@ -14,7 +16,10 @@ fun PlayListScreen(
     viewModel: PlayListViewModel
 ) {
 
-    MainListPage(routeKey = RythmeRoute.Playlist) {
+    MainListPage(
+        title = stringResource(R.string.title_play_list),
+        routeKey = RythmeRoute.Playlist
+    ) {
         item {
             Text("施工中")
         }

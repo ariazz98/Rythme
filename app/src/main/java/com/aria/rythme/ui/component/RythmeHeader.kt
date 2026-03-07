@@ -28,7 +28,6 @@ import com.aria.rythme.ui.theme.rythmeColors
 
 @Composable
 fun RythmeHeader(
-    title: String,
     hasMoreMenu: Boolean,
     hasAvatar: Boolean,
     isShow: Boolean,
@@ -55,14 +54,7 @@ fun RythmeHeader(
             .alpha(headerAlpha),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 标题
-        Text(
-            text = title,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.rythmeColors.textColor,
-            modifier = Modifier.weight(1f)
-        )
+        Spacer(modifier = Modifier.weight(1f))
 
         if (hasMoreMenu) {
             MenuItem(

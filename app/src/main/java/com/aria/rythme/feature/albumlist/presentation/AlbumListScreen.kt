@@ -30,7 +30,6 @@ fun AlbumListScreen(
     val albums = state.value.albums
 
     MainGridPage(
-        modifier = Modifier.background(MaterialTheme.rythmeColors.surface),
         routeKey = RythmeRoute.AlbumList
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {

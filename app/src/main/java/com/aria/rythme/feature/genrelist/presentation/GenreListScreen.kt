@@ -20,7 +20,6 @@ fun GenreListScreen(
     val genres = state.value.genres
 
     MainListPage(
-        modifier = Modifier.background(MaterialTheme.rythmeColors.surface),
         routeKey = RythmeRoute.GenreList
     ) {
         itemsIndexed(genres, key = { _, genre -> genre }) { index, genre ->

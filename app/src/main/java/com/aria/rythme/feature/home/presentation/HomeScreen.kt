@@ -7,7 +7,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.aria.rythme.R
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.LargeVerticalCard
@@ -25,7 +27,10 @@ fun HomeScreen(
     viewModel: HomeViewModel
 ) {
 
-    MainListPage(routeKey = RythmeRoute.Home) {
+    MainListPage(
+        title = stringResource(R.string.title_home),
+        routeKey = RythmeRoute.Home
+    ) {
         // 专属精选推荐区块
         item {
             SectionItem(
