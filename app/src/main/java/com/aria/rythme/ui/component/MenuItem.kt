@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.R
@@ -29,6 +30,7 @@ import com.kyant.capsule.ContinuousCapsule
 fun MenuItem(
     backdrop: Backdrop = LocalBackdrop.current,
     iconRes: Int,
+    iconSize: Dp = 28.dp,
     onClick: () -> Unit
 ) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
@@ -56,7 +58,7 @@ fun MenuItem(
             painter = painterResource(iconRes),
             contentDescription = "",
             tint = MaterialTheme.rythmeColors.textColor,
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(iconSize)
         )
     }
 }
@@ -67,6 +69,7 @@ fun SingleActionItem(item: HeaderActionItem) {
     when (item) {
         is HeaderActionItem.Icon -> MenuItem(
             iconRes = item.iconRes,
+            iconSize = item.iconSize,
             onClick = item.onClick
         )
         is HeaderActionItem.Avatar -> AvatarItem(
@@ -155,7 +158,7 @@ fun SegmentedActionGroup(
                     painter = painterResource(action.iconRes),
                     contentDescription = action.contentDescription,
                     tint = MaterialTheme.rythmeColors.textColor,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(action.iconSize)
                 )
             }
         }

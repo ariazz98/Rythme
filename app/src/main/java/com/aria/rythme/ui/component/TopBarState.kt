@@ -5,6 +5,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.R
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
@@ -17,6 +19,7 @@ sealed interface HeaderActionItem {
     /** 图标按钮 */
     data class Icon(
         @DrawableRes val iconRes: Int,
+        val iconSize: Dp = 22.dp,
         val contentDescription: String = "",
         val onClick: () -> Unit = {}
     ) : HeaderActionItem
@@ -93,7 +96,7 @@ fun rememberTopBarState(): TopBarState = remember {
         updateConfig(RythmeRoute.Playlist, defaultConfig)
         updateConfig(RythmeRoute.Library, TopBarConfig(
             actions = listOf(
-                ActionGroup.Single(HeaderActionItem.Icon(R.drawable.ic_more) { /* TODO */ }),
+                ActionGroup.Single(HeaderActionItem.Icon(R.drawable.ic_more, iconSize = 22.dp) { /* TODO */ }),
                 avatarAction
             )
         ))
@@ -101,14 +104,14 @@ fun rememberTopBarState(): TopBarState = remember {
         updateConfig(RythmeRoute.ArtistList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                ActionGroup.Single(HeaderActionItem.Icon(R.drawable.ic_filter) { /* TODO */ })
+                ActionGroup.Single(HeaderActionItem.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ })
             )
         ))
         updateConfig(RythmeRoute.AlbumList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
                 ActionGroup.Segmented(listOf(
-                    HeaderActionItem.Icon(R.drawable.ic_filter) { /* TODO */ },
+                    HeaderActionItem.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
                     HeaderActionItem.Icon(R.drawable.ic_more) { /* TODO */ }
                 ))
             )
@@ -117,7 +120,7 @@ fun rememberTopBarState(): TopBarState = remember {
             showBackButton = true,
             actions = listOf(
                 ActionGroup.Segmented(listOf(
-                    HeaderActionItem.Icon(R.drawable.ic_filter) { /* TODO */ },
+                    HeaderActionItem.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
                     HeaderActionItem.Icon(R.drawable.ic_more) { /* TODO */ }
                 ))
             )
