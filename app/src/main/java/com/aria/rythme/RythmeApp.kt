@@ -53,8 +53,11 @@ import com.aria.rythme.feature.artistlist.presentation.ArtistListScreen
 import com.aria.rythme.feature.composerlist.presentation.ComposerListScreen
 import com.aria.rythme.feature.genrelist.presentation.GenreListScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
+import com.aria.rythme.ui.component.ActionGroup
+import com.aria.rythme.ui.component.HeaderActionItem
 import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.RythmeHeader
+import com.aria.rythme.ui.component.TopBarConfig
 import com.aria.rythme.ui.component.rememberTopBarState
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.Backdrop
@@ -128,16 +131,13 @@ private fun ScaffoldNavigation(
             topBar = {
                 // Crossfade 使标题、按钮与页面内容同步切换，避免标题先于内容更新
                 Crossfade(
-                    targetState = navigationState.topLevelRoute,
+                    targetState = navigationState.currentRoute,
                     animationSpec = tween(durationMillis = 100)
                 ) { route ->
                     RythmeHeader(
-                        hasMoreMenu = route == RythmeRoute.Library,
-                        hasAvatar = true,
-                        // 使用该路由自己的滚动缓存，而非全局当前值
-                        isShow = topBarState.isScrollAtTop(route),
-                        onMoreClick = { /* TODO */ },
-                        onAvatarClick = { /* TODO */ }
+                        isShow = topBarState.isShow(route),
+                        config = topBarState.getConfig(route),
+                        onBackClick = { navigator.goBack() }
                     )
                 }
             },

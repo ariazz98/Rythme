@@ -31,7 +31,8 @@ fun SongListScreen(
     val songs = state.value.songs
 
     MainListPage(
-        routeKey = RythmeRoute.SongList
+        routeKey = RythmeRoute.SongList,
+        autoHide = false
     ) {
         item {
             Row(

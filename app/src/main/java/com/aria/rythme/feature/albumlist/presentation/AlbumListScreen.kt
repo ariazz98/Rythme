@@ -30,7 +30,8 @@ fun AlbumListScreen(
     val albums = state.value.albums
 
     MainGridPage(
-        routeKey = RythmeRoute.AlbumList
+        routeKey = RythmeRoute.AlbumList,
+        autoHide = false
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(

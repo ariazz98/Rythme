@@ -20,7 +20,8 @@ fun ComposerListScreen(
     val composers = state.value.composers
 
     MainListPage(
-        routeKey = RythmeRoute.ComposerList
+        routeKey = RythmeRoute.ComposerList,
+        autoHide = false
     ) {
         itemsIndexed(composers, key = { _, composer -> composer }) { index, composer ->
             CommonListItem(

@@ -40,6 +40,7 @@ import com.aria.rythme.ui.theme.rythmeColors
 fun MainListPage(
     title: String? = null,
     routeKey: NavKey,
+    autoHide: Boolean = true,
     mainContent: LazyListScope.() -> Unit
 ) {
 
@@ -64,9 +65,13 @@ fun MainListPage(
 
     // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
-    LaunchedEffect(listState) {
-        snapshotFlow { isAtTop }.collect { atTop ->
-            topBarState.updateScrollAtTop(routeKey, atTop)
+    LaunchedEffect(listState, autoHide) {
+        if (autoHide) {
+            snapshotFlow { isAtTop }.collect { atTop ->
+                topBarState.updateIsShow(routeKey, atTop)
+            }
+        } else {
+            topBarState.updateIsShow(routeKey, true)
         }
     }
 
@@ -110,6 +115,7 @@ fun MainGridPage(
     title: String? = null,
     routeKey: NavKey,
     gridCount: Int = 2,
+    autoHide: Boolean = true,
     mainContent: LazyGridScope.() -> Unit
 ) {
     val gridState = rememberLazyGridState()
@@ -133,9 +139,13 @@ fun MainGridPage(
 
     // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
-    LaunchedEffect(gridState) {
-        snapshotFlow { isAtTop }.collect { atTop ->
-            topBarState.updateScrollAtTop(routeKey, atTop)
+    LaunchedEffect(gridState, autoHide) {
+        if (autoHide) {
+            snapshotFlow { isAtTop }.collect { atTop ->
+                topBarState.updateIsShow(routeKey, atTop)
+            }
+        } else {
+            topBarState.updateIsShow(routeKey, true)
         }
     }
 

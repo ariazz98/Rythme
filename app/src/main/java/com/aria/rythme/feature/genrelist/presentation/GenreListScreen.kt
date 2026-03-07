@@ -20,7 +20,8 @@ fun GenreListScreen(
     val genres = state.value.genres
 
     MainListPage(
-        routeKey = RythmeRoute.GenreList
+        routeKey = RythmeRoute.GenreList,
+        autoHide = false
     ) {
         itemsIndexed(genres, key = { _, genre -> genre }) { index, genre ->
             CommonListItem(

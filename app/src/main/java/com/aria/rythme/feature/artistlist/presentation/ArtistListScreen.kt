@@ -20,7 +20,8 @@ fun ArtistListScreen(
     val artists = state.value.artists
 
     MainListPage(
-        routeKey = RythmeRoute.ArtistList
+        routeKey = RythmeRoute.ArtistList,
+        autoHide = false
     ) {
         itemsIndexed(artists, key = { _, artist -> artist.id }) { index, artist ->
             ArtistListItem(
