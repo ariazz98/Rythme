@@ -206,7 +206,7 @@ fun LiquidBottomTabs(
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScale = 78f / 56f,
+                pressedScale = 74f / 56f,
                 onDragStarted = {},
                 onDragStopped = {
                     val targetIndex =
