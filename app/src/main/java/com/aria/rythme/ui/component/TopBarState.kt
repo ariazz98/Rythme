@@ -10,40 +10,25 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.R
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import com.aria.rythme.ui.component.ActionGroup
 
 /**
  * 单个操作项（图标按钮或头像按钮）
  */
-sealed interface HeaderActionItem {
+sealed class Action(val onClick: () -> Unit) {
     /** 图标按钮 */
     data class Icon(
         @DrawableRes val iconRes: Int,
         val iconSize: Dp = 22.dp,
         val contentDescription: String = "",
-        val onClick: () -> Unit = {}
-    ) : HeaderActionItem
+        val onIconClick: () -> Unit = {}
+    ) : Action(onIconClick)
 
     /** 头像按钮 */
     data class Avatar(
         val url: String? = null,
         val name: String? = null,
-        val onClick: () -> Unit = {}
-    ) : HeaderActionItem
-}
-
-/**
- * 操作组，渲染为一个视觉单元
- *
- * - [Single] 独立按钮
- * - [Segmented] 组合按钮（多个图标共享一个容器）
- */
-sealed interface ActionGroup {
-    /** 单个独立按钮 */
-    data class Single(val item: HeaderActionItem) : ActionGroup
-
-    /** 组合按钮：多个图标合并在一个胶囊容器中 */
-    data class Segmented(val items: List<HeaderActionItem.Icon>) : ActionGroup
+        val onAvatarClick: () -> Unit = {}
+    ) : Action(onAvatarClick)
 }
 
 /**
@@ -51,7 +36,8 @@ sealed interface ActionGroup {
  */
 data class TopBarConfig(
     val showBackButton: Boolean = false,
-    val actions: List<ActionGroup> = emptyList()
+    val showMoreButton: Boolean = false,
+    val actions: List<Action> = emptyList()
 )
 
 /**
@@ -88,41 +74,37 @@ val LocalTopBarState = staticCompositionLocalOf { TopBarState() }
 @Composable
 fun rememberTopBarState(): TopBarState = remember {
     TopBarState().apply {
-        val avatarAction = ActionGroup.Single(
-            HeaderActionItem.Avatar(name = "ARiA") { /* TODO */ }
-        )
+        val avatarAction = Action.Avatar(
+            name = "ARiA"
+        ) {
+            // TODO:
+        }
         val defaultConfig = TopBarConfig(actions = listOf(avatarAction))
         updateConfig(RythmeRoute.Home, defaultConfig)
         updateConfig(RythmeRoute.Playlist, defaultConfig)
         updateConfig(RythmeRoute.Library, TopBarConfig(
-            actions = listOf(
-                ActionGroup.Single(HeaderActionItem.Icon(R.drawable.ic_more, iconSize = 22.dp) { /* TODO */ }),
-                avatarAction
-            )
+            showMoreButton = true,
+            actions = listOf(avatarAction)
         ))
         updateConfig(RythmeRoute.Search, defaultConfig)
         updateConfig(RythmeRoute.ArtistList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                ActionGroup.Single(HeaderActionItem.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ })
+                Action.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ }
             )
         ))
         updateConfig(RythmeRoute.AlbumList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                ActionGroup.Segmented(listOf(
-                    HeaderActionItem.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
-                    HeaderActionItem.Icon(R.drawable.ic_more) { /* TODO */ }
-                ))
+                Action.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
+                Action.Icon(iconRes = R.drawable.ic_more) { /* TODO */ }
             )
         ))
         updateConfig(RythmeRoute.SongList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                ActionGroup.Segmented(listOf(
-                    HeaderActionItem.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
-                    HeaderActionItem.Icon(R.drawable.ic_more) { /* TODO */ }
-                ))
+                Action.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
+                Action.Icon(iconRes = R.drawable.ic_more) { /* TODO */ }
             )
         ))
         updateConfig(RythmeRoute.GenreList, TopBarConfig(

@@ -7,6 +7,8 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -53,8 +55,6 @@ import com.aria.rythme.feature.artistlist.presentation.ArtistListScreen
 import com.aria.rythme.feature.composerlist.presentation.ComposerListScreen
 import com.aria.rythme.feature.genrelist.presentation.GenreListScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
-import com.aria.rythme.ui.component.ActionGroup
-import com.aria.rythme.ui.component.HeaderActionItem
 import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.RythmeHeader
 import com.aria.rythme.ui.component.TopBarConfig
@@ -129,17 +129,12 @@ private fun ScaffoldNavigation(
         Scaffold(
             modifier = Modifier.imePadding(),
             topBar = {
-                // Crossfade 使标题、按钮与页面内容同步切换，避免标题先于内容更新
-                Crossfade(
-                    targetState = navigationState.currentRoute,
-                    animationSpec = tween(durationMillis = 100)
-                ) { route ->
-                    RythmeHeader(
-                        isShow = topBarState.isShow(route),
-                        config = topBarState.getConfig(route),
-                        onBackClick = { navigator.goBack() }
-                    )
-                }
+                RythmeHeader(
+                    isShow = topBarState.isShow(navigationState.currentRoute),
+                    config = topBarState.getConfig(navigationState.currentRoute),
+                    skipAnimation = navigationState.isTabSwitch,
+                    onBackClick = { navigator.goBack() }
+                )
             },
             bottomBar = {
                 BottomNavigationBar(
@@ -171,7 +166,7 @@ private fun ScaffoldNavigation(
                 LocalTopBarState provides topBarState
             ) {
                 // 页面内容区域：作为 backdrop 的背景录制源
-                val fadeSpec = fadeIn(tween(100)) togetherWith fadeOut(tween(100))
+                val snapSpec = EnterTransition.None togetherWith ExitTransition.None
 
                 NavDisplay(
                     modifier = Modifier
@@ -179,7 +174,7 @@ private fun ScaffoldNavigation(
                         .layerBackdrop(backdrop),
                     onBack = onBack,
                     transitionSpec = {
-                        if (navigationState.isTabSwitch) fadeSpec
+                        if (navigationState.isTabSwitch) snapSpec
                         else slideInHorizontally(
                             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
                         ) { it } togetherWith slideOutHorizontally(
@@ -187,15 +182,8 @@ private fun ScaffoldNavigation(
                         ) { -it / 2 }
                     },
                     popTransitionSpec = {
-                        if (navigationState.isTabSwitch) fadeSpec
+                        if (navigationState.isTabSwitch) snapSpec
                         else slideInHorizontally(
-                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                        ) { -it / 2 } togetherWith slideOutHorizontally(
-                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                        ) { it }
-                    },
-                    predictivePopTransitionSpec = {
-                        slideInHorizontally(
                             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
                         ) { -it / 2 } togetherWith slideOutHorizontally(
                             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
