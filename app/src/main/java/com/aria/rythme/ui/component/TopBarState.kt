@@ -51,6 +51,10 @@ class TopBarState {
     private val isShowMap = mutableStateMapOf<NavKey, Boolean>()
     // 每个路由独立保存按钮配置
     private val configMap = mutableStateMapOf<NavKey, TopBarConfig>()
+    // 每个路由独立保存搜索激活状态
+    private val searchActiveMap = mutableStateMapOf<NavKey, Boolean>()
+    // 每个路由独立保存搜索页面标题
+    private val searchTitleMap = mutableStateMapOf<NavKey, String>()
 
     /** 读取指定路由的可见性，未记录时返回 true（默认展示） */
     fun isShow(routeKey: NavKey): Boolean = isShowMap[routeKey] ?: true
@@ -66,6 +70,26 @@ class TopBarState {
     /** 更新指定路由的按钮配置 */
     fun updateConfig(routeKey: NavKey, config: TopBarConfig) {
         configMap[routeKey] = config
+    }
+
+    /** 读取指定路由的搜索激活状态 */
+    fun isSearchActive(routeKey: NavKey): Boolean = searchActiveMap[routeKey] ?: false
+
+    /** 读取指定路由搜索时的页面标题 */
+    fun getSearchTitle(routeKey: NavKey): String = searchTitleMap[routeKey] ?: ""
+
+    /** 更新指定路由的搜索激活状态，激活时可附带页面标题 */
+    fun updateSearchActive(routeKey: NavKey, active: Boolean, title: String = "") {
+        searchActiveMap[routeKey] = active
+        if (title.isNotEmpty()) {
+            searchTitleMap[routeKey] = title
+        }
+    }
+
+    /** 页面出栈时重置搜索状态（保留 config 等初始配置） */
+    fun resetSearchState(routeKey: NavKey) {
+        searchActiveMap.remove(routeKey)
+        searchTitleMap.remove(routeKey)
     }
 }
 

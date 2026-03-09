@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
@@ -30,6 +31,7 @@ fun AlbumListScreen(
     val albums = state.value.albums
 
     MainGridPage(
+        title = stringResource(R.string.title_album),
         routeKey = RythmeRoute.AlbumList,
         autoHide = false
     ) {
@@ -37,7 +39,7 @@ fun AlbumListScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 0.dp, vertical = 8.dp),
+                    .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 CapsuleButton(

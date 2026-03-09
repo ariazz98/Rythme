@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
@@ -31,6 +32,7 @@ fun SongListScreen(
     val songs = state.value.songs
 
     MainListPage(
+        title = stringResource(R.string.title_music_list),
         routeKey = RythmeRoute.SongList,
         autoHide = false
     ) {

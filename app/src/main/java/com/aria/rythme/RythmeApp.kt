@@ -132,6 +132,11 @@ private fun ScaffoldNavigation(
                 RythmeHeader(
                     isShow = topBarState.isShow(navigationState.currentRoute),
                     config = topBarState.getConfig(navigationState.currentRoute),
+                    isSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
+                    searchTitle = topBarState.getSearchTitle(navigationState.currentRoute),
+                    onSearchClose = {
+                        topBarState.updateSearchActive(navigationState.currentRoute, false)
+                    },
                     skipAnimation = navigationState.isTabSwitch,
                     onBackClick = { navigator.goBack() }
                 )

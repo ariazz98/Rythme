@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.LocalInnerPadding
+import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
 import com.aria.rythme.ui.theme.rythmeColors
 
 @Composable
@@ -75,6 +78,13 @@ fun MainListPage(
         }
     }
 
+    // 页面出栈时清除该路由的所有 TopBar 状态（包括搜索状态）
+    DisposableEffect(routeKey) {
+        onDispose {
+            topBarState.resetSearchState(routeKey)
+        }
+    }
+
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.rythmeColors.surface)
     ) {
@@ -87,6 +97,40 @@ fun MainListPage(
                 Spacer(modifier = Modifier.height(topPadding))
             }
 
+            if (routeKey !in ALL_TOP_LEVEL_ROUTES) {
+                if (!title.isNullOrEmpty()) {
+                    item {
+                        if (!topBarState.isSearchActive(routeKey)) {
+                            Column(
+                                modifier = Modifier.padding(
+                                    start = 21.dp,
+                                    end = 21.dp,
+                                    top = 12.dp
+                                )
+                            ) {
+                                // 标题
+                                Text(
+                                    text = title,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.rythmeColors.textColor
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                SearchPlaceholder(
+                                    onClick = {
+                                        topBarState.updateSearchActive(routeKey, true, title)
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
             mainContent()
 
             item {
@@ -94,7 +138,7 @@ fun MainListPage(
             }
         }
 
-        if (!title.isNullOrEmpty()) {
+        if (!title.isNullOrEmpty() && routeKey in ALL_TOP_LEVEL_ROUTES) {
             // 标题
             Text(
                 text = title,
@@ -149,6 +193,13 @@ fun MainGridPage(
         }
     }
 
+    // 页面出栈时清除该路由的所有 TopBar 状态（包括搜索状态）
+    DisposableEffect(routeKey) {
+        onDispose {
+            topBarState.resetSearchState(routeKey)
+        }
+    }
+
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.rythmeColors.surface)
     ) {
@@ -164,6 +215,32 @@ fun MainGridPage(
                 Spacer(modifier = Modifier.height(topPadding))
             }
 
+            if (routeKey !in ALL_TOP_LEVEL_ROUTES) {
+                if (!title.isNullOrEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        if (!topBarState.isSearchActive(routeKey)) {
+                            Column {
+                                // 标题
+                                Text(
+                                    text = title,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.rythmeColors.textColor
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                SearchPlaceholder(
+                                    onClick = {
+                                        topBarState.updateSearchActive(routeKey, true, title)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             mainContent()
 
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -171,7 +248,7 @@ fun MainGridPage(
             }
         }
 
-        if (!title.isNullOrEmpty()) {
+        if (!title.isNullOrEmpty() && routeKey in ALL_TOP_LEVEL_ROUTES) {
             // 标题
             Text(
                 text = title,

@@ -4,6 +4,11 @@
     <string name="title_play_list">歌单</string>
     <string name="title_library">资料库</string>
     <string name="title_search">搜索</string>
+    <string name="title_artist">艺人</string>
+    <string name="title_album">专辑</string>
+    <string name="title_music_list">歌曲</string>
+    <string name="title_type">类型</string>
+    <string name="title_composer">作曲者</string>
     <string name="permission_granted">权限已授予</string>
     <string name="permission_required">需要音频权限才能播放音乐</string>
     <string name="permission_required_storage">需要音频权限来扫描本地音乐</string>

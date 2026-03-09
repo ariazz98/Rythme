@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonListItem
@@ -20,6 +22,7 @@ fun ComposerListScreen(
     val composers = state.value.composers
 
     MainListPage(
+        title = stringResource(R.string.title_composer),
         routeKey = RythmeRoute.ComposerList,
         autoHide = false
     ) {
