@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aria.rythme.LocalBackdrop
@@ -49,6 +50,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.delay
 
@@ -62,6 +64,7 @@ fun SearchPlaceholder(
 ) {
     Row(
         modifier = modifier
+            .padding(vertical = 12.dp)
             .clip(ContinuousCapsule)
             .background(Color(0xFFEBEBEB))
             .fillMaxWidth()
@@ -109,7 +112,6 @@ fun SearchPlaceholder(
 fun HeaderSearchBar(
     active: Boolean,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier,
     backdrop: Backdrop = LocalBackdrop.current
 ) {
     var searchText by remember { mutableStateOf("") }
@@ -127,7 +129,9 @@ fun HeaderSearchBar(
     }
 
     Row(
-        modifier = modifier,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(68.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
@@ -136,6 +140,7 @@ fun HeaderSearchBar(
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousCapsule },
+                    shadow = { Shadow.Default.copy(radius = 12.dp, offset = DpOffset(0.dp, 0.dp))},
                     effects = {
                         vibrancy()
                         blur(2f.dp.toPx())

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -28,6 +29,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
@@ -46,6 +48,8 @@ fun MainListPage(
     autoHide: Boolean = true,
     mainContent: LazyListScope.() -> Unit
 ) {
+
+    val isTopPage = routeKey in ALL_TOP_LEVEL_ROUTES
 
     val listState = rememberLazyListState()
 
@@ -94,37 +98,40 @@ fun MainListPage(
         ) {
             // 顶部占位空间（为全局 TopBar 留出空间）
             item {
-                Spacer(modifier = Modifier.height(topPadding))
-            }
-
-            if (routeKey !in ALL_TOP_LEVEL_ROUTES) {
-                if (!title.isNullOrEmpty()) {
-                    item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (isTopPage) topPadding - 104.dp else topPadding),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    if (!title.isNullOrEmpty() && !isTopPage) {
                         if (!topBarState.isSearchActive(routeKey)) {
                             Column(
-                                modifier = Modifier.padding(
-                                    start = 21.dp,
-                                    end = 21.dp,
-                                    top = 12.dp
-                                )
+                                modifier = Modifier
+                                    .padding(
+                                        start = 21.dp,
+                                        end = 21.dp
+                                    )
+                                    .height(104.dp)
                             ) {
-                                // 标题
-                                Text(
-                                    text = title,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.rythmeColors.textColor
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier.height(36.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    // 标题
+                                    Text(
+                                        text = title,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.rythmeColors.textColor
+                                    )
+                                }
 
                                 SearchPlaceholder(
                                     onClick = {
                                         topBarState.updateSearchActive(routeKey, true, title)
                                     }
                                 )
-
-                                Spacer(modifier = Modifier.height(12.dp))
                             }
                         }
                     }
@@ -147,7 +154,7 @@ fun MainListPage(
                 color = MaterialTheme.rythmeColors.textColor,
                 modifier = Modifier
                     .statusBarsPadding()
-                    .padding(horizontal = 21.dp, vertical = 8.dp)
+                    .padding(horizontal = 21.dp, vertical = 16.dp)
                     .alpha(headerAlpha)
             )
         }
@@ -163,6 +170,8 @@ fun MainGridPage(
     mainContent: LazyGridScope.() -> Unit
 ) {
     val gridState = rememberLazyGridState()
+
+    val isTopPage = routeKey in ALL_TOP_LEVEL_ROUTES
 
     val density = LocalDensity.current
     val innerPadding = LocalInnerPadding.current
@@ -212,23 +221,30 @@ fun MainGridPage(
         ) {
             // 顶部占位空间（为全局 TopBar 留出空间）
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Spacer(modifier = Modifier.height(topPadding))
-            }
-
-            if (routeKey !in ALL_TOP_LEVEL_ROUTES) {
-                if (!title.isNullOrEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (isTopPage) topPadding - 104.dp else topPadding),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    if (!title.isNullOrEmpty() && !isTopPage) {
                         if (!topBarState.isSearchActive(routeKey)) {
-                            Column {
-                                // 标题
-                                Text(
-                                    text = title,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.rythmeColors.textColor
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
+                            Column(
+                                modifier = Modifier
+                                    .height(104.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.height(36.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    // 标题
+                                    Text(
+                                        text = title,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.rythmeColors.textColor
+                                    )
+                                }
 
                                 SearchPlaceholder(
                                     onClick = {
@@ -257,7 +273,7 @@ fun MainGridPage(
                 color = MaterialTheme.rythmeColors.textColor,
                 modifier = Modifier
                     .statusBarsPadding()
-                    .padding(horizontal = 21.dp, vertical = 8.dp)
+                    .padding(horizontal = 21.dp, vertical = 16.dp)
                     .alpha(headerAlpha)
             )
         }

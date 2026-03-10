@@ -19,8 +19,8 @@ import kotlinx.coroutines.launch
  */
 class DropletSlideAnimation(
     private val animationScope: CoroutineScope,
-    private val stretchAmount: Float = 1.15f,
-    private val squeezeAmount: Float = 0.85f,
+    private val stretchAmount: Float = 1.25f,
+    private val squeezeAmount: Float = 0.75f,
 ) {
 
     // 位移弹簧：中等阻尼，允许轻微过冲
