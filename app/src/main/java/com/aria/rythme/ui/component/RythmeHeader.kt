@@ -79,14 +79,7 @@ fun RythmeHeader(
         label = "topBarHeight"
     )
 
-    // Header高度固定
-    Box(
-        modifier = Modifier
-            .statusBarsPadding()
-            .fillMaxWidth()
-            .height(topBarHeight)
-    ) {
-
+    Box {
         // 渐变背景，固定不变
         Box(
             modifier = Modifier
@@ -102,57 +95,66 @@ fun RythmeHeader(
                 )
         )
 
-        // 顶部按钮区域，高度固定，在折叠时快速渐隐
-        Row(
+        // Header高度固定
+        Box(
             modifier = Modifier
+                .statusBarsPadding()
                 .fillMaxWidth()
-                .height(68.dp)
-                .padding(horizontal = 9.dp)
-                .alpha(headerAlpha),
-            verticalAlignment = Alignment.CenterVertically
+                .height(topBarHeight)
         ) {
-            BackButton(
-                visible = config.showBackButton,
-                skipAnimation = skipAnimation,
-                onClick = onBackClick
-            )
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            AnimatedHeaderActions(
-                showMoreButton = config.showMoreButton,
-                actions = config.actions,
-                skipAnimation = skipAnimation
-            )
-        }
-
-        // 搜索框active时可见，立即替换content中对应的内容
-        if (isSearchActive) {
-            Box(
+            // 顶部按钮区域，高度固定，在折叠时快速渐隐
+            Row(
                 modifier = Modifier
-                    .padding(start = 21.dp, end = 21.dp, top = titleTranslationY, bottom = 7.dp)
                     .fillMaxWidth()
-                    .height(36.dp)
-                    .alpha(titleAlpha)
+                    .height(68.dp)
+                    .padding(horizontal = 9.dp)
+                    .alpha(headerAlpha),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = searchTitle,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.rythmeColors.textColor
+                BackButton(
+                    visible = config.showBackButton,
+                    skipAnimation = skipAnimation,
+                    onClick = onBackClick
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                AnimatedHeaderActions(
+                    showMoreButton = config.showMoreButton,
+                    actions = config.actions,
+                    skipAnimation = skipAnimation
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .padding(start = 21.dp, end = 21.dp, top = searchBarTranslationY)
-                    .fillMaxWidth()
-                    .height(68.dp)
-            ) {
-                HeaderSearchBar(
-                    active = isSearchActive,
-                    onClose = onSearchClose,
-                )
+            // 搜索框active时可见，立即替换content中对应的内容
+            if (isSearchActive) {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 21.dp, end = 21.dp, top = titleTranslationY, bottom = 7.dp)
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .alpha(titleAlpha)
+                ) {
+                    Text(
+                        text = searchTitle,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.rythmeColors.textColor
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .padding(start = 21.dp, end = 21.dp, top = searchBarTranslationY)
+                        .fillMaxWidth()
+                        .height(68.dp)
+                ) {
+                    HeaderSearchBar(
+                        active = isSearchActive,
+                        onClose = onSearchClose,
+                    )
+                }
             }
         }
     }

@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
@@ -217,7 +219,7 @@ fun MainGridPage(
             state = gridState,
             modifier = Modifier.fillMaxSize().padding(horizontal = 21.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = spacedBySkipFirst(12.dp)
         ) {
             // 顶部占位空间（为全局 TopBar 留出空间）
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -279,3 +281,20 @@ fun MainGridPage(
         }
     }
 }
+
+/**
+ * 自定义垂直排列：跳过第一个 item 之后的间距，其余 item 之间使用指定间距。
+ * 用于 Grid 中第一个占位 item 与内容之间不需要额外间距的场景。
+ */
+private fun spacedBySkipFirst(spacing: Dp): Arrangement.Vertical =
+    object : Arrangement.Vertical {
+        override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
+            val spacingPx = spacing.roundToPx()
+            var current = 0
+            sizes.forEachIndexed { index, size ->
+                outPositions[index] = current
+                current += size
+                if (index > 0) current += spacingPx
+            }
+        }
+    }
