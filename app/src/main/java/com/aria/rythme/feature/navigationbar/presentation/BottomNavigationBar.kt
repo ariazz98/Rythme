@@ -7,8 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -17,6 +20,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
@@ -62,6 +67,7 @@ import org.koin.androidx.compose.koinViewModel
  */
 @Composable
 fun BottomNavigationBar(
+    isHeaderSearchActive: Boolean = false,
     selectedTabIndex: () -> Int,
     onTabSelected: (index: Int) -> Unit,
     onClickPlayer: () -> Unit,
@@ -72,10 +78,17 @@ fun BottomNavigationBar(
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
 
+    // 键盘高度（减去导航栏高度，仅取键盘本身）
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val navBottom = WindowInsets.navigationBars.getBottom(density)
+    val imeOffset = if (!isHeaderSearchActive) (imeBottom - navBottom).coerceAtLeast(0) else 0
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
+            .graphicsLayer { translationY = -imeOffset.toFloat() }
             .background(verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f))))
             .navigationBarsPadding()
             .padding(start = 21.dp, end = 21.dp, bottom = 8.dp)

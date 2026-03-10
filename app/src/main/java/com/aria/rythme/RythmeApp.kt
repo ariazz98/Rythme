@@ -1,4 +1,4 @@
-@file:OptIn(KoinExperimentalAPI::class)
+@file:OptIn(KoinExperimentalAPI::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.aria.rythme
 
@@ -18,7 +18,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -30,8 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -127,7 +132,7 @@ private fun ScaffoldNavigation(
         LocalBackdrop provides backdrop
     ) {
         Scaffold(
-            modifier = Modifier.imePadding(),
+            modifier = Modifier,
             topBar = {
                 RythmeHeader(
                     isShow = topBarState.isShow(navigationState.currentRoute),
@@ -143,6 +148,7 @@ private fun ScaffoldNavigation(
             },
             bottomBar = {
                 BottomNavigationBar(
+                    isHeaderSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
                     selectedTabIndex = {
                         when (navigationState.topLevelRoute) {
                             RythmeRoute.Home -> 0
@@ -173,9 +179,24 @@ private fun ScaffoldNavigation(
                 // 页面内容区域：作为 backdrop 的背景录制源
                 val snapSpec = EnterTransition.None togetherWith ExitTransition.None
 
+                val focusManager = LocalFocusManager.current
+                val imeVisible = WindowInsets.isImeVisible
+
                 NavDisplay(
                     modifier = Modifier
                         .fillMaxSize()
+                        .pointerInput(imeVisible) {
+                            if (imeVisible) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        if (event.type == PointerEventType.Press) {
+                                            focusManager.clearFocus()
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .layerBackdrop(backdrop),
                     onBack = onBack,
                     transitionSpec = {
