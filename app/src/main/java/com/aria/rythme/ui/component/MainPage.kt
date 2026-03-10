@@ -107,7 +107,10 @@ fun MainListPage(
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     if (!title.isNullOrEmpty() && !isTopPage) {
-                        if (!topBarState.isSearchActive(routeKey)) {
+                        val hidePlaceholder = rememberSearchAnimating(
+                            topBarState.isSearchActive(routeKey)
+                        )
+                        if (!hidePlaceholder) {
                             Column(
                                 modifier = Modifier
                                     .padding(
@@ -230,7 +233,10 @@ fun MainGridPage(
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     if (!title.isNullOrEmpty() && !isTopPage) {
-                        if (!topBarState.isSearchActive(routeKey)) {
+                        val hidePlaceholder = rememberSearchAnimating(
+                            topBarState.isSearchActive(routeKey)
+                        )
+                        if (!hidePlaceholder) {
                             Column(
                                 modifier = Modifier
                                     .height(104.dp)

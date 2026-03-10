@@ -1,15 +1,10 @@
 package com.aria.rythme.ui.component
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -127,8 +121,9 @@ fun RythmeHeader(
                 )
             }
 
-            // 搜索框active时可见，立即替换content中对应的内容
-            if (isSearchActive) {
+            // 搜索框区域：激活时立即显示，退出时等动画完成再移除
+            val showSearchContent = rememberSearchAnimating(isSearchActive)
+            if (showSearchContent) {
                 Box(
                     modifier = Modifier
                         .padding(start = 21.dp, end = 21.dp, top = titleTranslationY, bottom = 7.dp)
@@ -146,7 +141,7 @@ fun RythmeHeader(
 
                 Box(
                     modifier = Modifier
-                        .padding(start = 21.dp, end = 21.dp, top = searchBarTranslationY)
+                        .padding(start = 21.dp, top = searchBarTranslationY)
                         .fillMaxWidth()
                         .height(68.dp)
                 ) {
@@ -158,4 +153,22 @@ fun RythmeHeader(
             }
         }
     }
+}
+
+/**
+ * 激活时立即返回 true，退出时延迟 ANIM_DURATION 后才返回 false。
+ * 用于保持搜索内容在退出动画期间仍在组合中。
+ */
+@Composable
+internal fun rememberSearchAnimating(isSearchActive: Boolean): Boolean {
+    var visible by remember { mutableStateOf(isSearchActive) }
+    LaunchedEffect(isSearchActive) {
+        if (isSearchActive) {
+            visible = true
+        } else {
+            delay(ANIM_DURATION.toLong())
+            visible = false
+        }
+    }
+    return visible
 }

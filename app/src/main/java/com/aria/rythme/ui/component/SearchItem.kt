@@ -1,11 +1,10 @@
 package com.aria.rythme.ui.component
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -128,19 +129,47 @@ fun HeaderSearchBar(
         }
     }
 
-    Row(
+    // 关闭按钮区域宽度：8dp 间距 + 44dp 按钮
+    val closeButtonAreaWidth = 52.dp
+
+    // 用 MutableTransitionState 确保首次组合也有动画
+    val transitionState = remember { MutableTransitionState(false) }
+    transitionState.targetState = active
+    val transition = rememberTransition(transitionState, label = "searchBar")
+
+    // 搜索框主体右侧 padding，为关闭按钮腾出空间
+    val bodyEndPadding by transition.animateDp(
+        transitionSpec = { tween(ANIM_DURATION) },
+        label = "bodyEndPadding"
+    ) { if (it) 77.dp else 21.dp }
+
+    // 关闭按钮水平偏移
+    val closeButtonOffsetX by transition.animateDp(
+        transitionSpec = { tween(ANIM_DURATION) },
+        label = "closeButtonOffsetX"
+    ) { if (it) 0.dp else closeButtonAreaWidth }
+
+    // 关闭按钮透明度
+    val closeButtonAlpha by transition.animateFloat(
+        transitionSpec = { tween(ANIM_DURATION) },
+        label = "closeButtonAlpha"
+    ) { if (it) 1f else 0f }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(68.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(68.dp)
     ) {
+        // 搜索框主体
         Row(
             modifier = Modifier
-                .weight(1f)
+                .align(Alignment.CenterStart)
+                .fillMaxWidth()
+                .padding(end = bodyEndPadding)
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousCapsule },
-                    shadow = { Shadow.Default.copy(radius = 12.dp, offset = DpOffset(0.dp, 0.dp))},
+                    shadow = { Shadow.Default.copy(radius = 12.dp, offset = DpOffset(0.dp, 0.dp)) },
                     effects = {
                         vibrancy()
                         blur(2f.dp.toPx())
@@ -200,21 +229,22 @@ fun HeaderSearchBar(
             )
         }
 
-        // CloseButton 从右侧滑入
-        AnimatedVisibility(
-            visible = active,
-            enter = slideInHorizontally(tween(ANIM_DURATION)) { it } + fadeIn(tween(ANIM_DURATION)),
-            exit = slideOutHorizontally(tween(ANIM_DURATION)) { it } + fadeOut(tween(ANIM_DURATION))
+        // 关闭按钮，从右侧滑入
+        Box(
+            modifier = Modifier
+                .padding(end = 9.dp)
+                .size(68.dp)
+                .align(Alignment.CenterEnd)
+                .offset(x = closeButtonOffsetX)
+                .alpha(closeButtonAlpha),
+            contentAlignment = Alignment.Center
         ) {
-            Row {
-                Spacer(modifier = Modifier.width(8.dp))
-                CloseButton(
-                    onClick = {
-                        searchText = ""
-                        onClose()
-                    }
-                )
-            }
+            CloseButton(
+                onClick = {
+                    searchText = ""
+                    onClose()
+                }
+            )
         }
     }
 }

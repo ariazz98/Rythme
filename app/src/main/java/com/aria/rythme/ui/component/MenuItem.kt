@@ -339,7 +339,7 @@ fun CloseButton(
             painter = painterResource(R.drawable.ic_close),
             contentDescription = "返回",
             tint = MaterialTheme.rythmeColors.textColor,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(18.dp)
         )
     }
 }
