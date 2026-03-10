@@ -32,6 +32,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
+import kotlinx.coroutines.flow.first
 import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
 import com.aria.rythme.ui.theme.rythmeColors
@@ -47,15 +50,26 @@ import com.aria.rythme.ui.theme.rythmeColors
 fun MainListPage(
     title: String? = null,
     routeKey: NavKey,
-    autoHide: Boolean = true,
+    headerMode: HeaderMode = HeaderMode.COLLAPSED,
+    defaultTitleHidden: Boolean = false,
     mainContent: LazyListScope.() -> Unit
 ) {
 
     val isTopPage = routeKey in ALL_TOP_LEVEL_ROUTES
 
+    val density = LocalDensity.current
+    val titleHeightPx = with(density) { 48.dp.roundToPx() }
     val listState = rememberLazyListState()
 
-    val density = LocalDensity.current
+    // 默认隐藏标题：等列表可滚动后滚动到标题刚好隐藏的位置
+    if (!isTopPage && defaultTitleHidden) {
+        LaunchedEffect(Unit) {
+            snapshotFlow { listState.canScrollForward }
+                .first { it }
+            listState.scrollToItem(0, titleHeightPx)
+        }
+    }
+
     val innerPadding = LocalInnerPadding.current
     val topPadding = innerPadding.calculateTopPadding()
     val bottomPadding = innerPadding.calculateBottomPadding()
@@ -72,14 +86,28 @@ fun MainListPage(
         label = "headerAlpha"
     )
 
+    // 非顶级页面标题渐隐：列表滚动 48dp 时完全透明
+    val titleAlpha by remember {
+        derivedStateOf {
+            if (isTopPage) 1f
+            else if (listState.firstVisibleItemIndex > 0) 0f
+            else (1f - listState.firstVisibleItemScrollOffset / titleHeightPx.toFloat()).coerceIn(0f, 1f)
+        }
+    }
+
+    // 可折叠标题状态（非顶级页面使用）
+    val collapsibleState = rememberCollapsibleHeaderState(headerMode)
+    val collapsibleHeightDp = with(density) { collapsibleState.currentOffset.toDp() }
+
     // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
-    LaunchedEffect(listState, autoHide) {
-        if (autoHide) {
+    LaunchedEffect(listState, isTopPage) {
+        if (isTopPage) {
             snapshotFlow { isAtTop }.collect { atTop ->
                 topBarState.updateIsShow(routeKey, atTop)
             }
         } else {
+            // 非顶级页面始终显示 TopBar
             topBarState.updateIsShow(routeKey, true)
         }
     }
@@ -96,14 +124,22 @@ fun MainListPage(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (!isTopPage) Modifier.nestedScroll(collapsibleState.nestedScrollConnection)
+                    else Modifier
+                )
         ) {
             // 顶部占位空间（为全局 TopBar 留出空间）
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (isTopPage) topPadding - 104.dp else topPadding),
+                        .height(
+                            if (isTopPage) topPadding - 104.dp
+                            else topPadding - 104.dp + 36.dp + 12.dp + collapsibleHeightDp
+                        ),
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     if (!title.isNullOrEmpty() && !isTopPage) {
@@ -117,13 +153,14 @@ fun MainListPage(
                                         start = 21.dp,
                                         end = 21.dp
                                     )
-                                    .height(104.dp)
                             ) {
+                                // 标题：跟随列表滚动，渐隐
                                 Box(
-                                    modifier = Modifier.height(36.dp),
+                                    modifier = Modifier
+                                        .height(36.dp)
+                                        .alpha(titleAlpha),
                                     contentAlignment = Alignment.CenterStart
                                 ) {
-                                    // 标题
                                     Text(
                                         text = title,
                                         fontSize = 32.sp,
@@ -132,11 +169,23 @@ fun MainListPage(
                                     )
                                 }
 
-                                SearchPlaceholder(
-                                    onClick = {
-                                        topBarState.updateSearchActive(routeKey, true, title)
-                                    }
-                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // 搜索框：通过嵌套滚动折叠/展开
+                                Box(
+                                    modifier = Modifier
+                                        .height(collapsibleHeightDp)
+                                        .clipToBounds()
+                                ) {
+                                    SearchPlaceholder(
+                                        contentAlpha = ((collapsibleState.searchFraction - 0.9f) / 0.1f).coerceIn(0f, 1f),
+                                        onClick = {
+                                            topBarState.updateSearchActive(routeKey, true, title)
+                                        }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
                             }
                         }
                     }
@@ -171,14 +220,25 @@ fun MainGridPage(
     title: String? = null,
     routeKey: NavKey,
     gridCount: Int = 2,
-    autoHide: Boolean = true,
+    headerMode: HeaderMode = HeaderMode.COLLAPSED,
+    defaultTitleHidden: Boolean = false,
     mainContent: LazyGridScope.() -> Unit
 ) {
-    val gridState = rememberLazyGridState()
-
     val isTopPage = routeKey in ALL_TOP_LEVEL_ROUTES
 
     val density = LocalDensity.current
+    val titleHeightPx = with(density) { 48.dp.roundToPx() }
+    val gridState = rememberLazyGridState()
+
+    // 默认隐藏标题：等列表可滚动后滚动到标题刚好隐藏的位置
+    if (!isTopPage && defaultTitleHidden) {
+        LaunchedEffect(Unit) {
+            snapshotFlow { gridState.canScrollForward }
+                .first { it }
+            gridState.scrollToItem(0, titleHeightPx)
+        }
+    }
+
     val innerPadding = LocalInnerPadding.current
     val topPadding = innerPadding.calculateTopPadding()
     val bottomPadding = innerPadding.calculateBottomPadding()
@@ -195,14 +255,28 @@ fun MainGridPage(
         label = "headerAlpha"
     )
 
+    // 非顶级页面标题渐隐：列表滚动 48dp 时完全透明
+    val titleAlpha by remember {
+        derivedStateOf {
+            if (isTopPage) 1f
+            else if (gridState.firstVisibleItemIndex > 0) 0f
+            else (1f - gridState.firstVisibleItemScrollOffset / titleHeightPx.toFloat()).coerceIn(0f, 1f)
+        }
+    }
+
+    // 可折叠标题状态（非顶级页面使用）
+    val collapsibleState = rememberCollapsibleHeaderState(headerMode)
+    val collapsibleHeightDp = with(density) { collapsibleState.currentOffset.toDp() }
+
     // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
-    LaunchedEffect(gridState, autoHide) {
-        if (autoHide) {
+    LaunchedEffect(gridState, isTopPage) {
+        if (isTopPage) {
             snapshotFlow { isAtTop }.collect { atTop ->
                 topBarState.updateIsShow(routeKey, atTop)
             }
         } else {
+            // 非顶级页面始终显示 TopBar
             topBarState.updateIsShow(routeKey, true)
         }
     }
@@ -220,7 +294,13 @@ fun MainGridPage(
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridCount),
             state = gridState,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 21.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 21.dp)
+                .then(
+                    if (!isTopPage) Modifier.nestedScroll(collapsibleState.nestedScrollConnection)
+                    else Modifier
+                ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = spacedBySkipFirst(12.dp)
         ) {
@@ -229,7 +309,10 @@ fun MainGridPage(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (isTopPage) topPadding - 104.dp else topPadding),
+                        .height(
+                            if (isTopPage) topPadding - 104.dp
+                            else topPadding - 104.dp + 36.dp + 12.dp + collapsibleHeightDp
+                        ),
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     if (!title.isNullOrEmpty() && !isTopPage) {
@@ -237,15 +320,14 @@ fun MainGridPage(
                             topBarState.isSearchActive(routeKey)
                         )
                         if (!hidePlaceholder) {
-                            Column(
-                                modifier = Modifier
-                                    .height(104.dp)
-                            ) {
+                            Column {
+                                // 标题：跟随列表滚动，渐隐
                                 Box(
-                                    modifier = Modifier.height(36.dp),
+                                    modifier = Modifier
+                                        .height(36.dp)
+                                        .alpha(titleAlpha),
                                     contentAlignment = Alignment.CenterStart
                                 ) {
-                                    // 标题
                                     Text(
                                         text = title,
                                         fontSize = 32.sp,
@@ -254,11 +336,23 @@ fun MainGridPage(
                                     )
                                 }
 
-                                SearchPlaceholder(
-                                    onClick = {
-                                        topBarState.updateSearchActive(routeKey, true, title)
-                                    }
-                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // 搜索框：通过嵌套滚动折叠/展开
+                                Box(
+                                    modifier = Modifier
+                                        .height(collapsibleHeightDp)
+                                        .clipToBounds()
+                                ) {
+                                    SearchPlaceholder(
+                                        contentAlpha = ((collapsibleState.searchFraction - 0.9f) / 0.1f).coerceIn(0f, 1f),
+                                        onClick = {
+                                            topBarState.updateSearchActive(routeKey, true, title)
+                                        }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
                             }
                         }
                     }

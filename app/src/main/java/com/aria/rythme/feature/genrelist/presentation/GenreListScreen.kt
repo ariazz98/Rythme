@@ -10,6 +10,7 @@ import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonListItem
+import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
@@ -23,8 +24,7 @@ fun GenreListScreen(
 
     MainListPage(
         title = stringResource(R.string.title_type),
-        routeKey = RythmeRoute.GenreList,
-        autoHide = false
+        routeKey = RythmeRoute.GenreList
     ) {
         itemsIndexed(genres, key = { _, genre -> genre }) { index, genre ->
             CommonListItem(

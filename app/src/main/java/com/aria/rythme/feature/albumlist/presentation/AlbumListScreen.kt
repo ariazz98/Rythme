@@ -19,6 +19,7 @@ import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.CapsuleButton
+import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainGridPage
 import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
@@ -33,7 +34,7 @@ fun AlbumListScreen(
     MainGridPage(
         title = stringResource(R.string.title_album),
         routeKey = RythmeRoute.AlbumList,
-        autoHide = false
+        headerMode = HeaderMode.EXPANDED
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(

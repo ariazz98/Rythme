@@ -16,6 +16,7 @@ import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CapsuleButton
+import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.SongListItem
 import com.aria.rythme.ui.theme.rythmeColors
@@ -34,7 +35,8 @@ fun SongListScreen(
     MainListPage(
         title = stringResource(R.string.title_music_list),
         routeKey = RythmeRoute.SongList,
-        autoHide = false
+        defaultTitleHidden = true,
+        headerMode = HeaderMode.COLLAPSED
     ) {
         item {
             Row(

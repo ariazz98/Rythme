@@ -7,6 +7,7 @@ import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.ArtistListItem
+import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainListPage
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -19,8 +20,7 @@ fun ArtistListScreen(
 
     MainListPage(
         title = stringResource(R.string.title_artist),
-        routeKey = RythmeRoute.ArtistList,
-        autoHide = false
+        routeKey = RythmeRoute.ArtistList
     ) {
         itemsIndexed(artists, key = { _, artist -> artist.id }) { index, artist ->
             ArtistListItem(

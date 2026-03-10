@@ -61,11 +61,11 @@ import kotlinx.coroutines.delay
 @Composable
 fun SearchPlaceholder(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    contentAlpha: Float = 1f
 ) {
     Row(
-        modifier = modifier
-            .padding(vertical = 12.dp)
+        modifier = Modifier
+            .padding(vertical = 6.dp)
             .clip(ContinuousCapsule)
             .background(Color(0xFFEBEBEB))
             .fillMaxWidth()
@@ -82,14 +82,14 @@ fun SearchPlaceholder(
             painter = painterResource(R.drawable.ic_search),
             contentDescription = "Search",
             tint = MaterialTheme.rythmeColors.textColor,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(18.dp).alpha(contentAlpha)
         )
 
         Spacer(modifier = Modifier.width(8.dp))
 
         Text(
             text = stringResource(R.string.title_search),
-            color = MaterialTheme.rythmeColors.subTitleColor,
+            color = MaterialTheme.rythmeColors.subTitleColor.copy(alpha = contentAlpha),
             fontSize = 16.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -101,7 +101,7 @@ fun SearchPlaceholder(
             painter = painterResource(R.drawable.ic_mic),
             contentDescription = "mic",
             tint = MaterialTheme.rythmeColors.textColor,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(18.dp).alpha(contentAlpha)
         )
     }
 }
