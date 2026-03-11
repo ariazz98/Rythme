@@ -5,6 +5,8 @@ package com.aria.rythme
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -73,6 +75,8 @@ val LocalInnerPadding = staticCompositionLocalOf { PaddingValues(0.dp) }
 val LocalBackdrop = staticCompositionLocalOf<Backdrop> { error("Backdrop must be provided") }
 val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope> { error("No SharedTransitionScope") }
 val LocalPlayerVisible = compositionLocalOf { false }
+val LocalAlbumSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope> { error("No AlbumSharedTransitionScope") }
+val LocalSharedAlbumId = compositionLocalOf<String?> { null }
 
 @Composable
 fun RythmeApp() {
@@ -172,18 +176,24 @@ private fun ScaffoldNavigation(
                 )
             }
         ) { innerPadding ->
-            CompositionLocalProvider(
-                LocalInnerPadding provides innerPadding,
-                LocalTopBarState provides topBarState
-            ) {
-                // 页面内容区域：作为 backdrop 的背景录制源
-                val snapSpec = EnterTransition.None togetherWith ExitTransition.None
+            val sharedAlbumId = (navigationState.currentRoute as? RythmeRoute.AlbumDetail)?.id
 
-                val focusManager = LocalFocusManager.current
-                val imeVisible = WindowInsets.isImeVisible
+            // Album 专用 SharedTransitionLayout，overlay 在 topBar/bottomBar 之下
+            SharedTransitionLayout {
+                CompositionLocalProvider(
+                    LocalInnerPadding provides innerPadding,
+                    LocalTopBarState provides topBarState,
+                    LocalAlbumSharedTransitionScope provides this@SharedTransitionLayout,
+                    LocalSharedAlbumId provides sharedAlbumId
+                ) {
+                    // 页面内容区域：作为 backdrop 的背景录制源
+                    val snapSpec = EnterTransition.None togetherWith ExitTransition.None
+
+                    val focusManager = LocalFocusManager.current
+                    val imeVisible = WindowInsets.isImeVisible
 
 
-                NavDisplay(
+                    NavDisplay(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(imeVisible) {
@@ -237,7 +247,13 @@ private fun ScaffoldNavigation(
                             entry<RythmeRoute.AlbumList>{
                                 AlbumListScreen(viewModel = koinViewModel { parametersOf(navigator) })
                             }
-                            entry<RythmeRoute.AlbumDetail> { key ->
+                            entry<RythmeRoute.AlbumDetail>(
+                                metadata = NavDisplay.transitionSpec {
+                                    fadeIn(tween(400)) togetherWith fadeOut(tween(400))
+                                } + NavDisplay.popTransitionSpec {
+                                    fadeIn(tween(400)) togetherWith fadeOut(tween(400))
+                                }
+                            ) { key ->
                                 AlbumDetailScreen(
                                     albumId = key.id,
                                     viewModel = koinViewModel(key = "${key.id}_${key.filterArtistId}_${key.filterComposer}_${key.filterGenre}") {
@@ -275,6 +291,7 @@ private fun ScaffoldNavigation(
                         }
                     )
                 )
+            }
             }
         }
     }

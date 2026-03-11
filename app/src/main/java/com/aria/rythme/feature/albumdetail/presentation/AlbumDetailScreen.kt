@@ -1,20 +1,15 @@
 package com.aria.rythme.feature.albumdetail.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.aria.rythme.LocalAlbumSharedTransitionScope
+import com.aria.rythme.LocalSharedAlbumId
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
@@ -60,6 +57,8 @@ fun AlbumDetailScreen(
     val songs = state.value.songs
     val routeKey = RythmeRoute.AlbumDetail(albumId)
     val context = LocalContext.current
+    val sharedTransitionScope = LocalAlbumSharedTransitionScope.current
+    val sharedAlbumId = LocalSharedAlbumId.current
 
     val trackNumberWidth = rememberTrackNumberWidth(songs)
 
@@ -76,39 +75,45 @@ fun AlbumDetailScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                Box(
-                    modifier = Modifier
-                        .dropShadow(
-                            shape = ContinuousRoundedRectangle(14.dp),
-                            shadow = Shadow(
-                                radius = 24.dp,
-                                color = Color.Black.copy(alpha = 0.5f),
-                                alpha = 0.5f,
-                                offset = DpOffset(x = 0.dp, 6.dp)
+                with(sharedTransitionScope) {
+                    Box(
+                        modifier = Modifier
+                            .sharedElementWithCallerManagedVisibility(
+                                sharedContentState = rememberSharedContentState(key = "albumCover_${albumId}"),
+                                visible = sharedAlbumId == albumId
                             )
+                            .dropShadow(
+                                shape = ContinuousRoundedRectangle(14.dp),
+                                shadow = Shadow(
+                                    radius = 24.dp,
+                                    color = Color.Black.copy(alpha = 0.5f),
+                                    alpha = 0.5f,
+                                    offset = DpOffset(x = 0.dp, 6.dp)
+                                )
+                            )
+                            .size(264.dp)
+                            .clip(ContinuousRoundedRectangle(14.dp))
+                            .background(Color(0xFFE9E9EA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_album),
+                            contentDescription = "",
+                            tint = Color(0xFFB5B5B8),
+                            modifier = Modifier.fillMaxSize(0.5f)
                         )
-                        .size(264.dp)
-                        .clip(ContinuousRoundedRectangle(14.dp))
-                        .background(Color(0xFFE9E9EA)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_album),
-                        contentDescription = "",
-                        tint = Color(0xFFB5B5B8),
-                        modifier = Modifier.fillMaxSize(0.5f)
-                    )
 
-                    if (album?.coverUri != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(album.coverUri)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "cover",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        if (album?.coverUri != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(album.coverUri)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "cover",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
                     }
                 }
 
