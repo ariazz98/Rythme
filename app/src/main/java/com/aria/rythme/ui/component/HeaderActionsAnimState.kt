@@ -125,6 +125,10 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
 
             // 场景 C: 内容变更（有→有，内容不同）
             hasContent && phase == Phase.Visible && actionsKey != displayKey -> {
+                // 修复：场景 B（退场）被取消时 overallBlur/overallAlpha 可能卡在中间值，
+                // 需要先恢复到完全可见状态再做内容交叉过渡
+                overallBlur.snapTo(0f)
+                overallAlpha.snapTo(1f)
                 if (skipAnimation) {
                     displayActions = actions
                     showMore = showMoreButton
@@ -143,6 +147,8 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
 
             // 场景 D: 仅更多按钮变更
             hasContent && phase == Phase.Visible -> {
+                overallBlur.snapTo(0f)
+                overallAlpha.snapTo(1f)
                 handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance)
             }
         }

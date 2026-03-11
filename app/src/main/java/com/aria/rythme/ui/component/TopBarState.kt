@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.R
+import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 
 /**
@@ -17,7 +18,7 @@ import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 sealed class Action(val onClick: () -> Unit) {
     /** 图标按钮 */
     data class Icon(
-        @DrawableRes val iconRes: Int,
+        @param:DrawableRes val iconRes: Int,
         val iconSize: Dp = 22.dp,
         val contentDescription: String = "",
         val onIconClick: () -> Unit = {}
@@ -46,10 +47,12 @@ data class TopBarConfig(
  * 按路由 key 分别存储各页面的可见性和按钮配置，
  * 切换 Tab 时可立即读取对应缓存值。
  */
-class TopBarState {
+class TopBarState(
+    private val topLevelRoutes: Set<NavKey> = ALL_TOP_LEVEL_ROUTES
+) {
     // 每个路由独立保存"是否显示 TopBar"的状态，默认 true
     private val isShowMap = mutableStateMapOf<NavKey, Boolean>()
-    // 每个路由独立保存按钮配置
+    // 每个路由独立保存按钮配置（所有页面持久缓存，避免重复构造）
     private val configMap = mutableStateMapOf<NavKey, TopBarConfig>()
     // 每个路由独立保存搜索激活状态
     private val searchActiveMap = mutableStateMapOf<NavKey, Boolean>()
@@ -64,8 +67,32 @@ class TopBarState {
         isShowMap[routeKey] = show
     }
 
-    /** 读取指定路由的按钮配置 */
-    fun getConfig(routeKey: NavKey): TopBarConfig = configMap[routeKey] ?: TopBarConfig()
+    // 详情页默认配置（缓存固定实例，避免每次 getConfig 创建新对象导致 LaunchedEffect 反复触发）
+    private val defaultBackOnly = TopBarConfig(showBackButton = true)
+
+    private val defaultArtistDetail = TopBarConfig(
+        showBackButton = true,
+        actions = listOf(
+            Action.Icon(iconRes = R.drawable.ic_star),
+            Action.Icon(iconRes = R.drawable.ic_more)
+        )
+    )
+
+    private val defaultAlbumDetail = TopBarConfig(
+        showBackButton = true,
+        actions = listOf(
+            Action.Icon(iconRes = R.drawable.ic_more)
+        )
+    )
+
+    /** 读取指定路由的按钮配置，未配置的路由按类型返回默认配置 */
+    fun getConfig(routeKey: NavKey): TopBarConfig = configMap[routeKey] ?: defaultConfigFor(routeKey)
+
+    private fun defaultConfigFor(routeKey: NavKey): TopBarConfig = when (routeKey) {
+        is RythmeRoute.ArtistDetail -> defaultArtistDetail
+        is RythmeRoute.AlbumDetail -> defaultAlbumDetail
+        else -> defaultBackOnly
+    }
 
     /** 更新指定路由的按钮配置 */
     fun updateConfig(routeKey: NavKey, config: TopBarConfig) {
@@ -86,10 +113,17 @@ class TopBarState {
         }
     }
 
-    /** 页面出栈时重置搜索状态（保留 config 等初始配置） */
-    fun resetSearchState(routeKey: NavKey) {
+    /**
+     * 页面出栈时调用：
+     * - 一级页面：仅重置搜索状态，保留可见性等持久状态
+     * - 非一级页面：清除所有临时状态（可见性、搜索），配置保留
+     */
+    fun onPageDispose(routeKey: NavKey) {
         searchActiveMap.remove(routeKey)
         searchTitleMap.remove(routeKey)
+        if (routeKey !in topLevelRoutes) {
+            isShowMap.remove(routeKey)
+        }
     }
 }
 

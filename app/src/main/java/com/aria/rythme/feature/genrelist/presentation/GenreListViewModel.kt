@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.navigation.Navigator
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -21,7 +22,9 @@ class GenreListViewModel(
     override fun handleIntent(intent: GenreListIntent) {
         when (intent) {
             is GenreListIntent.GoBack -> navigator.goBack()
-            is GenreListIntent.ClickGenre -> { /* TODO: 导航到类型详情 */ }
+            is GenreListIntent.ClickGenre -> navigator.navigate(
+                RythmeRoute.GenreDetail(intent.genre)
+            )
         }
     }
 

@@ -73,7 +73,7 @@ fun SearchPlaceholder(
             .clickable(
                 interactionSource = null,
                 indication = null,
-                onClick = onClick
+                onClick = { if (contentAlpha > 0.9f) onClick() }
             )
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically

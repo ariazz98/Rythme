@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -238,7 +239,7 @@ fun CommonListItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(vertical = 4.dp, horizontal = 21.dp),
+                .padding(vertical = 16.dp, horizontal = 21.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
@@ -269,5 +270,57 @@ fun CommonListItem(
                 color = MaterialTheme.rythmeColors.weakColor
             )
         }
+    }
+}
+
+@Composable
+fun IndexedListItem(
+    song: Song,
+    onClick: () -> Unit,
+    onMoreClick: () -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 18.dp, horizontal = 21.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            Text(
+                text = "${song.trackNumber}",
+                fontSize = 10.sp,
+                color = MaterialTheme.rythmeColors.subTitleColor,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Text(
+                text = song.title,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.rythmeColors.textColor,
+                modifier = Modifier.weight(1f)
+            )
+
+            Icon(
+                painter = painterResource(R.drawable.ic_more),
+                contentDescription = "",
+                tint = MaterialTheme.rythmeColors.textColor,
+                modifier = Modifier.size(18.dp).clickable(interactionSource = null, indication = null) { onMoreClick() }
+            )
+        }
+
+        // 分割线
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 21.dp),
+            thickness = DividerDefaults.Thickness,
+            color = MaterialTheme.rythmeColors.weakColor
+        )
     }
 }

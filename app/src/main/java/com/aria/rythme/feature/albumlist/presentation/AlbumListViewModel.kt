@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.navigation.Navigator
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -26,7 +27,9 @@ class AlbumListViewModel(
     override fun handleIntent(intent: AlbumListIntent) {
         when (intent) {
             is AlbumListIntent.GoBack -> navigator.goBack()
-            is AlbumListIntent.ClickAlbum -> { /* TODO: 导航到专辑详情 */ }
+            is AlbumListIntent.ClickAlbum -> navigator.navigate(
+                RythmeRoute.AlbumDetail(intent.album.id.toString())
+            )
         }
     }
 

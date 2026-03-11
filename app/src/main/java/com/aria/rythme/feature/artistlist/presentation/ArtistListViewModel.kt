@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.navigation.Navigator
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -21,7 +22,9 @@ class ArtistListViewModel(
     override fun handleIntent(intent: ArtistListIntent) {
         when (intent) {
             is ArtistListIntent.GoBack -> navigator.goBack()
-            is ArtistListIntent.ClickArtist -> { /* TODO: 导航到艺术家详情 */ }
+            is ArtistListIntent.ClickArtist -> navigator.navigate(
+                RythmeRoute.ArtistDetail(intent.artist.id.toString())
+            )
         }
     }
 

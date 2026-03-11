@@ -1,15 +1,10 @@
 package com.aria.rythme.feature.albumlist.presentation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -18,10 +13,9 @@ import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
-import com.aria.rythme.ui.component.CapsuleButton
+import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainGridPage
-import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -34,35 +28,21 @@ fun AlbumListScreen(
     MainGridPage(
         title = stringResource(R.string.title_album),
         routeKey = RythmeRoute.AlbumList,
-        headerMode = HeaderMode.EXPANDED
+        defaultTitleHidden = true,
+        headerMode = HeaderMode.COLLAPSED
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(bottom = 12.dp)
             ) {
-                CapsuleButton(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    icon = R.drawable.ic_play,
-                    iconSize = 14.dp,
-                    text = R.string.music_play,
-                    onClick = {
+                CommonOperateButton(
+                    onPlayClick = {
                         // TODO: 播放全部专辑
-                    }
-                )
-
-                CapsuleButton(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    icon = R.drawable.ic_shuffle,
-                    text = R.string.music_random_play,
-                    onClick = {
-                        // TODO: 随机播放
+                    },
+                    onRandomPlayClick = {
+                        // TODO: 更多操作
                     }
                 )
             }

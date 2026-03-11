@@ -14,9 +14,13 @@ import com.aria.rythme.core.music.data.settings.AppSettingsRepository
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.feature.playlist.presentation.PlayListViewModel
 import com.aria.rythme.feature.search.presentation.SearchViewModel
+import com.aria.rythme.feature.albumdetail.presentation.AlbumDetailViewModel
 import com.aria.rythme.feature.albumlist.presentation.AlbumListViewModel
+import com.aria.rythme.feature.artistdetail.presentation.ArtistDetailViewModel
 import com.aria.rythme.feature.artistlist.presentation.ArtistListViewModel
+import com.aria.rythme.feature.composerdetail.presentation.ComposerDetailViewModel
 import com.aria.rythme.feature.composerlist.presentation.ComposerListViewModel
+import com.aria.rythme.feature.genredetail.presentation.GenreDetailViewModel
 import com.aria.rythme.feature.genrelist.presentation.GenreListViewModel
 import com.aria.rythme.feature.songlist.presentation.SongListViewModel
 import org.koin.android.ext.koin.androidContext
@@ -31,10 +35,11 @@ val playModule = module {
     single { get<MusicDatabase>().albumDao() }
     single { get<MusicDatabase>().artistDao() }
     single { get<MusicDatabase>().scanMetadataDao() }
+    single { get<MusicDatabase>().songOverrideDao() }
     single { MediaStoreSource(androidContext(), get()) }
     single { MediaStoreWatcher(androidContext(), get(), get()) }
-    single { MusicRepository(get(), get(), get()) }
-    single { MusicIndexer(androidContext(), get(), get(), get(), get(), get(), get()) }
+    single { MusicRepository(get(), get(), get(), get()) }
+    single { MusicIndexer(androidContext(), get(), get(), get(), get(), get()) }
     single {
         PlaybackController(androidContext()).apply {
             initialize()
@@ -51,9 +56,32 @@ val playerModule = module {
     }
 }
 
+val albumDetailModule = module {
+    viewModel { params ->
+        AlbumDetailViewModel(
+            albumId = params[0],
+            navigator = params[1],
+            musicRepository = get(),
+            filterArtistId = params[2],
+            filterComposer = params[3],
+            filterGenre = params[4]
+        )
+    }
+}
+
 val albumListModule = module {
     viewModel { params ->
         AlbumListViewModel(
+            navigator = params.get(),
+            musicRepository = get()
+        )
+    }
+}
+
+val artistDetailModule = module {
+    viewModel { params ->
+        ArtistDetailViewModel(
+            artistId = params.get(),
             navigator = params.get(),
             musicRepository = get()
         )
@@ -69,10 +97,30 @@ val artistListModule = module {
     }
 }
 
+val genreDetailModule = module {
+    viewModel { params ->
+        GenreDetailViewModel(
+            genreName = params[0],
+            navigator = params[1],
+            musicRepository = get()
+        )
+    }
+}
+
 val genreListModule = module {
     viewModel { params ->
         GenreListViewModel(
             navigator = params.get(),
+            musicRepository = get()
+        )
+    }
+}
+
+val composerDetailModule = module {
+    viewModel { params ->
+        ComposerDetailViewModel(
+            composerName = params[0],
+            navigator = params[1],
             musicRepository = get()
         )
     }
@@ -124,9 +172,13 @@ val searchModule = module {
 val appModules = listOf(
     playModule,
     playerModule,
+    albumDetailModule,
     albumListModule,
+    artistDetailModule,
     artistListModule,
+    genreDetailModule,
     genreListModule,
+    composerDetailModule,
     composerListModule,
     songListModule,
     homeModule,

@@ -1,13 +1,9 @@
 package com.aria.rythme.feature.songlist.presentation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -15,11 +11,10 @@ import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import com.aria.rythme.ui.component.CapsuleButton
+import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.SongListItem
-import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -39,25 +34,14 @@ fun SongListScreen(
         headerMode = HeaderMode.COLLAPSED
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 21.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
 
-                CapsuleButton(
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    icon = R.drawable.ic_play,
-                    iconSize = 14.dp,
-                    text = R.string.music_play,
-                    onClick = { viewModel.sendIntent(SongListIntent.PlayAll) }
+            Box(modifier = Modifier.fillMaxWidth().padding(start = 21.dp, end = 21.dp, top = 8.dp, bottom = 24.dp)) {
+
+                CommonOperateButton(
+                    onPlayClick = { viewModel.sendIntent(SongListIntent.PlayAll) },
+                    onRandomPlayClick = { viewModel.sendIntent(SongListIntent.ShufflePlay) }
                 )
 
-                CapsuleButton(
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    icon = R.drawable.ic_shuffle,
-                    text = R.string.music_random_play,
-                    onClick = { viewModel.sendIntent(SongListIntent.ShufflePlay) }
-                )
             }
         }
 

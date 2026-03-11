@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -36,8 +39,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
@@ -101,6 +103,9 @@ fun MainListPage(
 
     // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
+
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     LaunchedEffect(listState, isTopPage) {
         if (isTopPage) {
             snapshotFlow { isAtTop }.collect { atTop ->
@@ -115,7 +120,7 @@ fun MainListPage(
     // 页面出栈时清除该路由的所有 TopBar 状态（包括搜索状态）
     DisposableEffect(routeKey) {
         onDispose {
-            topBarState.resetSearchState(routeKey)
+            topBarState.onPageDispose(routeKey)
         }
     }
 
@@ -133,19 +138,20 @@ fun MainListPage(
         ) {
             // 顶部占位空间（为全局 TopBar 留出空间）
             item {
+                val isSearchActive = topBarState.isSearchActive(routeKey)
+                val isHidden = headerMode == HeaderMode.HIDDEN
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(
                             if (isTopPage) topPadding - 104.dp
-                            else topPadding - 104.dp + 36.dp + 12.dp + collapsibleHeightDp
+                            else if (isHidden) { topPadding - 68.dp - if (title.isNullOrEmpty()) 36.dp else 0.dp }
+                            else topPadding - ((if (title.isNullOrEmpty()) 36 else 0) * (topPadding.value - statusBarHeight.value - 68) / 104).dp - 56.dp + collapsibleHeightDp
                         ),
                     contentAlignment = Alignment.BottomCenter
                 ) {
-                    if (!title.isNullOrEmpty() && !isTopPage) {
-                        val hidePlaceholder = rememberSearchAnimating(
-                            topBarState.isSearchActive(routeKey)
-                        )
+                    if (!isTopPage) {
+                        val hidePlaceholder = rememberSearchAnimating(isSearchActive)
                         if (!hidePlaceholder) {
                             Column(
                                 modifier = Modifier
@@ -154,38 +160,49 @@ fun MainListPage(
                                         end = 21.dp
                                     )
                             ) {
-                                // 标题：跟随列表滚动，渐隐
-                                Box(
-                                    modifier = Modifier
-                                        .height(36.dp)
-                                        .alpha(titleAlpha),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Text(
-                                        text = title,
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.rythmeColors.textColor
-                                    )
+                                if (!title.isNullOrEmpty()) {
+                                    // 标题：跟随列表滚动，渐隐
+                                    Box(
+                                        modifier = Modifier
+                                            .height(36.dp)
+                                            .alpha(titleAlpha),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = title,
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = MaterialTheme.rythmeColors.textColor
+                                        )
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                // 搜索框：通过嵌套滚动折叠/展开
-                                Box(
-                                    modifier = Modifier
-                                        .height(collapsibleHeightDp)
-                                        .clipToBounds()
-                                ) {
-                                    SearchPlaceholder(
-                                        contentAlpha = ((collapsibleState.searchFraction - 0.9f) / 0.1f).coerceIn(0f, 1f),
-                                        onClick = {
-                                            topBarState.updateSearchActive(routeKey, true, title)
-                                        }
-                                    )
+                                if (!title.isNullOrEmpty() || !isHidden) {
+                                    Spacer(modifier = Modifier.height(6.dp))
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                if (!isHidden) {
+
+                                    // 搜索框：通过嵌套滚动折叠/展开
+                                    Box(
+                                        modifier = Modifier
+                                            .height(collapsibleHeightDp)
+                                            .clipToBounds()
+                                    ) {
+                                        SearchPlaceholder(
+                                            contentAlpha = ((collapsibleState.searchFraction - 0.9f) / 0.1f).coerceIn(0f, 1f),
+                                            onClick = {
+                                                topBarState.updateSearchActive(routeKey, true, title ?: "")
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (!title.isNullOrEmpty() || !isHidden) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
                             }
                         }
                     }
@@ -268,8 +285,11 @@ fun MainGridPage(
     val collapsibleState = rememberCollapsibleHeaderState(headerMode)
     val collapsibleHeightDp = with(density) { collapsibleState.currentOffset.toDp() }
 
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     // 同步滚动位置到全局 TopBar 可见性状态（按路由 key 存储，切换 Tab 时立即生效）
     val topBarState = LocalTopBarState.current
+
     LaunchedEffect(gridState, isTopPage) {
         if (isTopPage) {
             snapshotFlow { isAtTop }.collect { atTop ->
@@ -284,7 +304,7 @@ fun MainGridPage(
     // 页面出栈时清除该路由的所有 TopBar 状态（包括搜索状态）
     DisposableEffect(routeKey) {
         onDispose {
-            topBarState.resetSearchState(routeKey)
+            topBarState.onPageDispose(routeKey)
         }
     }
 
@@ -302,57 +322,69 @@ fun MainGridPage(
                     else Modifier
                 ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = spacedBySkipFirst(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 顶部占位空间（为全局 TopBar 留出空间）
             item(span = { GridItemSpan(maxLineSpan) }) {
+                val isSearchActive = topBarState.isSearchActive(routeKey)
+                val isHidden = headerMode == HeaderMode.HIDDEN
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(
                             if (isTopPage) topPadding - 104.dp
-                            else topPadding - 104.dp + 36.dp + 12.dp + collapsibleHeightDp
+                            else if (isHidden) { topPadding - 68.dp - if (title.isNullOrEmpty()) 36.dp else 0.dp }
+                            else topPadding - ((if (title.isNullOrEmpty()) 36 else 0) * (topPadding.value - statusBarHeight.value - 68) / 104).dp - 56.dp + collapsibleHeightDp
                         ),
                     contentAlignment = Alignment.BottomCenter
                 ) {
-                    if (!title.isNullOrEmpty() && !isTopPage) {
-                        val hidePlaceholder = rememberSearchAnimating(
-                            topBarState.isSearchActive(routeKey)
-                        )
+                    if (!isTopPage) {
+                        val hidePlaceholder = rememberSearchAnimating(isSearchActive)
                         if (!hidePlaceholder) {
                             Column {
-                                // 标题：跟随列表滚动，渐隐
-                                Box(
-                                    modifier = Modifier
-                                        .height(36.dp)
-                                        .alpha(titleAlpha),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Text(
-                                        text = title,
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.rythmeColors.textColor
-                                    )
+                                if (!title.isNullOrEmpty()) {
+                                    // 标题：跟随列表滚动，渐隐
+                                    Box(
+                                        modifier = Modifier
+                                            .height(36.dp)
+                                            .alpha(titleAlpha),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = title,
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = MaterialTheme.rythmeColors.textColor
+                                        )
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                // 搜索框：通过嵌套滚动折叠/展开
-                                Box(
-                                    modifier = Modifier
-                                        .height(collapsibleHeightDp)
-                                        .clipToBounds()
-                                ) {
-                                    SearchPlaceholder(
-                                        contentAlpha = ((collapsibleState.searchFraction - 0.9f) / 0.1f).coerceIn(0f, 1f),
-                                        onClick = {
-                                            topBarState.updateSearchActive(routeKey, true, title)
-                                        }
-                                    )
+                                if (!title.isNullOrEmpty() || !isHidden) {
+                                    Spacer(modifier = Modifier.height(6.dp))
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                if (!isHidden) {
+
+                                    // 搜索框：通过嵌套滚动折叠/展开
+                                    Box(
+                                        modifier = Modifier
+                                            .height(collapsibleHeightDp)
+                                            .clipToBounds()
+                                    ) {
+                                        SearchPlaceholder(
+                                            contentAlpha = ((collapsibleState.searchFraction - 0.9f) / 0.1f).coerceIn(0f, 1f),
+                                            onClick = {
+                                                topBarState.updateSearchActive(routeKey, true, title ?: "")
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (!title.isNullOrEmpty() || !isHidden) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
                             }
                         }
                     }
@@ -381,20 +413,3 @@ fun MainGridPage(
         }
     }
 }
-
-/**
- * 自定义垂直排列：跳过第一个 item 之后的间距，其余 item 之间使用指定间距。
- * 用于 Grid 中第一个占位 item 与内容之间不需要额外间距的场景。
- */
-private fun spacedBySkipFirst(spacing: Dp): Arrangement.Vertical =
-    object : Arrangement.Vertical {
-        override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
-            val spacingPx = spacing.roundToPx()
-            var current = 0
-            sizes.forEachIndexed { index, size ->
-                outPositions[index] = current
-                current += size
-                if (index > 0) current += spacingPx
-            }
-        }
-    }

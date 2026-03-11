@@ -68,7 +68,13 @@ interface SongDao {
      */
     @Query("SELECT * FROM songs WHERE artistId = :artistId ORDER BY album, trackNumber")
     fun getSongsByArtist(artistId: Long): Flow<List<SongEntity>>
-    
+
+    /**
+     * 获取指定专辑中指定艺术家的歌曲
+     */
+    @Query("SELECT * FROM songs WHERE albumId = :albumId AND artistId = :artistId ORDER BY discNumber, trackNumber")
+    fun getSongsByAlbumAndArtist(albumId: Long, artistId: Long): Flow<List<SongEntity>>
+
     /**
      * 获取指定专辑的所有歌曲
      */

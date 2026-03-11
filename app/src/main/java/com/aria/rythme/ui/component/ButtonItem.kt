@@ -7,6 +7,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
@@ -27,6 +29,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aria.rythme.R
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousCapsule
 
@@ -77,6 +80,37 @@ fun CapsuleButton(
             fontSize = textSize,
             color = tint,
             fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun CommonOperateButton(
+    onPlayClick: () -> Unit,
+    onRandomPlayClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        CapsuleButton(
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            icon = R.drawable.ic_play,
+            iconSize = 14.dp,
+            text = R.string.music_play,
+            onClick = onPlayClick
+        )
+
+        CapsuleButton(
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            icon = R.drawable.ic_shuffle,
+            text = R.string.music_random_play,
+            onClick = onRandomPlayClick
         )
     }
 }

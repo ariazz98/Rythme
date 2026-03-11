@@ -3,14 +3,11 @@ package com.aria.rythme.core.music.data.indexer
 import android.content.Context
 import com.aria.rythme.core.music.data.datasource.MediaStoreFingerprint
 import com.aria.rythme.core.music.data.datasource.MediaStoreSource
-import com.aria.rythme.core.music.data.local.AlbumDao
-import com.aria.rythme.core.music.data.local.AlbumEntity
-import com.aria.rythme.core.music.data.local.ArtistDao
-import com.aria.rythme.core.music.data.local.ArtistEntity
 import com.aria.rythme.core.music.data.local.ScanMetadataDao
 import com.aria.rythme.core.music.data.local.ScanMetadataEntity
 import com.aria.rythme.core.music.data.local.SongDao
 import com.aria.rythme.core.music.data.local.SongEntity
+import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.music.data.model.ScanProgress
 import com.aria.rythme.core.music.data.model.ScanStats
 import com.aria.rythme.core.music.data.model.SyncPhase
@@ -40,11 +37,10 @@ import kotlinx.coroutines.launch
 class MusicIndexer(
     private val context: Context,
     private val songDao: SongDao,
-    private val albumDao: AlbumDao,
-    private val artistDao: ArtistDao,
     private val scanMetadataDao: ScanMetadataDao,
     private val mediaStoreSource: MediaStoreSource,
-    private val mediaStoreWatcher: MediaStoreWatcher
+    private val mediaStoreWatcher: MediaStoreWatcher,
+    private val musicRepository: MusicRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -270,42 +266,13 @@ class MusicIndexer(
 
     // ==================== 聚合表重建 ====================
 
+    /**
+     * 委托给 MusicRepository 重建聚合表，
+     * 确保用户覆盖层（song_overrides）被正确合并。
+     */
     private suspend fun rebuildAggregations() {
-        val allSongs = songDao.getAllSongsOnce()
-
-        // 重建专辑表
-        val albums = allSongs.groupBy { it.albumId }.map { (albumId, songs) ->
-            val first = songs.first()
-            AlbumEntity(
-                id = albumId,
-                title = first.album,
-                artist = first.albumArtist.ifEmpty { first.artist },
-                artistId = first.artistId,
-                songCount = songs.size,
-                totalDuration = songs.sumOf { it.duration },
-                coverUri = first.coverUri,
-                year = songs.maxOf { it.year }
-            )
-        }
-        albumDao.deleteAll()
-        albumDao.upsertAll(albums)
-
-        // 重建艺术家表
-        val artists = allSongs.groupBy { it.artistId }.map { (artistId, songs) ->
-            val first = songs.first()
-            val albumIds = songs.map { it.albumId }.distinct()
-            ArtistEntity(
-                id = artistId,
-                name = first.artist,
-                albumCount = albumIds.size,
-                songCount = songs.size,
-                coverUri = songs.maxByOrNull { it.dateAdded }?.coverUri
-            )
-        }
-        artistDao.deleteAll()
-        artistDao.upsertAll(artists)
-
-        RythmeLogger.d(TAG, "聚合表重建: ${albums.size} 专辑, ${artists.size} 艺术家")
+        musicRepository.rebuildAggregations()
+        RythmeLogger.d(TAG, "聚合表重建完成")
     }
 
     // ==================== 元数据持久化 ====================

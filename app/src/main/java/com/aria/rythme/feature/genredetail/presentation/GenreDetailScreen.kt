@@ -1,0 +1,39 @@
+package com.aria.rythme.feature.genredetail.presentation
+
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.runtime.Composable
+import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.AlbumItem
+import com.aria.rythme.ui.component.CommonOperateButton
+import com.aria.rythme.ui.component.MainGridPage
+import org.koin.compose.viewmodel.koinViewModel
+
+@Composable
+fun GenreDetailScreen(
+    genreName: String,
+    viewModel: GenreDetailViewModel = koinViewModel()
+) {
+    val state = viewModel.state.collectAsUiState()
+    val albums = state.value.albums
+    val routeKey = RythmeRoute.GenreDetail(genreName)
+
+    MainGridPage(
+        title = genreName,
+        routeKey = routeKey
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            CommonOperateButton(
+                onPlayClick = {  },
+                onRandomPlayClick = {  }
+            )
+        }
+
+        items(albums, key = { album -> album.id }) { album ->
+            AlbumItem(album) {
+                viewModel.sendIntent(GenreDetailIntent.ClickAlbum(album))
+            }
+        }
+    }
+}

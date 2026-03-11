@@ -20,10 +20,12 @@ import kotlin.math.abs
  * 搜索框的初始显示模式
  */
 enum class HeaderMode {
-    /** 搜索框默认隐藏，初始 offset = 0 */
+    /** 搜索框默认折叠，初始 offset = 0 */
     COLLAPSED,
     /** 搜索框默认展开，初始 offset = searchHeight */
-    EXPANDED
+    EXPANDED,
+    /** 不显示搜索框，占位高度与一级页面一致 */
+    HIDDEN
 }
 
 /**
@@ -105,7 +107,11 @@ fun rememberCollapsibleHeaderState(
         val initialOffset = when (mode) {
             HeaderMode.COLLAPSED -> 0f
             HeaderMode.EXPANDED -> searchHeightPx
+            HeaderMode.HIDDEN -> 0f
         }
-        CollapsibleHeaderState(searchHeightPx, initialOffset)
+        CollapsibleHeaderState(
+            searchHeightPx = if (mode == HeaderMode.HIDDEN) 0f else searchHeightPx,
+            initialOffset = initialOffset
+        )
     }
 }

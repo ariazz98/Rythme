@@ -66,7 +66,12 @@ sealed interface RythmeRoute: NavKey {
      * @param id 专辑ID
      */
     @Serializable
-    data class AlbumDetail(val id: String) : RythmeRoute
+    data class AlbumDetail(
+        val id: String,
+        val filterArtistId: Long? = null,
+        val filterComposer: String? = null,
+        val filterGenre: String? = null
+    ) : RythmeRoute
 
     /**
      * 艺术家详情
@@ -92,7 +97,13 @@ sealed interface RythmeRoute: NavKey {
     data object GenreList : RythmeRoute
 
     @Serializable
+    data class GenreDetail(val genre: String) : RythmeRoute
+
+    @Serializable
     data object ComposerList : RythmeRoute
+
+    @Serializable
+    data class ComposerDetail(val composer: String) : RythmeRoute
 }
 
 val ALL_TOP_LEVEL_ROUTES = setOf(
