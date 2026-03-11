@@ -113,7 +113,7 @@ fun ArtistDetailScreen(
         }
         
         items(albums) { album ->
-            AlbumItem(album = album) {
+            AlbumItem(album = album, showArtist = false) {
                 viewModel.sendIntent(ArtistDetailIntent.ClickAlbum(album))
             }
         }

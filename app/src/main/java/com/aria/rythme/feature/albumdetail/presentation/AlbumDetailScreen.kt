@@ -45,6 +45,7 @@ import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.IndexedListItem
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.rememberTrackNumberWidth
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousRoundedRectangle
 import org.koin.compose.viewmodel.koinViewModel
@@ -59,6 +60,8 @@ fun AlbumDetailScreen(
     val songs = state.value.songs
     val routeKey = RythmeRoute.AlbumDetail(albumId)
     val context = LocalContext.current
+
+    val trackNumberWidth = rememberTrackNumberWidth(songs)
 
     MainListPage(
         routeKey = routeKey,
@@ -148,6 +151,8 @@ fun AlbumDetailScreen(
         items(songs, key = { song -> song.id }) { song ->
             IndexedListItem(
                 song = song,
+                album = album,
+                trackNumberWidth = trackNumberWidth,
                 onClick = { viewModel.sendIntent(AlbumDetailIntent.ClickSong(song)) },
                 onMoreClick = {
 

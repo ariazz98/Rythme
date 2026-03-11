@@ -35,11 +35,13 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 @Composable
 fun AlbumItem(
     album: Album,
+    showArtist: Boolean = true,
     onClick: () -> Unit
 ) {
     val coverUri = album.coverUri
     val albumTitle = album.title
     val albumArtist = album.artist
+    val albumYear = album.year
     val context = LocalContext.current
     Column(
         modifier = Modifier.fillMaxWidth().clickable(
@@ -85,7 +87,7 @@ fun AlbumItem(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = albumArtist,
+            text = if (showArtist) albumArtist else (if (albumYear != 0) "${albumYear}年" else "未知年份"),
             fontSize = 12.sp,
             color = MaterialTheme.rythmeColors.subTitleColor,
             maxLines = 1,

@@ -1,8 +1,13 @@
 package com.aria.rythme.feature.genredetail.presentation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
@@ -24,10 +29,12 @@ fun GenreDetailScreen(
         routeKey = routeKey
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            CommonOperateButton(
-                onPlayClick = {  },
-                onRandomPlayClick = {  }
-            )
+            Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                CommonOperateButton(
+                    onPlayClick = {  },
+                    onRandomPlayClick = {  }
+                )
+            }
         }
 
         items(albums, key = { album -> album.id }) { album ->

@@ -28,6 +28,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
@@ -37,6 +38,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.R
+import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.core.music.data.model.Artist
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.rythmeColors
@@ -276,9 +278,13 @@ fun CommonListItem(
 @Composable
 fun IndexedListItem(
     song: Song,
+    album: Album? = null,
+    trackNumberWidth: Dp = 24.dp,
     onClick: () -> Unit,
     onMoreClick: () -> Unit
 ) {
+    val showArtist = album != null && album.artist != song.artist
+
     Column {
         Row(
             modifier = Modifier
@@ -292,21 +298,31 @@ fun IndexedListItem(
                 text = "${song.trackNumber}",
                 fontSize = 10.sp,
                 color = MaterialTheme.rythmeColors.subTitleColor,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.End,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                modifier = Modifier.width(trackNumberWidth)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Text(
-                text = song.title,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.rythmeColors.textColor,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.rythmeColors.textColor
+                )
+                if (showArtist) {
+                    Text(
+                        text = song.artist,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.rythmeColors.subTitleColor
+                    )
+                }
+            }
 
             Icon(
                 painter = painterResource(R.drawable.ic_more),
@@ -323,4 +339,13 @@ fun IndexedListItem(
             color = MaterialTheme.rythmeColors.weakColor
         )
     }
+}
+
+/**
+ * 根据列表中最大 trackNumber 计算统一的序号列宽度
+ */
+@Composable
+fun rememberTrackNumberWidth(songs: List<Song>): Dp {
+    val maxDigits = songs.maxOfOrNull { it.trackNumber.toString().length } ?: 1
+    return (maxDigits * 8 + 4).dp
 }
