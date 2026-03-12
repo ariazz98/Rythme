@@ -22,7 +22,7 @@ palette = "1.0.0"
 coil = "3.4.0"
 
 # 数据存储相关依赖版本
-datastore = "1.2.0"
+datastore = "1.2.1"
 room = "2.8.4"
 ksp = "2.3.6"
 
