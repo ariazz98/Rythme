@@ -290,8 +290,8 @@ fun LiquidBottomTabs(
                             shape = { ContinuousCapsule },
                             effects = {
                                 vibrancy()
-                                blur(8f.dp.toPx())
-                                lens(24f.dp.toPx(), 24f.dp.toPx())
+                                blur(2f.dp.toPx())
+                                lens(24f.dp.toPx(), 32f.dp.toPx())
                             },
                             layerBlock = {
                                 val progress = dampedDragAnimation.pressProgress
@@ -392,10 +392,10 @@ fun LiquidBottomTabs(
                                 effects = {
                                     val progress = dampedDragAnimation.pressProgress
                                     vibrancy()
-                                    blur(8f.dp.toPx())
+                                    blur(2f.dp.toPx())
                                     lens(
                                         24f.dp.toPx() * progress,
-                                        24f.dp.toPx() * progress
+                                        32f.dp.toPx() * progress
                                     )
                                 },
                                 highlight = {
@@ -452,8 +452,8 @@ fun LiquidBottomTabs(
                         shape = { ContinuousCapsule },
                         effects = {
                             vibrancy()
-                            blur(8f.dp.toPx())
-                            lens(24f.dp.toPx(), 24f.dp.toPx())
+                            blur(2f.dp.toPx())
+                            lens(24f.dp.toPx(), 32f.dp.toPx())
                         },
                         layerBlock = {
                             val progress = actionPressAnimation.value

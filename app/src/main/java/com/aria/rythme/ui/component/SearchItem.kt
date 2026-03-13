@@ -67,7 +67,7 @@ fun SearchPlaceholder(
         modifier = Modifier
             .padding(vertical = 6.dp)
             .clip(ContinuousCapsule)
-            .background(Color(0xFFEBEBEB))
+            .background(MaterialTheme.rythmeColors.searchBg)
             .fillMaxWidth()
             .height(44.dp)
             .clickable(

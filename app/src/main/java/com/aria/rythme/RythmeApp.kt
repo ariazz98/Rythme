@@ -60,11 +60,15 @@ import com.aria.rythme.feature.player.presentation.PlayerScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
+import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.LocalTopBarState
+import com.aria.rythme.ui.component.OverlayMenuHost
+import com.aria.rythme.ui.component.OverlayMenuState
 import com.aria.rythme.ui.component.RythmeHeader
 import com.aria.rythme.ui.component.TopBarState
 import com.aria.rythme.ui.component.rememberTopBarState
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import org.koin.androidx.compose.koinViewModel
@@ -74,8 +78,8 @@ import org.koin.core.parameter.parametersOf
 val LocalInnerPadding = staticCompositionLocalOf { PaddingValues(0.dp) }
 val LocalBackdrop = staticCompositionLocalOf<Backdrop> { error("Backdrop must be provided") }
 val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope> { error("No SharedTransitionScope") }
+val LocalContentSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope> { error("No SharedTransitionScope") }
 val LocalPlayerVisible = compositionLocalOf { false }
-val LocalAlbumSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope> { error("No AlbumSharedTransitionScope") }
 val LocalSharedAlbumId = compositionLocalOf<String?> { null }
 
 @Composable
@@ -84,24 +88,32 @@ fun RythmeApp() {
         startRoute = RythmeRoute.Home,
         topLevelRoutes = ALL_TOP_LEVEL_ROUTES
     )
-    val navigator = remember { Navigator(navigationState) }
+    val navigator = Navigator.getOrCreate(navigationState)
     // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
     var playerVisible by remember { mutableStateOf(false) }
+    val overlayMenuState = remember { OverlayMenuState() }
     val topBarState = rememberTopBarState()
+    val backdrop = rememberLayerBackdrop()
 
     SharedTransitionLayout {
         CompositionLocalProvider(
             LocalSharedTransitionScope provides this@SharedTransitionLayout,
-            LocalPlayerVisible provides playerVisible
+            LocalPlayerVisible provides playerVisible,
+            LocalOverlayMenu provides overlayMenuState,
+            LocalBackdrop provides backdrop,
+            LocalTopBarState provides topBarState
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 ScaffoldNavigation(
+                    backdrop = backdrop,
                     topBarState = topBarState,
                     navigationState = navigationState,
                     navigator = navigator,
                     openPlayer = { playerVisible = true },
                     onBack = {
-                        if (playerVisible) {
+                        if (overlayMenuState.isVisible) {
+                            overlayMenuState.dismiss()
+                        } else if (playerVisible) {
                             playerVisible = false
                         } else if (topBarState.isSearchActive(navigationState.currentRoute)) {
                             topBarState.updateSearchActive(navigationState.currentRoute, false)
@@ -110,90 +122,87 @@ fun RythmeApp() {
                         }
                     }
                 )
-                BackHandler(enabled = playerVisible) {
+                BackHandler(enabled = playerVisible && !overlayMenuState.isVisible) {
                     playerVisible = false
                 }
+                BackHandler(enabled = overlayMenuState.isVisible) {
+                    overlayMenuState.dismiss()
+                }
                 PlayerScreen(onBack = { playerVisible = false })
+                OverlayMenuHost(state = overlayMenuState)
             }
         }
     }
 }
 
 @Composable
-private fun ScaffoldNavigation(
+private fun SharedTransitionScope.ScaffoldNavigation(
+    backdrop: LayerBackdrop,
     topBarState: TopBarState,
     navigationState: NavigationState,
     navigator: Navigator,
     openPlayer: () -> Unit,
     onBack: () -> Unit
 ) {
-    val backdrop = rememberLayerBackdrop {
-        drawRect(Color.White)
-        drawContent()
-    }
-
-    CompositionLocalProvider(
-        LocalBackdrop provides backdrop
-    ) {
-        Scaffold(
-            modifier = Modifier,
-            topBar = {
-                RythmeHeader(
-                    isShow = topBarState.isShow(navigationState.currentRoute),
-                    config = topBarState.getConfig(navigationState.currentRoute),
-                    isSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
-                    searchTitle = topBarState.getSearchTitle(navigationState.currentRoute),
-                    onSearchClose = {
-                        topBarState.updateSearchActive(navigationState.currentRoute, false)
-                    },
-                    skipAnimation = navigationState.isTabSwitch,
-                    onBackClick = { navigator.goBack() }
-                )
-            },
-            bottomBar = {
-                BottomNavigationBar(
-                    isHeaderSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
-                    selectedTabIndex = {
-                        when (navigationState.topLevelRoute) {
-                            RythmeRoute.Home -> 0
-                            RythmeRoute.Playlist -> 1
-                            RythmeRoute.Library -> 2
-                            RythmeRoute.Search -> 3
-                            else -> 0
-                        }
-                    },
-                    onTabSelected = {
-                        when (it) {
-                            0 -> navigator.navigate(RythmeRoute.Home)
-                            1 -> navigator.navigate(RythmeRoute.Playlist)
-                            2 -> navigator.navigate(RythmeRoute.Library)
-                            3 -> navigator.navigate(RythmeRoute.Search)
-                        }
-                    },
-                    onClickPlayer = {
-                        openPlayer()
+    Scaffold(
+        modifier = Modifier,
+        topBar = {
+            RythmeHeader(
+                isShow = topBarState.isShow(navigationState.currentRoute),
+                routeKey = navigationState.currentRoute,
+                config = topBarState.getConfig(navigationState.currentRoute),
+                isSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
+                searchTitle = topBarState.getSearchTitle(navigationState.currentRoute),
+                onSearchClose = {
+                    topBarState.updateSearchActive(navigationState.currentRoute, false)
+                },
+                skipAnimation = navigationState.isTabSwitch,
+                onBackClick = { navigator.goBack() }
+            )
+        },
+        bottomBar = {
+            BottomNavigationBar(
+                isHeaderSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
+                selectedTabIndex = {
+                    when (navigationState.topLevelRoute) {
+                        RythmeRoute.Home -> 0
+                        RythmeRoute.Playlist -> 1
+                        RythmeRoute.Library -> 2
+                        RythmeRoute.Search -> 3
+                        else -> 0
                     }
-                )
-            }
-        ) { innerPadding ->
-            val sharedAlbumId = (navigationState.currentRoute as? RythmeRoute.AlbumDetail)?.id
+                },
+                onTabSelected = {
+                    when (it) {
+                        0 -> navigator.navigate(RythmeRoute.Home)
+                        1 -> navigator.navigate(RythmeRoute.Playlist)
+                        2 -> navigator.navigate(RythmeRoute.Library)
+                        3 -> navigator.navigate(RythmeRoute.Search)
+                    }
+                },
+                onClickPlayer = {
+                    openPlayer()
+                }
+            )
+        }
+    ) { innerPadding ->
+        val sharedAlbumId = (navigationState.currentRoute as? RythmeRoute.AlbumDetail)?.id
 
-            // Album 专用 SharedTransitionLayout，overlay 在 topBar/bottomBar 之下
-            SharedTransitionLayout {
-                CompositionLocalProvider(
-                    LocalInnerPadding provides innerPadding,
-                    LocalTopBarState provides topBarState,
-                    LocalAlbumSharedTransitionScope provides this@SharedTransitionLayout,
-                    LocalSharedAlbumId provides sharedAlbumId
-                ) {
-                    // 页面内容区域：作为 backdrop 的背景录制源
-                    val snapSpec = EnterTransition.None togetherWith ExitTransition.None
+        // Album 专用 SharedTransitionLayout，overlay 在 topBar/bottomBar 之下
+        SharedTransitionLayout {
+            CompositionLocalProvider(
+                LocalInnerPadding provides innerPadding,
+                LocalSharedAlbumId provides sharedAlbumId,
+                LocalContentSharedTransitionScope provides this@SharedTransitionLayout
+            ) {
+                // 页面内容区域：作为 backdrop 的背景录制源
+                val snapSpec = EnterTransition.None togetherWith ExitTransition.None
 
-                    val focusManager = LocalFocusManager.current
-                    val imeVisible = WindowInsets.isImeVisible
+                val focusManager = LocalFocusManager.current
+                val imeVisible = WindowInsets.isImeVisible
 
 
-                    NavDisplay(
+                NavDisplay(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(imeVisible) {
@@ -291,7 +300,6 @@ private fun ScaffoldNavigation(
                         }
                     )
                 )
-            }
             }
         }
     }

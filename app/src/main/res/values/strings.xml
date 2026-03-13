@@ -22,4 +22,12 @@
     <string name="search_hint">艺人、歌曲、歌词以及更多内容</string>
     <string name="music_play">播放</string>
     <string name="music_random_play">随机播放</string>
+    <string name="sort_by_title">标题</string>
+    <string name="sort_by_artist">艺人</string>
+    <string name="sort_by_year">年份</string>
+    <string name="sort_by_song_count">歌曲数量</string>
+    <string name="sort_by_recently_added">最近添加</string>
+    <string name="layout_grid">网格</string>
+    <string name="layout_list">列表</string>
+    <string name="unknown_artist">未知艺术家</string>
 </resources>

@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.ui.theme.rythmeColors
 import kotlinx.coroutines.delay
 
@@ -36,6 +37,7 @@ internal const val ANIM_DURATION = 300
 @Composable
 fun RythmeHeader(
     isShow: Boolean,
+    routeKey: NavKey,
     config: TopBarConfig,
     isSearchActive: Boolean = false,
     searchTitle: String = "",
@@ -123,6 +125,7 @@ fun RythmeHeader(
                 AnimatedHeaderActions(
                     showMoreButton = config.showMoreButton,
                     actions = config.actions,
+                    routeKey = routeKey,
                     skipAnimation = skipAnimation
                 )
             }

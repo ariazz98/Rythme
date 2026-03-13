@@ -73,7 +73,8 @@ val albumListModule = module {
     viewModel { params ->
         AlbumListViewModel(
             navigator = params.get(),
-            musicRepository = get()
+            musicRepository = get(),
+            appSettings = get()
         )
     }
 }

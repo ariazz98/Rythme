@@ -48,7 +48,7 @@ fun CapsuleButton(
     Row(
         modifier = modifier
             .clip(ContinuousCapsule)
-            .background(Color(0xFFEFEFF0))
+            .background(MaterialTheme.rythmeColors.capsuleIconBg)
             .clickable(
                 interactionSource = playInteraction,
                 indication = null
@@ -58,7 +58,7 @@ fun CapsuleButton(
             .drawWithContent {
                 drawContent()
                 if (playPressed) {
-                    drawRect(Color.White.copy(alpha = 0.2f))
+                    drawRect(Color.White.copy(alpha = 0.3f))
                 }
             },
         verticalAlignment = Alignment.CenterVertically,

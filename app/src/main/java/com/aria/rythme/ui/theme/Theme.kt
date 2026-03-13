@@ -21,7 +21,15 @@ data class RythmeColors(
     val textColor: Color,
     val weakColor: Color,
     val subTitleColor: Color,
-    val surface: Color
+    val surface: Color,
+    val capsuleIconBg: Color,
+    val miniCoverBg: Color,
+    val coverBg: Color,
+    val miniCoverIcon: Color,
+    val coverIcon: Color,
+    val searchBg: Color,
+    val artistCoverBg: Color,
+    val miniNextWeak: Color,
 )
 
 private val LightRythmeColors = RythmeColors(
@@ -32,7 +40,15 @@ private val LightRythmeColors = RythmeColors(
     textColor = Color.Black,
     weakColor = Gray4,
     subTitleColor = SubTitleColor,
-    surface = SurfaceBackground
+    surface = SurfaceBackground,
+    capsuleIconBg = SurfaceWeakBgColor,
+    miniCoverBg = CoverMiniBgColor,
+    coverBg = AlbumCoverBg,
+    miniCoverIcon = CoverMiniIconColor,
+    coverIcon = Color(0xFFB5B5B8),
+    searchBg = Color(0xFFEBEBEB),
+    artistCoverBg = Color(0xFFE9E9EA),
+    miniNextWeak = Color(0xFFBFBFBE)
 )
 
 private val DarkRythmeColors = RythmeColors(
@@ -43,7 +59,15 @@ private val DarkRythmeColors = RythmeColors(
     textColor = Color.White,
     weakColor = Gray4Dark,
     subTitleColor = SubTitleColor,
-    surface = SurfaceBackgroundDark
+    surface = SurfaceBackgroundDark,
+    capsuleIconBg = SurfaceWeakBgColorDark,
+    miniCoverBg = CoverMiniBgColorDark,
+    coverBg = AlbumCoverBgDark,
+    miniCoverIcon = CoverMiniIconColorDark,
+    coverIcon = Color(0xFF616165),
+    searchBg = Color(0xFF1E1E1E),
+    artistCoverBg = Color(0xFFE9E9EA),
+    miniNextWeak = Color(0xFF4F4F4F)
 )
 
 /**
@@ -114,6 +138,13 @@ fun RythmeTheme(
         LocalRythmeColors provides extendedColors
     ) {
         MaterialTheme(
+            colorScheme = if (darkTheme) darkColorScheme(
+                surface = SurfaceBackgroundDark,
+                background = SurfaceBackgroundDark
+            ) else lightColorScheme(
+                surface = SurfaceBackground,
+                background = SurfaceBackground
+            ),
             typography = compactTypography,
             content = content
         )

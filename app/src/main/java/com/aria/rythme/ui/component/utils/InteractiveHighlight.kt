@@ -21,7 +21,8 @@ import kotlinx.coroutines.launch
 
 class InteractiveHighlight(
     val animationScope: CoroutineScope,
-    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset }
+    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
+    val radius: ((size: Size) -> Float)? = null
 ) {
 
     private val pressProgressAnimationSpec =
@@ -65,7 +66,7 @@ return color * intensity;
                     val position = position(size, positionAnimation.value)
                     setFloatUniform("size", size.width, size.height)
                     setColorUniform("color", Color.White.copy(0.15f * progress).toArgb())
-                    setFloatUniform("radius", size.minDimension * 1.5f)
+                    setFloatUniform("radius", radius?.invoke(size) ?: (size.minDimension * 1.5f))
                     setFloatUniform(
                         "position",
                         position.x.fastCoerceIn(0f, size.width),

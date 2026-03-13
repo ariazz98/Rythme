@@ -39,6 +39,7 @@ import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.ui.theme.CoverMiniIconColor
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -143,8 +144,8 @@ fun MiniPlayer(
                 size = 32.dp,
                 corner = 6.dp,
                 song = song,
-                defaultBgColor = Color(0x99D6D6D5),
-                defaultIconColor = Color(0xFF4A4A49)
+                defaultBgColor = MaterialTheme.rythmeColors.miniCoverBg,
+                defaultIconColor = MaterialTheme.rythmeColors.miniCoverIcon
             )
         }
 
@@ -209,7 +210,7 @@ fun MiniPlayer(
         NextIcon(
             enable = canPlayNext,
             height = 15.dp,
-            tint = if (canPlayNext) Color.Black else Color(0xFFBFBFBE),
+            tint = if (canPlayNext) MaterialTheme.rythmeColors.textColor else MaterialTheme.rythmeColors.miniNextWeak,
             onClick = onNextClick
         )
         Spacer(modifier = Modifier.width(21.dp))

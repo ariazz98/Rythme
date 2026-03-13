@@ -14,22 +14,25 @@ import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 
 /**
  * 单个操作项（图标按钮或头像按钮）
+ *
+ * Action 只定义外观，不包含点击事件。
+ * 点击事件通过 [TopBarState.registerActionHandler] 按 key 注册。
  */
-sealed class Action(val onClick: () -> Unit) {
+sealed class Action(val key: String) {
     /** 图标按钮 */
     data class Icon(
+        val actionKey: String,
         @param:DrawableRes val iconRes: Int,
         val iconSize: Dp = 22.dp,
-        val contentDescription: String = "",
-        val onIconClick: () -> Unit = {}
-    ) : Action(onIconClick)
+        val contentDescription: String = ""
+    ) : Action(actionKey)
 
     /** 头像按钮 */
     data class Avatar(
+        val actionKey: String,
         val url: String? = null,
-        val name: String? = null,
-        val onAvatarClick: () -> Unit = {}
-    ) : Action(onAvatarClick)
+        val name: String? = null
+    ) : Action(actionKey)
 }
 
 /**
@@ -46,6 +49,9 @@ data class TopBarConfig(
  *
  * 按路由 key 分别存储各页面的可见性和按钮配置，
  * 切换 Tab 时可立即读取对应缓存值。
+ *
+ * Action 的点击事件通过 [registerActionHandler] / [getActionHandler] 与 key 关联，
+ * 各页面在 Compose 中动态注册，退出时由 [onPageDispose] 自动清除。
  */
 class TopBarState(
     private val topLevelRoutes: Set<NavKey> = ALL_TOP_LEVEL_ROUTES
@@ -58,6 +64,8 @@ class TopBarState(
     private val searchActiveMap = mutableStateMapOf<NavKey, Boolean>()
     // 每个路由独立保存搜索页面标题
     private val searchTitleMap = mutableStateMapOf<NavKey, String>()
+    // Action 点击事件：(routeKey, actionKey) → handler
+    private val actionHandlerMap = mutableMapOf<Pair<NavKey, String>, () -> Unit>()
 
     /** 读取指定路由的可见性，未记录时返回 true（默认展示） */
     fun isShow(routeKey: NavKey): Boolean = isShowMap[routeKey] ?: true
@@ -73,15 +81,15 @@ class TopBarState(
     private val defaultArtistDetail = TopBarConfig(
         showBackButton = true,
         actions = listOf(
-            Action.Icon(iconRes = R.drawable.ic_star),
-            Action.Icon(iconRes = R.drawable.ic_more)
+            Action.Icon(actionKey = "star", iconRes = R.drawable.ic_star),
+            Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
         )
     )
 
     private val defaultAlbumDetail = TopBarConfig(
         showBackButton = true,
         actions = listOf(
-            Action.Icon(iconRes = R.drawable.ic_more)
+            Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
         )
     )
 
@@ -97,6 +105,16 @@ class TopBarState(
     /** 更新指定路由的按钮配置 */
     fun updateConfig(routeKey: NavKey, config: TopBarConfig) {
         configMap[routeKey] = config
+    }
+
+    /** 注册指定路由下某个 actionKey 的点击事件 */
+    fun registerActionHandler(routeKey: NavKey, actionKey: String, handler: () -> Unit) {
+        actionHandlerMap[routeKey to actionKey] = handler
+    }
+
+    /** 获取指定路由下某个 actionKey 的点击事件 */
+    fun getActionHandler(routeKey: NavKey, actionKey: String): (() -> Unit)? {
+        return actionHandlerMap[routeKey to actionKey]
     }
 
     /** 读取指定路由的搜索激活状态 */
@@ -116,13 +134,15 @@ class TopBarState(
     /**
      * 页面出栈时调用：
      * - 一级页面：仅重置搜索状态，保留可见性等持久状态
-     * - 非一级页面：清除所有临时状态（可见性、搜索），配置保留
+     * - 非一级页面：清除所有临时状态（可见性、搜索、action handler），配置保留
      */
     fun onPageDispose(routeKey: NavKey) {
         searchActiveMap.remove(routeKey)
         searchTitleMap.remove(routeKey)
         if (routeKey !in topLevelRoutes) {
             isShowMap.remove(routeKey)
+            // 清除该路由的所有 action handler
+            actionHandlerMap.keys.removeAll { it.first == routeKey }
         }
     }
 }
@@ -132,11 +152,7 @@ val LocalTopBarState = staticCompositionLocalOf { TopBarState() }
 @Composable
 fun rememberTopBarState(): TopBarState = remember {
     TopBarState().apply {
-        val avatarAction = Action.Avatar(
-            name = "ARiA"
-        ) {
-            // TODO:
-        }
+        val avatarAction = Action.Avatar(actionKey = "avatar", name = "ARiA")
         val defaultConfig = TopBarConfig(actions = listOf(avatarAction))
         updateConfig(RythmeRoute.Home, defaultConfig)
         updateConfig(RythmeRoute.Playlist, defaultConfig)
@@ -148,21 +164,21 @@ fun rememberTopBarState(): TopBarState = remember {
         updateConfig(RythmeRoute.ArtistList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                Action.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ }
+                Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter)
             )
         ))
         updateConfig(RythmeRoute.AlbumList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                Action.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
-                Action.Icon(iconRes = R.drawable.ic_more) { /* TODO */ }
+                Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter),
+                Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
             )
         ))
         updateConfig(RythmeRoute.SongList, TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                Action.Icon(iconRes = R.drawable.ic_filter) { /* TODO */ },
-                Action.Icon(iconRes = R.drawable.ic_more) { /* TODO */ }
+                Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter),
+                Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
             )
         ))
         updateConfig(RythmeRoute.GenreList, TopBarConfig(

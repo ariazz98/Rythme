@@ -33,8 +33,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.aria.rythme.LocalAlbumSharedTransitionScope
 import com.aria.rythme.LocalSharedAlbumId
+import com.aria.rythme.LocalContentSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
@@ -57,7 +57,7 @@ fun AlbumDetailScreen(
     val songs = state.value.songs
     val routeKey = RythmeRoute.AlbumDetail(albumId)
     val context = LocalContext.current
-    val sharedTransitionScope = LocalAlbumSharedTransitionScope.current
+    val sharedTransitionScope = LocalContentSharedTransitionScope.current
     val sharedAlbumId = LocalSharedAlbumId.current
 
     val trackNumberWidth = rememberTrackNumberWidth(songs)
@@ -93,13 +93,13 @@ fun AlbumDetailScreen(
                             )
                             .size(264.dp)
                             .clip(ContinuousRoundedRectangle(14.dp))
-                            .background(Color(0xFFE9E9EA)),
+                            .background(MaterialTheme.rythmeColors.coverBg),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_album),
                             contentDescription = "",
-                            tint = Color(0xFFB5B5B8),
+                            tint = MaterialTheme.rythmeColors.coverIcon,
                             modifier = Modifier.fillMaxSize(0.5f)
                         )
 
@@ -124,6 +124,7 @@ fun AlbumDetailScreen(
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
+                    color = MaterialTheme.rythmeColors.textColor,
                     overflow = TextOverflow.Ellipsis
                 )
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -33,6 +35,7 @@ import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.MainGridPage
+import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -66,14 +69,14 @@ fun ArtistDetailScreen(
                         )
                         .size(88.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE9E9EA)),
+                        .background(MaterialTheme.rythmeColors.coverBg),
                     contentAlignment = Alignment.Center
                 ) {
                     // 图标
                     Icon(
                         painter = painterResource(R.drawable.ic_artist),
                         contentDescription = "",
-                        tint = Color(0xFFB5B5B8),
+                        tint = MaterialTheme.rythmeColors.coverIcon,
                         modifier = Modifier.size(48.dp)
                     )
 
@@ -90,10 +93,11 @@ fun ArtistDetailScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = artist?.name ?: "未知艺术家",
+                    text = artist?.name ?: stringResource(R.string.unknown_artist),
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
+                    color = MaterialTheme.rythmeColors.textColor,
                     overflow = TextOverflow.Ellipsis
                 )
 

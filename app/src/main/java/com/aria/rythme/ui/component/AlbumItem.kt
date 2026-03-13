@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.aria.rythme.LocalAlbumSharedTransitionScope
 import com.aria.rythme.LocalSharedAlbumId
+import com.aria.rythme.LocalContentSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.ui.theme.rythmeColors
@@ -38,6 +38,7 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 fun AlbumItem(
     album: Album,
     showArtist: Boolean = true,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val coverUri = album.coverUri
@@ -45,11 +46,11 @@ fun AlbumItem(
     val albumArtist = album.artist
     val albumYear = album.year
     val context = LocalContext.current
-    val sharedTransitionScope = LocalAlbumSharedTransitionScope.current
+    val sharedTransitionScope = LocalContentSharedTransitionScope.current
     val sharedAlbumId = LocalSharedAlbumId.current
 
     Column(
-        modifier = Modifier.fillMaxWidth().clickable(
+        modifier = modifier.fillMaxWidth().clickable(
             interactionSource = null,
             indication = null
         ) { onClick() }
@@ -64,13 +65,13 @@ fun AlbumItem(
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .clip(ContinuousRoundedRectangle(8.dp))
-                    .background(Color(0xFFE9E9EA)),
+                    .background(MaterialTheme.rythmeColors.coverBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_album),
                     contentDescription = "",
-                    tint = Color(0xFFB5B5B8),
+                    tint = MaterialTheme.rythmeColors.coverIcon,
                     modifier = Modifier.fillMaxSize(0.5f)
                 )
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,13 +31,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import com.aria.rythme.R
+import com.aria.rythme.ui.theme.rythmeColors
 import kotlinx.coroutines.launch
 
 @Composable
 fun PlayPauseIcon(
     isPlaying: Boolean,
     size: Dp,
-    tint: Color = Color.Black,
+    tint: Color = MaterialTheme.rythmeColors.textColor,
     onClick: () -> Unit
 ) {
     val springSpec = spring<Float>(

@@ -7,10 +7,12 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.aria.rythme.core.utils.RythmeLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /**
@@ -125,9 +127,49 @@ class AppSettingsRepository(private val context: Context) {
         }
     }
 
+    // ---- 页面偏好（按 pageKey + settingKey 存取） ----
+
+    /**
+     * 获取页面偏好值
+     *
+     * @param pageKey 页面标识（如 "album_list"）
+     * @param settingKey 设置项标识（如 "sort_by"）
+     * @param default 默认值
+     */
+    fun <T : Enum<T>> getPagePreference(pageKey: String, settingKey: String, default: T): Flow<T> {
+        val key = stringPreferencesKey("${pageKey}_${settingKey}")
+        return context.scanSettingsDataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs ->
+                val name = prefs[key]
+                if (name != null) {
+                    default.declaringJavaClass.enumConstants?.firstOrNull { it.name == name } ?: default
+                } else {
+                    default
+                }
+            }
+    }
+
+    /**
+     * 挂起读取页面偏好值（用于 ViewModel 初始化）
+     */
+    suspend fun <T : Enum<T>> getPagePreferenceValue(pageKey: String, settingKey: String, default: T): T {
+        return getPagePreference(pageKey, settingKey, default).first()
+    }
+
+    /**
+     * 保存页面偏好值
+     */
+    suspend fun <T : Enum<T>> setPagePreference(pageKey: String, settingKey: String, value: T) {
+        val key = stringPreferencesKey("${pageKey}_${settingKey}")
+        context.scanSettingsDataStore.edit { prefs ->
+            prefs[key] = value.name
+        }
+    }
+
     companion object {
         private const val TAG = "ScanSettingsRepo"
-        
+
         private val KEY_MIN_DURATION_MS = longPreferencesKey("min_duration_ms")
         private val KEY_MIN_SIZE_BYTES = longPreferencesKey("min_size_bytes")
         private val KEY_EXCLUDE_SYSTEM_DIRS = booleanPreferencesKey("exclude_system_dirs")

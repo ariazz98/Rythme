@@ -31,6 +31,8 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
     val overallBlur = Animatable(0f)
     val overallAlpha = Animatable(1f)
     val contentBlur = Animatable(0f)
+    /** 内容切换时的高度膨胀量 [0, 1]，1 = 最大膨胀 */
+    val heightBulge = Animatable(0f)
     val moreDroplet = DropletSlideAnimation(animationScope = scope)
 
     // ---- 可观测状态（驱动重组） ----
@@ -135,11 +137,14 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
                     if (showMoreButton) moreDroplet.snapToVisible()
                 } else {
                     // 立即换数据（触发 animateContentSize 宽度过渡），
-                    // 同时用一个短暂的模糊脉冲遮盖内容切换瞬间
+                    // 同时用一个短暂的模糊脉冲遮盖内容切换瞬间，
+                    // 高度先膨胀再回弹，与宽度变化同步形成有机形变
                     contentBlur.snapTo(10f)
+                    heightBulge.snapTo(2f)
                     displayActions = actions
                     coroutineScope {
                         launch { contentBlur.animateTo(0f, spring(dampingRatio = 1f, stiffness = 500f)) }
+                        launch { heightBulge.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 150f)) }
                         launch { handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance) }
                     }
                 }

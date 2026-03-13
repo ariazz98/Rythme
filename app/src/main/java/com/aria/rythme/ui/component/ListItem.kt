@@ -116,8 +116,8 @@ fun SongListItem(
                 size = 48.dp,
                 corner = 6.dp,
                 song = song,
-                defaultBgColor = Color(0x99D6D6D5),
-                defaultIconColor = Color(0xFF4A4A49)
+                defaultBgColor = MaterialTheme.rythmeColors.coverBg,
+                defaultIconColor = MaterialTheme.rythmeColors.coverIcon
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -177,14 +177,14 @@ fun ArtistListItem(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE9E9EA)),
+                    .background(MaterialTheme.rythmeColors.coverBg),
                 contentAlignment = Alignment.Center
             ) {
                 // 图标
                 Icon(
                     painter = painterResource(R.drawable.ic_artist),
                     contentDescription = "",
-                    tint = Color(0xFFB5B5B8),
+                    tint = MaterialTheme.rythmeColors.coverIcon,
                     modifier = Modifier.size(24.dp)
                 )
 
