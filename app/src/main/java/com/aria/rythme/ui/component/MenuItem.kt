@@ -82,7 +82,19 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 
 /** 按压缩放弹簧参数，与 LiquidBottomTabs 一致 */
-private val PressAnimSpec = spring<Float>(1f, 1000f, 0.001f)
+private val PressAnimSpec = spring(1f, 1000f, 0.001f)
+
+/**
+ * 面板锚点位置，决定拖拽形变的方向响应。
+ *
+ * 锚点所在方向只产生形变（弹性），远离锚点方向产生位移+形变。
+ */
+enum class PanelAnchor {
+    /** 锚点在右上角（ActionMenu 默认，向左下拖拽有位移） */
+    TopEnd,
+    /** 锚点在右下角（向左上拖拽有位移） */
+    BottomEnd,
+}
 
 /**
  * 右侧操作按钮区域，动画由 [HeaderActionsAnimState] 统一编排：
@@ -478,6 +490,65 @@ fun SharedTransitionScope.MenuPanel(
     configs: List<MenuConfig>,
     interactive: Boolean = true
 ) {
+    MenuPanelContent(
+        backdrop = backdrop,
+        configs = configs,
+        interactive = interactive,
+        columnModifier = Modifier.sharedElement(
+            sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
+            animatedVisibilityScope = scope,
+            boundsTransform = BoundsTransform { _, _ ->
+                spring(dampingRatio = 0.55f, stiffness = 250f)
+            }
+        )
+    )
+}
+
+/**
+ * 独立锚定菜单面板，支持通过 columnModifier 注入共享元素等 Modifier。
+ */
+@Composable
+fun AnchoredMenuPanel(
+    backdrop: Backdrop = LocalBackdrop.current,
+    configs: List<MenuConfig>,
+    interactive: Boolean = true,
+    anchor: PanelAnchor = PanelAnchor.TopEnd,
+    columnModifier: Modifier = Modifier
+) {
+    MenuPanelContent(
+        backdrop = backdrop,
+        configs = configs,
+        interactive = interactive,
+        anchor = anchor,
+        columnModifier = columnModifier
+    )
+}
+
+@Composable
+fun rememberMenuPanelHeightPx(configs: List<MenuConfig>): Float {
+    val density = LocalDensity.current
+    return remember(configs) {
+        with(density) {
+            val padding = 12.dp.toPx() * 2
+            padding + configs.sumOf { config ->
+                when (config) {
+                    is MenuConfig.Item -> 44.dp.toPx().toDouble()
+                    is MenuConfig.Group -> 60.dp.toPx().toDouble()
+                    is MenuConfig.Separator -> 25.dp.toPx().toDouble()
+                }
+            }.toFloat()
+        }
+    }
+}
+
+@Composable
+private fun MenuPanelContent(
+    backdrop: Backdrop = LocalBackdrop.current,
+    configs: List<MenuConfig>,
+    interactive: Boolean = true,
+    columnModifier: Modifier = Modifier,
+    anchor: PanelAnchor = PanelAnchor.TopEnd
+) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -523,14 +594,7 @@ fun SharedTransitionScope.MenuPanel(
     }
 
     Column(
-        modifier = Modifier
-            .sharedElement(
-                sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
-                animatedVisibilityScope = scope,
-                boundsTransform = BoundsTransform { _, _ ->
-                    spring(dampingRatio = 0.55f, stiffness = 250f)
-                }
-            )
+        modifier = columnModifier
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { ContinuousRoundedRectangle(48.dp) },
@@ -543,21 +607,34 @@ fun SharedTransitionScope.MenuPanel(
                     val dx = dragOffsetX.value
                     val dy = dragOffsetY.value
 
-                    // 阻尼位移（左和下有位移，右和上只形变无位移）
-                    // maxShift = 最大位移量，refDist = 阻尼参考距离（越大起步越线性）
+                    // 阻尼位移：远离锚点方向产生位移，靠近锚点方向只形变
+                    // maxShift = 最大位移量，refDist = 阻尼参考距离
                     val maxShift = 6.dp.toPx()
                     val refDist = 100.dp.toPx()
                     fun damp(v: Float) = maxShift * v / (refDist + kotlin.math.abs(v))
+
+                    // 水平：锚点在右侧，左拖（远离）有位移，右拖（靠近）无位移
                     translationX = if (dx < 0f) damp(dx) else 0f
-                    translationY = if (dy > 0f) damp(dy) else 0f
+
+                    // 垂直：根据锚点方向决定
+                    // TopEnd: 锚点在上，下拖（远离）有位移，上拖无位移
+                    // BottomEnd: 锚点在下，上拖（远离）有位移，下拖无位移
+                    translationY = when (anchor) {
+                        PanelAnchor.TopEnd -> if (dy > 0f) damp(dy) else 0f
+                        PanelAnchor.BottomEnd -> if (dy < 0f) damp(dy) else 0f
+                    }
 
                     // 方向性形变
                     val deform = 0.03f
-                    val ny = (dy / size.height).coerceIn(-1f, 1f) * deform
-                    // 左拖正常响应，右拖大阻力（轻微效果）
+                    // 垂直形变符号：TopEnd 时下拉(dy>0)变窄高，BottomEnd 时上拉(dy<0)变窄高
+                    val nyRaw = (dy / size.height).coerceIn(-1f, 1f) * deform
+                    val ny = when (anchor) {
+                        PanelAnchor.TopEnd -> nyRaw      // 下拉正值=窄高
+                        PanelAnchor.BottomEnd -> -nyRaw   // 翻转：上拉负值→正值=窄高
+                    }
+                    // 左拖正常响应，右拖大阻力
                     val dxDamped = if (dx > 0f) dx * 0.15f else dx
                     val nx = (dxDamped / size.width).coerceIn(-1f, 1f) * deform
-                    // 下拉：窄+高，上拉：宽+矮，左拉：宽+矮
                     scaleX = 1f - ny - nx
                     scaleY = 1f + ny + nx
                 },
@@ -646,7 +723,7 @@ fun SharedTransitionScope.MenuPanel(
                 is MenuConfig.Separator -> {
                     HorizontalDivider(
                         modifier = Modifier
-                            .padding(vertical = 12.dp, horizontal = 24.dp)
+                            .padding(12.dp)
                             .fillMaxWidth()
                     )
                 }
@@ -665,21 +742,19 @@ fun MenuPanelItem(
             .height(44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (config.isCheckMode) {
-            Box(
-                modifier = Modifier
-                    .width(24.dp)
-            ) {
-                if (config.isChecked) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_checked),
-                        contentDescription = "checked",
-                        modifier = Modifier.size(12.dp),
-                        tint = MaterialTheme.rythmeColors.textColor
-                    )
+        Box(
+            modifier = Modifier
+                .width(24.dp)
+        ) {
+            if (config.isChecked) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_checked),
+                    contentDescription = "checked",
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.rythmeColors.textColor
+                )
 
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
+                Spacer(modifier = Modifier.width(12.dp))
             }
         }
 
@@ -752,7 +827,6 @@ fun MenuPanelRow(
 
 sealed class MenuConfig {
     data class Item(
-        val isCheckMode: Boolean = false,
         val isChecked: Boolean = false,
         val iconRes: Int?,
         val iconSize: Dp = 18.dp,

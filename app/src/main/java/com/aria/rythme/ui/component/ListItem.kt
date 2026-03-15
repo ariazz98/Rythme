@@ -19,11 +19,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +44,7 @@ import coil3.asDrawable
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.core.music.data.model.Artist
@@ -102,8 +110,13 @@ fun SongListItem(
     song: Song,
     showDivider: Boolean = true,
     onClick: () -> Unit,
-    onMoreClick: () -> Unit
+    onMoreClick: (anchorBounds: Rect) -> Unit
 ) {
+    var iconBounds by remember { mutableStateOf(Rect.Zero) }
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val isSongContextActive =
+        (LocalOverlayMenu.current.currentMenu as? OverlayMenu.SongContext)?.song?.id == song.id
+
     Column {
         Row(
             modifier = Modifier
@@ -139,12 +152,30 @@ fun SongListItem(
                 )
             }
 
-            Icon(
-                painter = painterResource(R.drawable.ic_more),
-                contentDescription = "",
-                tint = MaterialTheme.rythmeColors.textColor,
-                modifier = Modifier.size(18.dp).clickable(interactionSource = null, indication = null) { onMoreClick() }
-            )
+            with(sharedTransitionScope) {
+                Box(
+                    modifier = Modifier
+                        .size(21.dp)
+                        .sharedElementWithCallerManagedVisibility(
+                            sharedContentState = rememberSharedContentState(
+                                key = "songMore_${song.id}"
+                            ),
+                            visible = !isSongContextActive
+                        )
+                        .onGloballyPositioned { iconBounds = it.boundsInWindow() }
+                        .clickable(interactionSource = null, indication = null) {
+                            onMoreClick(iconBounds)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_more),
+                        contentDescription = "",
+                        tint = MaterialTheme.rythmeColors.textColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
 
         // 分割线
@@ -281,9 +312,13 @@ fun IndexedListItem(
     album: Album? = null,
     trackNumberWidth: Dp = 24.dp,
     onClick: () -> Unit,
-    onMoreClick: () -> Unit
+    onMoreClick: (anchorBounds: Rect) -> Unit
 ) {
     val showArtist = album != null && album.artist != song.artist
+    var iconBounds by remember { mutableStateOf(Rect.Zero) }
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val isSongContextActive =
+        (LocalOverlayMenu.current.currentMenu as? OverlayMenu.SongContext)?.song?.id == song.id
 
     Column {
         Row(
@@ -324,12 +359,30 @@ fun IndexedListItem(
                 }
             }
 
-            Icon(
-                painter = painterResource(R.drawable.ic_more),
-                contentDescription = "",
-                tint = MaterialTheme.rythmeColors.textColor,
-                modifier = Modifier.size(18.dp).clickable(interactionSource = null, indication = null) { onMoreClick() }
-            )
+            with(sharedTransitionScope) {
+                Box(
+                    modifier = Modifier
+                        .size(21.dp)
+                        .sharedElementWithCallerManagedVisibility(
+                            sharedContentState = rememberSharedContentState(
+                                key = "songMore_${song.id}"
+                            ),
+                            visible = !isSongContextActive
+                        )
+                        .onGloballyPositioned { iconBounds = it.boundsInWindow() }
+                        .clickable(interactionSource = null, indication = null) {
+                            onMoreClick(iconBounds)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_more),
+                        contentDescription = "",
+                        tint = MaterialTheme.rythmeColors.textColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
 
         // 分割线

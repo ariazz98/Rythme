@@ -41,7 +41,10 @@ import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.IndexedListItem
+import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.OverlayMenu
+import com.aria.rythme.ui.component.buildSongContextMenuConfigs
 import com.aria.rythme.ui.component.rememberTrackNumberWidth
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -61,6 +64,7 @@ fun AlbumDetailScreen(
     val sharedAlbumId = LocalSharedAlbumId.current
 
     val trackNumberWidth = rememberTrackNumberWidth(songs)
+    val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
         routeKey = routeKey,
@@ -160,8 +164,14 @@ fun AlbumDetailScreen(
                 album = album,
                 trackNumberWidth = trackNumberWidth,
                 onClick = { viewModel.sendIntent(AlbumDetailIntent.ClickSong(song)) },
-                onMoreClick = {
-
+                onMoreClick = { bounds ->
+                    overlayMenu.show(
+                        OverlayMenu.SongContext(
+                            song = song,
+                            anchorBounds = bounds,
+                            configs = buildSongContextMenuConfigs { overlayMenu.dismiss() }
+                        )
+                    )
                 }
             )
         }

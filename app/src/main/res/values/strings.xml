@@ -30,4 +30,9 @@
     <string name="layout_grid">网格</string>
     <string name="layout_list">列表</string>
     <string name="unknown_artist">未知艺术家</string>
+    <string name="song_play_next">下一首播放</string>
+    <string name="song_add_to_playlist">添加到歌单</string>
+    <string name="song_view_album">查看专辑</string>
+    <string name="song_view_artist">查看艺人</string>
+    <string name="song_edit">编辑</string>
 </resources>

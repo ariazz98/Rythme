@@ -136,7 +136,6 @@ private fun buildAlbumListMenuConfigs(
         AlbumSortBy.RECENTLY_ADDED to R.string.sort_by_recently_added
     ).map { (sort, titleRes) ->
         MenuConfig.Item(
-            isCheckMode = true,
             isChecked = currentSort == sort,
             iconRes = null,
             titleRes = titleRes
@@ -151,7 +150,6 @@ private fun buildAlbumListMenuConfigs(
         AlbumLayoutMode.LIST to R.string.layout_list
     ).map { (layout, titleRes) ->
         MenuConfig.Item(
-            isCheckMode = true,
             isChecked = currentLayout == layout,
             iconRes = if (layout == AlbumLayoutMode.GRID) {
                 R.drawable.ic_grid

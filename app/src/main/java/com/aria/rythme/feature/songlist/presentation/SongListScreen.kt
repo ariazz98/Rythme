@@ -13,8 +13,12 @@ import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
+import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.MenuConfig
+import com.aria.rythme.ui.component.OverlayMenu
 import com.aria.rythme.ui.component.SongListItem
+import com.aria.rythme.ui.component.buildSongContextMenuConfigs
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -26,6 +30,7 @@ fun SongListScreen(
 ) {
     val state = viewModel.state.collectAsUiState()
     val songs = state.value.songs
+    val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
         title = stringResource(R.string.title_music_list),
@@ -50,7 +55,15 @@ fun SongListScreen(
                 song = song,
                 showDivider = index != songs.size - 1,
                 onClick = { viewModel.sendIntent(SongListIntent.PlaySong(song)) },
-                onMoreClick = {}
+                onMoreClick = { bounds ->
+                    overlayMenu.show(
+                        OverlayMenu.SongContext(
+                            song = song,
+                            anchorBounds = bounds,
+                            configs = buildSongContextMenuConfigs { overlayMenu.dismiss() }
+                        )
+                    )
+                }
             )
         }
     }

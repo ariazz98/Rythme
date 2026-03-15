@@ -4,6 +4,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
 import com.aria.rythme.core.music.data.model.Song
 
 /**
@@ -13,8 +14,12 @@ sealed interface OverlayMenu {
     /** 右上角 Action 菜单 */
     data class ActionMenu(val configs: List<MenuConfig>) : OverlayMenu
 
-    /** 歌曲上下文菜单 */
-    data class SongContext(val song: Song) : OverlayMenu
+    /** 歌曲上下文菜单（锚定到更多按钮位置） */
+    data class SongContext(
+        val song: Song,
+        val anchorBounds: Rect,
+        val configs: List<MenuConfig>
+    ) : OverlayMenu
 
     /** 歌曲编辑表单 */
     data class SongEdit(val song: Song) : OverlayMenu
