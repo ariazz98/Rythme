@@ -104,6 +104,9 @@ sealed interface RythmeRoute: NavKey {
 
     @Serializable
     data class ComposerDetail(val composer: String) : RythmeRoute
+
+    @Serializable
+    data class SongEditor(val id: String) : RythmeRoute
 }
 
 val ALL_TOP_LEVEL_ROUTES = setOf(

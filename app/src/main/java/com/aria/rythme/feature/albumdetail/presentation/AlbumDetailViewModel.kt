@@ -28,9 +28,6 @@ class AlbumDetailViewModel(
         when (intent) {
             is AlbumDetailIntent.GoBack -> navigator.goBack()
             is AlbumDetailIntent.ClickSong -> { /* TODO: 播放歌曲 */ }
-            is AlbumDetailIntent.OpenSongEdit -> reduceAndUpdate(AlbumDetailAction.ShowSongEdit(intent.song))
-            is AlbumDetailIntent.DismissSongEdit -> reduceAndUpdate(AlbumDetailAction.HideSongEdit)
-            is AlbumDetailIntent.SaveSong -> saveSong(intent.edited)
         }
     }
 
@@ -43,20 +40,6 @@ class AlbumDetailViewModel(
             is AlbumDetailAction.SongsLoaded -> currentState.copy(
                 songs = action.songs
             )
-            is AlbumDetailAction.ShowSongEdit -> currentState.copy(
-                editingSong = action.song
-            )
-            is AlbumDetailAction.HideSongEdit -> currentState.copy(
-                editingSong = null
-            )
-        }
-    }
-
-    private fun saveSong(edited: com.aria.rythme.core.music.data.model.Song) {
-        val original = currentState.editingSong ?: return
-        viewModelScope.launch {
-            musicRepository.updateSong(original, edited)
-            reduceAndUpdate(AlbumDetailAction.HideSongEdit)
         }
     }
 

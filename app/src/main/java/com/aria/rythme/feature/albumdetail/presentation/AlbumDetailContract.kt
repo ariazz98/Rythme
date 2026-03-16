@@ -17,16 +17,11 @@ data class AlbumDetailState(
 sealed interface AlbumDetailIntent : UserIntent {
     data object GoBack : AlbumDetailIntent
     data class ClickSong(val song: Song) : AlbumDetailIntent
-    data class OpenSongEdit(val song: Song) : AlbumDetailIntent
-    data object DismissSongEdit : AlbumDetailIntent
-    data class SaveSong(val edited: Song) : AlbumDetailIntent
 }
 
 sealed interface AlbumDetailAction : InternalAction {
     data class AlbumLoaded(val album: Album) : AlbumDetailAction
     data class SongsLoaded(val songs: List<Song>) : AlbumDetailAction
-    data class ShowSongEdit(val song: Song) : AlbumDetailAction
-    data object HideSongEdit : AlbumDetailAction
 }
 
 sealed interface AlbumDetailEffect : SideEffect {

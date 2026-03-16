@@ -140,6 +140,9 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
     val dragOffsetY = remember { Animatable(0f) }
 
+    var showLrc by remember { mutableStateOf(false) }
+    var showList by remember { mutableStateOf(false) }
+
     // 当播放器打开时重置拖动偏移
     LaunchedEffect(playerVisible) {
         if (playerVisible) {
@@ -417,12 +420,37 @@ fun PlayerScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_lrc),
-                            contentDescription = "",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Box(
+                            modifier = Modifier.size(40.dp)
+                                .then(if (showLrc) {
+                                    Modifier
+                                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                        .drawWithContent {
+                                            drawContent()
+                                            drawCircle(
+                                                color = Color(0x66FFFFFF),
+                                                blendMode = BlendMode.SrcOut
+                                            )
+                                        }
+                                } else {
+                                    Modifier
+                                })
+                                .clickable(
+                                    interactionSource = null,
+                                    indication = null,
+                                    onClick = {
+                                        showLrc = !showLrc
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(if (showLrc) R.drawable.ic_lrc_full else R.drawable.ic_lrc),
+                                contentDescription = "",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
 
                         Icon(
                             painter = painterResource(R.drawable.ic_airplay),
@@ -431,12 +459,37 @@ fun PlayerScreen(
                             modifier = Modifier.size(24.dp)
                         )
 
-                        Icon(
-                            painter = painterResource(R.drawable.ic_play_list),
-                            contentDescription = "",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Box(
+                            modifier = Modifier.size(40.dp)
+                                .then(if (showList) {
+                                    Modifier
+                                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                        .drawWithContent {
+                                            drawContent()
+                                            drawCircle(
+                                                color = Color(0x66FFFFFF),
+                                                blendMode = BlendMode.SrcOut
+                                            )
+                                        }
+                                } else {
+                                    Modifier
+                                })
+                                .clickable(
+                                    interactionSource = null,
+                                    indication = null,
+                                    onClick = {
+                                        showList = !showList
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_play_list),
+                                contentDescription = "",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(56.dp))

@@ -1,4 +1,6 @@
-@file:OptIn(KoinExperimentalAPI::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(KoinExperimentalAPI::class, ExperimentalLayoutApi::class,
+    ExperimentalMaterial3Api::class
+)
 
 package com.aria.rythme
 
@@ -15,10 +17,12 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -29,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,7 +40,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import com.aria.rythme.core.navigation.NavigationState
 import com.aria.rythme.core.navigation.Navigator
@@ -235,7 +237,6 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
                         ) { it }
                     },
-                    sceneStrategy = remember { DialogSceneStrategy() },
                     entries = navigationState.toEntries(
                         entryProvider {
                             entry<RythmeRoute.Home> {

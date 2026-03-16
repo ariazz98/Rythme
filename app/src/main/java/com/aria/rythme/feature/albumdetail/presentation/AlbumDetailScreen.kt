@@ -169,7 +169,10 @@ fun AlbumDetailScreen(
                         OverlayMenu.SongContext(
                             song = song,
                             anchorBounds = bounds,
-                            configs = buildSongContextMenuConfigs { overlayMenu.dismiss() }
+                            configs = buildSongContextMenuConfigs(
+                                onDismiss = { overlayMenu.dismiss() },
+                                onEdit = { overlayMenu.show(OverlayMenu.SongEdit(song)) }
+                            )
                         )
                     )
                 }
