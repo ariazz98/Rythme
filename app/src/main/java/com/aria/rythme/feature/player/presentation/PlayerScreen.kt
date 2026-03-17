@@ -61,19 +61,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.layout.onSizeChanged
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
+import dev.chrisbanes.haze.rememberHazeState
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.utils.GradientColors
@@ -98,6 +105,8 @@ import com.aria.rythme.ui.component.VoiceItem
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
+import dev.chrisbanes.haze.HazeInputScale
+import dev.chrisbanes.haze.materials.CupertinoMaterials
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -190,8 +199,8 @@ fun PlayerScreen(
     with(sharedTransitionScope) {
         AnimatedVisibility(
             visible = playerVisible,
-            enter = EnterTransition.None,
-            exit = ExitTransition.None
+            enter = fadeIn(),
+            exit = fadeOut()
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
 
@@ -363,7 +372,7 @@ fun PlayerScreen(
                                     Icon(
                                         painter = painterResource(if (activePanel == PlayerPanel.LYRICS) R.drawable.ic_lrc_full else R.drawable.ic_lrc),
                                         contentDescription = "",
-                                        tint = Color.White,
+                                        tint = if (activePanel == PlayerPanel.LYRICS) Color.White else Color(0x80FFFFFF),
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
@@ -371,7 +380,7 @@ fun PlayerScreen(
                                 Icon(
                                     painter = painterResource(R.drawable.ic_airplay),
                                     contentDescription = "",
-                                    tint = Color.White,
+                                    tint = Color(0x80FFFFFF),
                                     modifier = Modifier.size(24.dp)
                                 )
 
@@ -402,7 +411,7 @@ fun PlayerScreen(
                                     Icon(
                                         painter = painterResource(R.drawable.ic_play_list),
                                         contentDescription = "",
-                                        tint = Color.White,
+                                        tint = if (activePanel == PlayerPanel.PLAYLIST) Color.White else Color(0x80FFFFFF),
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
@@ -577,7 +586,10 @@ fun PlayerScreen(
                                         playerVisible = playerVisible,
                                         onGradientColorsChange = { gradientColors = it },
                                         scope = scope,
-                                        animatedContentScope = this@AnimatedContent
+                                        animatedContentScope = this@AnimatedContent,
+                                        onCoverClick = {
+                                            activePanel = PlayerPanel.NONE
+                                        }
                                     )
 
                                     // 歌词占位
@@ -593,7 +605,10 @@ fun PlayerScreen(
                                     animatedContentScope = this@AnimatedContent,
                                     viewModel = viewModel,
                                     innerPadding = innerPadding,
-                                    stickyBackdrop = stickyBackdrop
+                                    stickyBackdrop = stickyBackdrop,
+                                    onCoverClick = {
+                                        activePanel = PlayerPanel.NONE
+                                    }
                                 )
                             }
                         }
@@ -613,7 +628,8 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
     playerVisible: Boolean,
     onGradientColorsChange: (GradientColors) -> Unit,
     scope: CoroutineScope,
-    animatedContentScope: AnimatedContentScope
+    animatedContentScope: AnimatedContentScope,
+    onCoverClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -631,7 +647,10 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
                     sharedContentState = rememberSharedContentState(key = "playerCover"),
                     animatedVisibilityScope = animatedContentScope,
                     resizeMode = ResizeMode.RemeasureToBounds
-                ),
+                )
+                .clickable(interactionSource = null, indication = null) {
+                    onCoverClick()
+                },
             size = 72.dp,
             corner = 12.dp,
             song = state.currentSong,
@@ -730,11 +749,16 @@ private fun SharedTransitionScope.PlaylistPanel(
     animatedContentScope: AnimatedContentScope,
     viewModel: PlayerViewModel,
     innerPadding: PaddingValues,
-    stickyBackdrop: Backdrop
+    stickyBackdrop: Backdrop,
+    onCoverClick: () -> Unit
 ) {
     val listState = rememberLazyListState()
     val panelState = remember { PlaylistPanelState() }
     val flingBehavior = rememberPlaylistSnapFlingBehavior(listState, panelState)
+
+    // 拖拽状态
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
 
     // 更新动态数据
     panelState.historyCount = state.playHistory.size
@@ -750,171 +774,367 @@ private fun SharedTransitionScope.PlaylistPanel(
             .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = innerPadding.calculateBottomPadding())
     ) {
 
+        // 拖拽到边界时自动滚动
+        LaunchedEffect(draggedIndex) {
+            if (draggedIndex == null) return@LaunchedEffect
+            val playlistStartIndex = panelState.buttonsIndex + 1
+            while (draggedIndex != null) {
+                val dragged = draggedIndex ?: break
+                val lazyIndex = playlistStartIndex + dragged
+                val draggedItem = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == lazyIndex }
+                if (draggedItem != null) {
+                    val viewportStart = listState.layoutInfo.viewportStartOffset
+                    val viewportEnd = listState.layoutInfo.viewportEndOffset
+                    val viewportSize = viewportEnd - viewportStart
+                    val draggedTop = draggedItem.offset + dragOffsetY.toInt()
+                    val draggedBottom = draggedTop + draggedItem.size
+                    val edgeZone = (viewportSize * 0.15f).coerceAtLeast(draggedItem.size.toFloat())
+
+                    val scrollSpeed = when {
+                        draggedBottom > viewportEnd - edgeZone -> {
+                            val ratio = ((draggedBottom - (viewportEnd - edgeZone)) / edgeZone).coerceIn(0f, 1f)
+                            ratio * ratio * 15f
+                        }
+                        draggedTop < viewportStart + edgeZone -> {
+                            val ratio = (((viewportStart + edgeZone) - draggedTop) / edgeZone).coerceIn(0f, 1f)
+                            -(ratio * ratio * 15f)
+                        }
+                        else -> 0f
+                    }
+
+                    if (scrollSpeed != 0f) {
+                        val consumed = listState.dispatchRawDelta(scrollSpeed)
+                        dragOffsetY += consumed
+                    }
+                }
+                delay(16L)
+            }
+        }
+
         LazyColumn(
             state = listState,
             flingBehavior = flingBehavior,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    // 顶部渐隐
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            1f to Color.Black,
+                            startY = 0f,
+                            endY = 16.dp.toPx()
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                    // 底部渐隐
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black,
+                            1f to Color.Transparent,
+                            startY = size.height - 32.dp.toPx(),
+                            endY = size.height
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                },
+            overscrollEffect = null
         ) {
-        // 播放历史（仅有历史时才渲染）
-        if (state.playHistory.isNotEmpty()) {
-            stickyHeader(key = "history_header") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = stickyBackdrop,
-                            shape = { RectangleShape },
-                            effects = {},
-                            highlight = null,
-                            shadow = null
+            // 播放历史（仅有历史时才渲染）
+            if (state.playHistory.isNotEmpty()) {
+                stickyHeader(key = "history_header") {
+                    Column {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .drawBackdrop(
+                                    backdrop = stickyBackdrop,
+                                    shape = { RectangleShape },
+                                    effects = {},
+                                    highlight = null,
+                                    shadow = null
+                                )
+                                .padding(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.play_history),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                            )
+
+                            Text(
+                                text = stringResource(R.string.play_history_clear),
+                                fontSize = 14.sp,
+                                color = Color(0x66FFFFFF),
+                                modifier = Modifier.align(Alignment.CenterEnd)
+                            )
+                        }
+                        StickyHeaderFadeEdge(stickyBackdrop)
+                    }
+                }
+
+                items(state.playHistory, key = { "h_${it.id}" }) { song ->
+                    Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                        HistoryListItem(
+                            song,
+                            onClick = { viewModel.sendIntent(PlayerIntent.PlaySong(song)) }
                         )
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.play_history),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
-                        modifier = Modifier.align(Alignment.CenterStart)
-                    )
-
-                    Text(
-                        text = stringResource(R.string.play_history_clear),
-                        fontSize = 14.sp,
-                        color = Color(0x66FFFFFF),
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    )
+                    }
                 }
             }
 
-            items(state.playHistory, key = { "h_${it.id}" }) { song ->
-                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-                    HistoryListItem(
-                        song,
-                        onClick = { viewModel.sendIntent(PlayerIntent.PlaySong(song)) }
-                    )
-                }
-            }
-        }
-
-        // 当前播放（stickyHeader：到顶时顶走历史标题）
-        stickyHeader(key = "now_playing") {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = stickyBackdrop,
-                        shape = { RectangleShape },
-                        effects = {},
-                        highlight = null,
-                        shadow = null
-                    )
-                    .onSizeChanged { size ->
+            // 当前播放（stickyHeader：到顶时顶走历史标题）
+            stickyHeader(key = "now_playing") {
+                Column(
+                    modifier = Modifier.onSizeChanged { size ->
                         panelState.nowPlayingHeightPx = size.height.toFloat()
                     }
-            ) {
-                CompactNowPlayingHeader(
-                    state = state,
-                    playerVisible = playerVisible,
-                    onGradientColorsChange = onGradientColorsChange,
-                    scope = scope,
-                    animatedContentScope = animatedContentScope
-                )
-            }
-        }
-
-        // 四个按钮（stickyHeader 吸顶）
-        stickyHeader(key = "action_buttons") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .drawBackdrop(
-                        backdrop = stickyBackdrop,
-                        shape = { RectangleShape },
-                        effects = {},
-                        highlight = null,
-                        shadow = null
-                    )
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .height(39.dp)
-                        .background(Color(0x33FFFFFF), ContinuousCapsule)
-                        .clickable(interactionSource = null, indication = null) { },
-                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_shuffle_hard),
-                        contentDescription = "",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .height(39.dp)
-                        .background(Color(0x33FFFFFF), ContinuousCapsule)
-                        .clickable(interactionSource = null, indication = null) { },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_repeat),
-                        contentDescription = "",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .height(39.dp)
-                        .background(Color(0x33FFFFFF), ContinuousCapsule),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_infinite),
-                        contentDescription = "",
-                        tint = Color.White,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .height(39.dp)
-                        .background(Color(0x33FFFFFF), ContinuousCapsule),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_cross_fade),
-                        contentDescription = "",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-
-        // 播放列表
-        items(state.playlist, key = { it.id }) { song ->
-            val index = state.playlist.indexOf(song)
-            Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-                PlayListItem(
-                    song,
-                    onClick = {
-                        viewModel.sendIntent(PlayerIntent.SelectSongFromPlaylist(index))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .drawBackdrop(
+                                backdrop = stickyBackdrop,
+                                shape = { RectangleShape },
+                                effects = {},
+                                highlight = null,
+                                shadow = null
+                            )
+                    ) {
+                        CompactNowPlayingHeader(
+                            state = state,
+                            playerVisible = playerVisible,
+                            onGradientColorsChange = onGradientColorsChange,
+                            scope = scope,
+                            animatedContentScope = animatedContentScope,
+                            onCoverClick = onCoverClick
+                        )
                     }
-                )
+                }
             }
-        }
+
+            // 四个按钮（stickyHeader 吸顶）
+            stickyHeader(key = "action_buttons") {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .drawBackdrop(
+                                backdrop = stickyBackdrop,
+                                shape = { RectangleShape },
+                                effects = {},
+                                highlight = null,
+                                shadow = null
+                            )
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(72.dp)
+                                .height(39.dp)
+                                .background(Color(0x33FFFFFF), ContinuousCapsule)
+                                .clickable(interactionSource = null, indication = null) { },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_shuffle_hard),
+                                contentDescription = "",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(72.dp)
+                                .height(39.dp)
+                                .background(Color(0x33FFFFFF), ContinuousCapsule)
+                                .clickable(interactionSource = null, indication = null) { },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_repeat),
+                                contentDescription = "",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(72.dp)
+                                .height(39.dp)
+                                .background(Color(0x33FFFFFF), ContinuousCapsule),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_infinite),
+                                contentDescription = "",
+                                tint = Color.White,
+                                modifier = Modifier.size(23.dp)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(72.dp)
+                                .height(39.dp)
+                                .background(Color(0x33FFFFFF), ContinuousCapsule),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_cross_fade),
+                                contentDescription = "",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = stringResource(R.string.continue_play),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+
+                    Text(
+                        text = stringResource(R.string.auto_play),
+                        fontSize = 14.sp,
+                        color = Color(0x66FFFFFF),
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+
+                    StickyHeaderFadeEdge(stickyBackdrop)
+                }
+            }
+
+            // 待播列表（当前歌曲之后的歌曲）
+            val upcomingOffset = state.currentIndex + 1
+            val upcomingList = if (upcomingOffset in state.playlist.indices) {
+                state.playlist.subList(upcomingOffset, state.playlist.size)
+            } else {
+                emptyList()
+            }
+
+            itemsIndexed(upcomingList, key = { _, song -> song.id }) { index, song ->
+                val isDragged = draggedIndex == index
+                val currentIndex by rememberUpdatedState(index)
+                Box(
+                    modifier = Modifier
+                        .then(if (!isDragged) Modifier.animateItem() else Modifier)
+                        .padding(horizontal = 24.dp)
+                        .zIndex(if (isDragged) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (isDragged) dragOffsetY else 0f
+                        }
+                        .then(if (isDragged) {
+                            Modifier.drawBackdrop(
+                                backdrop = stickyBackdrop,
+                                shape = { RectangleShape },
+                                effects = {},
+                                highlight = null,
+                                shadow = null
+                            )
+                        } else Modifier)
+                ) {
+                    PlayListItem(
+                        song,
+                        onClick = {
+                            // 转换为完整 playlist 中的绝对索引
+                            viewModel.sendIntent(PlayerIntent.SelectSongFromPlaylist(currentIndex + upcomingOffset))
+                        },
+                        dragModifier = Modifier.pointerInput(Unit) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggedIndex = currentIndex
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffsetY += dragAmount.y
+
+                                    // 查找被拖项在 LazyList 中的布局信息
+                                    val dragged = draggedIndex ?: return@detectDragGesturesAfterLongPress
+                                    val playlistStartIndex = panelState.buttonsIndex + 1
+                                    val lazyIndex = playlistStartIndex + dragged
+                                    val draggedItem = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.index == lazyIndex } ?: return@detectDragGesturesAfterLongPress
+                                    val draggedCenter = draggedItem.offset + draggedItem.size / 2 + dragOffsetY.toInt()
+
+                                    // 检查是否越过相邻项
+                                    listState.layoutInfo.visibleItemsInfo.forEach { item ->
+                                        val itemPlaylistIndex = item.index - playlistStartIndex
+                                        if (itemPlaylistIndex < 0 || itemPlaylistIndex == dragged) return@forEach
+                                        val itemCenter = item.offset + item.size / 2
+                                        if ((dragged < itemPlaylistIndex && draggedCenter > itemCenter) ||
+                                            (dragged > itemPlaylistIndex && draggedCenter < itemCenter)
+                                        ) {
+                                            // 转换为完整 playlist 中的绝对索引进行重排
+                                            viewModel.sendIntent(PlayerIntent.ReorderPlaylist(dragged + upcomingOffset, itemPlaylistIndex + upcomingOffset))
+                                            draggedIndex = itemPlaylistIndex
+                                            val sizeDiff = item.size - draggedItem.size
+                                            dragOffsetY += if (dragged < itemPlaylistIndex) -item.size.toFloat() + sizeDiff else item.size.toFloat() - sizeDiff
+                                            return@forEach
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    draggedIndex = null
+                                    dragOffsetY = 0f
+                                },
+                                onDragCancel = {
+                                    draggedIndex = null
+                                    dragOffsetY = 0f
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
+}
+
+/**
+ * StickyHeader 底部渐隐条：用 drawBackdrop 绘制真实背景，再用渐变遮罩淡出
+ */
+@Composable
+private fun StickyHeaderFadeEdge(backdrop: Backdrop) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(16.dp)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RectangleShape },
+                effects = {},
+                highlight = null,
+                shadow = null,
+                onDrawFront = {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black,
+                            1f to Color.Transparent
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
+            )
+    )
 }

@@ -37,4 +37,8 @@
     <string name="song_edit">编辑</string>
     <string name="play_history">历史记录</string>
     <string name="play_history_clear">清除</string>
+    <string name="continue_play">继续播放</string>
+    <string name="from">来自%s</string>
+    <string name="auto_play">正在自动连播类似音乐</string>
+    <string name="no_music_in_queue">队列中无音乐</string>
 </resources>

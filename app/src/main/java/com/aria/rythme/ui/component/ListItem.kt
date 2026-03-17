@@ -448,7 +448,8 @@ fun HistoryListItem(
 @Composable
 fun PlayListItem(
     song: Song,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    dragModifier: Modifier = Modifier
 ) {
     Row(
         modifier = Modifier
@@ -488,7 +489,9 @@ fun PlayListItem(
             painter = painterResource(R.drawable.ic_drag),
             contentDescription = null,
             tint = Color(0x66FFFFFF),
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier
+                .size(18.dp)
+                .then(dragModifier)
         )
     }
 }

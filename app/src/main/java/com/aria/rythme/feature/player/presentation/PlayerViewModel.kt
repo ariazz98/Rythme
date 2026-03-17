@@ -61,6 +61,7 @@ class PlayerViewModel(
             is PlayerIntent.LoadAndPlayRandom -> loadAndPlayRandom()
             is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
             is PlayerIntent.SetVolume -> setVolume(intent.percentage)
+            is PlayerIntent.ReorderPlaylist -> reorderPlaylist(intent.from, intent.to)
         }
     }
 
@@ -213,6 +214,15 @@ class PlayerViewModel(
     private fun selectSongFromPlaylist(index: Int) {
         viewModelScope.launch {
             playbackController.playAtIndex(index)
+        }
+    }
+
+    /**
+     * 拖拽重排播放列表
+     */
+    private fun reorderPlaylist(from: Int, to: Int) {
+        viewModelScope.launch {
+            playbackController.movePlaylistItem(from, to)
         }
     }
 

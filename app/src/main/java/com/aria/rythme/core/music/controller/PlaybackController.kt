@@ -470,6 +470,35 @@ class PlaybackController(private val context: Context) {
     }
 
     /**
+     * 移动播放列表中的歌曲位置
+     *
+     * @param from 原位置
+     * @param to 目标位置
+     */
+    suspend fun movePlaylistItem(from: Int, to: Int) {
+        val currentList = _playlist.value.toMutableList()
+        if (from !in currentList.indices || to !in currentList.indices || from == to) return
+
+        val item = currentList.removeAt(from)
+        currentList.add(to, item)
+        _playlist.value = currentList
+
+        // 同步 ExoPlayer 的 MediaItem 顺序
+        awaitInitialization()
+        mediaController?.moveMediaItem(from, to)
+
+        // 更新当前索引
+        val oldIndex = _currentIndex.value
+        val newIndex = when {
+            oldIndex == from -> to
+            oldIndex in (from + 1)..to -> oldIndex - 1
+            oldIndex in to..<from -> oldIndex + 1
+            else -> oldIndex
+        }
+        _currentIndex.value = newIndex
+    }
+
+    /**
      * 清空播放列表
      */
     fun clearPlaylist() {

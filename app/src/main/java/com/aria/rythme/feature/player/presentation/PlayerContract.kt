@@ -59,6 +59,9 @@ sealed interface PlayerIntent : UserIntent {
 
     /** 设置音量百分比 */
     data class SetVolume(val percentage: Int) : PlayerIntent
+
+    /** 拖拽重排播放列表 */
+    data class ReorderPlaylist(val from: Int, val to: Int) : PlayerIntent
 }
 
 /**
