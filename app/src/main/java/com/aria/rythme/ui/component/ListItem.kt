@@ -402,3 +402,93 @@ fun rememberTrackNumberWidth(songs: List<Song>): Dp {
     val maxDigits = songs.maxOfOrNull { it.trackNumber.toString().length } ?: 1
     return (maxDigits * 8 + 4).dp
 }
+
+
+@Composable
+fun HistoryListItem(
+    song: Song,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CoverItem(
+            size = 48.dp,
+            corner = 6.dp,
+            song = song,
+            defaultBgColor = MaterialTheme.rythmeColors.coverBg,
+            defaultIconColor = MaterialTheme.rythmeColors.coverIcon
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White
+            )
+            Text(
+                text = song.artist,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = Color(0x66FFFFFF)
+            )
+        }
+    }
+}
+
+@Composable
+fun PlayListItem(
+    song: Song,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CoverItem(
+            size = 48.dp,
+            corner = 6.dp,
+            song = song,
+            defaultBgColor = MaterialTheme.rythmeColors.coverBg,
+            defaultIconColor = MaterialTheme.rythmeColors.coverIcon
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White
+            )
+            Text(
+                text = song.artist,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = Color(0x66FFFFFF)
+            )
+        }
+
+        Icon(
+            painter = painterResource(R.drawable.ic_drag),
+            contentDescription = null,
+            tint = Color(0x66FFFFFF),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}

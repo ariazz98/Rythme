@@ -81,6 +81,7 @@ class PlayerViewModel(
             is PlayerAction.UpdateShuffleMode -> currentState.copy(isShuffleEnabled = action.enabled)
             is PlayerAction.UpdateThemeColor -> currentState.copy(themeColor = action.color)
             is PlayerAction.UpdateVolume -> currentState.copy(volume = action.volume)
+            is PlayerAction.UpdatePlayHistory -> currentState.copy(playHistory = action.history)
         }
     }
 
@@ -271,6 +272,13 @@ class PlayerViewModel(
             }
             .launchIn(viewModelScope)
         
+        // 监听播放历史（独立启动）
+        playbackController.playHistory
+            .onEach { history ->
+                reduceAndUpdate(PlayerAction.UpdatePlayHistory(history))
+            }
+            .launchIn(viewModelScope)
+
         // 监听循环模式（独立启动）
         playbackController.repeatMode
             .onEach { repeatMode ->

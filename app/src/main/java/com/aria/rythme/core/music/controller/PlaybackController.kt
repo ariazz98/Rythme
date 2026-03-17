@@ -128,6 +128,10 @@ class PlaybackController(private val context: Context) {
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
 
+    // 播放历史（最近播放的歌曲，最新在前，上限50条）
+    private val _playHistory = MutableStateFlow<List<Song>>(emptyList())
+    val playHistory: StateFlow<List<Song>> = _playHistory.asStateFlow()
+
     // 播放错误
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -474,6 +478,13 @@ class PlaybackController(private val context: Context) {
     }
 
     /**
+     * 清空播放历史
+     */
+    fun clearHistory() {
+        _playHistory.value = emptyList()
+    }
+
+    /**
      * 释放资源
      */
     fun release() {
@@ -685,12 +696,20 @@ class PlaybackController(private val context: Context) {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // 将上一首歌曲加入播放历史
+            val previousSong = _currentSong.value
+            if (previousSong != null) {
+                val current = _playHistory.value
+                val filtered = current.filter { it.id != previousSong.id }
+                _playHistory.value = (listOf(previousSong) + filtered).take(MAX_HISTORY_SIZE)
+            }
+
             mediaItem?.let {
                 // 更新当前歌曲和索引
                 val songId = it.mediaId.toLongOrNull()
                 val song = _playlist.value.find { s -> s.id == songId }
                 _currentSong.value = song
-                
+
                 // 同步索引
                 val newIndex = _playlist.value.indexOfFirst { s -> s.id == songId }
                 if (newIndex >= 0) {
@@ -702,5 +721,6 @@ class PlaybackController(private val context: Context) {
 
     companion object {
         private const val TAG = "PlaybackController"
+        private const val MAX_HISTORY_SIZE = 50
     }
 }

@@ -35,4 +35,6 @@
     <string name="song_view_album">查看专辑</string>
     <string name="song_view_artist">查看艺人</string>
     <string name="song_edit">编辑</string>
+    <string name="play_history">历史记录</string>
+    <string name="play_history_clear">清除</string>
 </resources>

@@ -69,6 +69,7 @@ import com.aria.rythme.ui.component.OverlayMenuState
 import com.aria.rythme.ui.component.RythmeHeader
 import com.aria.rythme.ui.component.TopBarState
 import com.aria.rythme.ui.component.rememberTopBarState
+import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop

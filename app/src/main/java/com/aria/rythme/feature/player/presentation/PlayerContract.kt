@@ -93,7 +93,10 @@ data class PlayerState(
     val themeColor: Int? = null,
 
     /** 音量百分比 (0-100) */
-    val volume: Int = 0
+    val volume: Int = 0,
+
+    /** 播放历史 */
+    val playHistory: List<Song> = emptyList()
 ) : UiState {
 
     /**
@@ -171,6 +174,9 @@ sealed interface PlayerAction : InternalAction {
 
     /** 更新音量 */
     data class UpdateVolume(val volume: Int) : PlayerAction
+
+    /** 更新播放历史 */
+    data class UpdatePlayHistory(val history: List<Song>) : PlayerAction
 }
 
 /**
