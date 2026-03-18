@@ -6,7 +6,7 @@ haze = "1.7.2"
 coreKtx = "1.18.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
-kotlin = "2.3.10"
+kotlin = "2.3.20"
 composeBom = "2026.03.00"
 
 # MVI 架构相关依赖版本
@@ -29,7 +29,7 @@ ksp = "2.3.6"
 # 导航相关依赖版本
 navigation3 = "1.0.1"
 lifecycleViewmodelNav3="2.10.0"
-kotlinSerialization="2.3.10"
+kotlinSerialization="2.3.20"
 kotlinxSerializationCore="1.10.0"
 
 [libraries]
