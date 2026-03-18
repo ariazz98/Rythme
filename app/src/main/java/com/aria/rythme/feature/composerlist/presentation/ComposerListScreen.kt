@@ -1,18 +1,13 @@
 package com.aria.rythme.feature.composerlist.presentation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonListItem
-import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainListPage
-import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable

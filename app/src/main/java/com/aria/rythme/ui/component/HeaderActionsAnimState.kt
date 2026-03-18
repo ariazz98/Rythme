@@ -42,6 +42,9 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
         private set
     var showMore by mutableStateOf(false)
         private set
+    /** 当前显示的 moreAction（退场动画期间保留旧值，避免图标闪变） */
+    var displayMoreAction by mutableStateOf<Action.Icon?>(null)
+        private set
 
     private val mutex = Mutex()
 
@@ -56,12 +59,15 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
     /**
      * 初始化：首次组合时调用，跳过所有动画直接 snap 到正确状态
      */
-    suspend fun initialize(actions: List<Action>, showMoreButton: Boolean) = mutex.withLock {
+    suspend fun initialize(actions: List<Action>, showMoreButton: Boolean, moreAction: Action.Icon? = null) = mutex.withLock {
         if (actions.isNotEmpty()) {
             overallBlur.snapTo(0f)
             overallAlpha.snapTo(1f)
             contentBlur.snapTo(0f)
-            if (showMoreButton) moreDroplet.snapToVisible()
+            if (showMoreButton) {
+                moreDroplet.snapToVisible()
+                displayMoreAction = moreAction
+            }
             // 先设动画值，最后更新 phase 触发重组（确保首帧数据完整）
             displayActions = actions
             showMore = showMoreButton
@@ -79,6 +85,7 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
         showMoreButton: Boolean,
         skipAnimation: Boolean,
         moreSlideDistance: Float,
+        moreAction: Action.Icon? = null,
     ) = mutex.withLock {
         val hasContent = actions.isNotEmpty()
         val actionsKey = actions.contentKey()
@@ -88,7 +95,10 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
             // 场景 A: 进场（无→有）
             hasContent && phase == Phase.Hidden -> {
                 contentBlur.snapTo(0f)
-                if (showMoreButton) moreDroplet.snapToVisible()
+                if (showMoreButton) {
+                    moreDroplet.snapToVisible()
+                    displayMoreAction = moreAction
+                }
                 if (skipAnimation) {
                     overallBlur.snapTo(0f)
                     overallAlpha.snapTo(1f)
@@ -134,7 +144,10 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
                 if (skipAnimation) {
                     displayActions = actions
                     showMore = showMoreButton
-                    if (showMoreButton) moreDroplet.snapToVisible()
+                    if (showMoreButton) {
+                        moreDroplet.snapToVisible()
+                        displayMoreAction = moreAction
+                    }
                 } else {
                     // 立即换数据（触发 animateContentSize 宽度过渡），
                     // 同时用一个短暂的模糊脉冲遮盖内容切换瞬间，
@@ -145,7 +158,7 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
                     coroutineScope {
                         launch { contentBlur.animateTo(0f, spring(dampingRatio = 1f, stiffness = 500f)) }
                         launch { heightBulge.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 150f)) }
-                        launch { handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance) }
+                        launch { handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance, moreAction) }
                     }
                 }
             }
@@ -154,7 +167,7 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
             hasContent && phase == Phase.Visible -> {
                 overallBlur.snapTo(0f)
                 overallAlpha.snapTo(1f)
-                handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance)
+                handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance, moreAction)
             }
         }
     }
@@ -168,20 +181,33 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
         }
     }
 
+    /**
+     * 同步 moreAction 外观（不触发动画）：Tab 切换时 showMore 不变但图标可能不同
+     */
+    fun syncMoreAction(moreAction: Action.Icon?) {
+        if (moreAction != null && showMore) {
+            displayMoreAction = moreAction
+        }
+    }
+
     private suspend fun handleMoreChange(
         showMoreButton: Boolean,
         skipAnimation: Boolean,
         distance: Float,
+        moreAction: Action.Icon? = null,
     ) {
         if (showMoreButton == showMore) return
 
         if (showMoreButton) {
+            displayMoreAction = moreAction
             showMore = true
             if (skipAnimation) moreDroplet.snapToVisible()
             else moreDroplet.awaitSlideIn(fromLeft = false, distance = distance)
         } else {
+            // 退场动画期间保留 displayMoreAction，动画结束后再清除
             if (!skipAnimation) moreDroplet.awaitSlideOut(toLeft = false, distance = distance)
             showMore = false
+            displayMoreAction = null
         }
     }
 }

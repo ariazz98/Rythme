@@ -25,7 +25,7 @@ class ArtistDetailViewModel(
     override fun handleIntent(intent: ArtistDetailIntent) {
         when (intent) {
             is ArtistDetailIntent.GoBack -> navigator.goBack()
-            is ArtistDetailIntent.ClickAlbum -> { navigator.navigate(RythmeRoute.AlbumDetail(intent.album.id.toString(), filterArtistId = artistId)) }
+            is ArtistDetailIntent.ClickAlbum -> { navigator.navigate(RythmeRoute.AlbumDetail(intent.album.id.toString())) }
         }
     }
 

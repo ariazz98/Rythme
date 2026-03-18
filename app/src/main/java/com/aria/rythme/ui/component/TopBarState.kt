@@ -40,7 +40,7 @@ sealed class Action(val key: String) {
  */
 data class TopBarConfig(
     val showBackButton: Boolean = false,
-    val showMoreButton: Boolean = false,
+    val moreAction: Action.Icon? = null,
     val actions: List<Action> = emptyList()
 )
 
@@ -155,9 +155,12 @@ fun rememberTopBarState(): TopBarState = remember {
         val avatarAction = Action.Avatar(actionKey = "avatar", name = "ARiA")
         val defaultConfig = TopBarConfig(actions = listOf(avatarAction))
         updateConfig(RythmeRoute.Home, defaultConfig)
-        updateConfig(RythmeRoute.Playlist, defaultConfig)
+        updateConfig(RythmeRoute.Playlist, TopBarConfig(
+            moreAction = Action.Icon(actionKey = "more", iconRes = R.drawable.ic_add, iconSize = 18.dp),
+            actions = listOf(avatarAction)
+        ))
         updateConfig(RythmeRoute.Library, TopBarConfig(
-            showMoreButton = true,
+            moreAction = Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more),
             actions = listOf(avatarAction)
         ))
         updateConfig(RythmeRoute.Search, defaultConfig)

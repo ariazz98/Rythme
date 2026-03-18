@@ -41,4 +41,11 @@
     <string name="from">来自%s</string>
     <string name="auto_play">正在自动连播类似音乐</string>
     <string name="no_music_in_queue">队列中无音乐</string>
+    <string name="create_playlist">新建歌单</string>
+    <string name="playlist_name_hint">歌单名称</string>
+    <string name="cancel">取消</string>
+    <string name="create">创建</string>
+    <string name="delete">删除</string>
+    <string name="empty_playlist">还没有歌单，点击右上角创建</string>
+    <string name="playlist_song_count">%d 首歌曲</string>
 </resources>

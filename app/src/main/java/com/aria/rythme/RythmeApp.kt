@@ -60,6 +60,7 @@ import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.feature.navigationbar.presentation.BottomNavigationBar
 import com.aria.rythme.feature.player.presentation.PlayerScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
+import com.aria.rythme.feature.playlistdetail.presentation.PlaylistDetailScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.ui.component.LocalOverlayMenu
@@ -257,6 +258,13 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                             }
                             entry<RythmeRoute.AlbumList>{
                                 AlbumListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                            }
+                            entry<RythmeRoute.PlaylistDetail> { key ->
+                                PlaylistDetailScreen(
+                                    viewModel = koinViewModel(key = key.id) {
+                                        parametersOf(key.id.toLong(), navigator)
+                                    }
+                                )
                             }
                             entry<RythmeRoute.AlbumDetail>(
                                 metadata = NavDisplay.transitionSpec {

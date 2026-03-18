@@ -7,6 +7,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -59,8 +59,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -91,6 +91,7 @@ import com.aria.rythme.ui.component.rememberPlaylistSnapFlingBehavior
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.CoroutineScope
 import com.aria.rythme.ui.component.CoverItem
@@ -107,10 +108,16 @@ import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.materials.CupertinoMaterials
-import kotlin.math.roundToInt
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import kotlin.math.roundToInt
 
 /**
  * 播放器底部面板状态
@@ -152,7 +159,8 @@ fun PlayerScreen(
     val velocityThreshold = 2000f
 
     val scope = rememberCoroutineScope()
-    val dragOffsetY = remember { Animatable(0f) }
+    val dragOffsetYState = remember { mutableFloatStateOf(0f) }
+    var dragOffsetY by dragOffsetYState
 
     var activePanel by remember { mutableStateOf(PlayerPanel.NONE) }
     var controlsVisible by remember { mutableStateOf(true) }
@@ -160,7 +168,7 @@ fun PlayerScreen(
     // 当播放器打开时重置拖动偏移
     LaunchedEffect(playerVisible) {
         if (playerVisible) {
-            dragOffsetY.snapTo(0f)
+            dragOffsetY = 0f
         }
     }
 
@@ -186,12 +194,11 @@ fun PlayerScreen(
         }
     )
 
-    // 操作区（底部浮层，歌词模式播放中可自动隐藏）
-    val autoHideActive = state.isPlaying && activePanel == PlayerPanel.LYRICS
-    val showControls = !autoHideActive || controlsVisible
+    // 操作区（底部浮层：歌词模式自动隐藏 / 播放列表拖动时隐藏）
+    val showControls = controlsVisible
     val controlsSlide by animateFloatAsState(
         targetValue = if (showControls) 0f else 1f,
-        animationSpec = tween(400)
+        animationSpec = tween(300)
     )
 
     val stickyBackdrop = rememberLayerBackdrop()
@@ -202,7 +209,39 @@ fun PlayerScreen(
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .offset { IntOffset(0, dragOffsetY.roundToInt()) }
+                    .clickable(interactionSource = null, indication = null) { }
+                    .draggable(
+                        state = rememberDraggableState { delta ->
+                            dragOffsetY = (dragOffsetY + delta).coerceAtLeast(0f)
+                        },
+                        orientation = Orientation.Vertical,
+                        onDragStopped = { velocity ->
+                            if (dragOffsetY > dismissThreshold || velocity > velocityThreshold) {
+                                onBack()
+                            } else {
+                                scope.launch {
+                                    animate(dragOffsetY, 0f) { value, _ ->
+                                        dragOffsetY = value
+                                    }
+                                }
+                            }
+                        }
+                    )
+                    .sharedBounds(
+                        sharedContentState = rememberSharedContentState(key = "playerContainer"),
+                        animatedVisibilityScope = this@AnimatedVisibility,
+                        resizeMode = ResizeMode.RemeasureToBounds
+                    )
+                    .then(if (sharedTransitionScope.isTransitionActive || dragOffsetY > 0)
+                        Modifier.clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
+                    else
+                       Modifier
+                    )
+            ) {
 
                 Box(modifier = Modifier
                     .fillMaxSize()
@@ -213,37 +252,7 @@ fun PlayerScreen(
                 Scaffold(
                     containerColor = Color.Transparent,
                     modifier = Modifier
-                        .clickable(interactionSource = null, indication = null) { }
-                        .offset { IntOffset(0, dragOffsetY.value.roundToInt()) }
-                        .sharedBounds(
-                            sharedContentState = rememberSharedContentState(key = "playerContainer"),
-                            animatedVisibilityScope = this@AnimatedVisibility,
-                            resizeMode = ResizeMode.RemeasureToBounds
-                        )
-                        .fillMaxSize()
-                        .draggable(
-                            state = rememberDraggableState { delta ->
-                                scope.launch {
-                                    dragOffsetY.snapTo((dragOffsetY.value + delta).coerceAtLeast(0f))
-                                }
-                            },
-                            orientation = Orientation.Vertical,
-                            onDragStopped = { velocity ->
-                                if (dragOffsetY.value > dismissThreshold || velocity > velocityThreshold) {
-                                    onBack()
-                                } else {
-                                    scope.launch {
-                                        dragOffsetY.animateTo(0f)
-                                    }
-                                }
-                            }
-                        )
-                        .then(
-                            if (sharedTransitionScope.isTransitionActive || dragOffsetY.value > 0)
-                                Modifier.clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
-                            else
-                                Modifier
-                        ),
+                        .fillMaxSize(),
                     topBar = {
                         // Handle bar（顶部）
                         Box(
@@ -269,8 +278,14 @@ fun PlayerScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .renderInSharedTransitionScopeOverlay(
-                                    zIndexInOverlay = 1f
+                                .then(
+                                    // 仅在共享元素过渡期间使用 overlay，拖拽时禁用以避免与 offset 脱节
+                                    if (sharedTransitionScope.isTransitionActive)
+                                        Modifier.renderInSharedTransitionScopeOverlay(
+                                            zIndexInOverlay = 1f
+                                        )
+                                    else
+                                        Modifier
                                 )
                                 .animateEnterExit(
                                     enter = slideInVertically(
@@ -606,6 +621,14 @@ fun PlayerScreen(
                                     viewModel = viewModel,
                                     innerPadding = innerPadding,
                                     stickyBackdrop = stickyBackdrop,
+                                    screenDragOffsetY = dragOffsetYState,
+                                    dismissThreshold = dismissThreshold,
+                                    velocityThreshold = velocityThreshold,
+                                    onDismiss = onBack,
+                                    onListScrolling = { scrolling ->
+                                        controlsVisible = !scrolling
+                                    },
+                                    controlsSlide = controlsSlide,
                                     onCoverClick = {
                                         activePanel = PlayerPanel.NONE
                                     }
@@ -750,28 +773,84 @@ private fun SharedTransitionScope.PlaylistPanel(
     viewModel: PlayerViewModel,
     innerPadding: PaddingValues,
     stickyBackdrop: Backdrop,
+    screenDragOffsetY: MutableFloatState,
+    dismissThreshold: Float,
+    velocityThreshold: Float,
+    onDismiss: () -> Unit,
+    onListScrolling: (Boolean) -> Unit,
+    controlsSlide: Float,
     onCoverClick: () -> Unit
 ) {
-    val listState = rememberLazyListState()
     val panelState = remember { PlaylistPanelState() }
+    // 先更新 historyCount，确保 nowPlayingIndex 在首帧就正确
+    panelState.historyCount = state.playHistory.size
+
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = panelState.nowPlayingIndex
+    )
     val flingBehavior = rememberPlaylistSnapFlingBehavior(listState, panelState)
+
+    // 嵌套滚动：列表滑到顶部时，向下拖拽转发给 PlayerScreen 的关闭手势
+    val dismissNestedScrollConnection = remember(screenDragOffsetY) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // 当 PlayerScreen 已被拖拽偏移时，向上滑动优先恢复偏移（仅手指拖拽）
+                if (available.y < 0 && screenDragOffsetY.floatValue > 0f && source == NestedScrollSource.UserInput) {
+                    val oldValue = screenDragOffsetY.floatValue
+                    val newOffset = (oldValue + available.y).coerceAtLeast(0f)
+                    screenDragOffsetY.floatValue = newOffset
+                    return Offset(0f, oldValue - newOffset)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // 仅手指拖拽时转发，忽略惯性 fling 产生的过滚
+                if (available.y > 0 && source == NestedScrollSource.UserInput) {
+                    screenDragOffsetY.floatValue =
+                        (screenDragOffsetY.floatValue + available.y).coerceAtLeast(0f)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                // 如果有拖拽偏移，处理 fling
+                if (screenDragOffsetY.floatValue > 0f) {
+                    if (screenDragOffsetY.floatValue > dismissThreshold || available.y > velocityThreshold) {
+                        onDismiss()
+                    } else {
+                        animate(screenDragOffsetY.floatValue, 0f) { value, _ ->
+                            screenDragOffsetY.floatValue = value
+                        }
+                    }
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
 
     // 拖拽状态
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
 
-    // 更新动态数据
-    panelState.historyCount = state.playHistory.size
-
-    // 初始滚动到当前播放
-    LaunchedEffect(Unit) {
-        listState.scrollToItem(panelState.nowPlayingIndex)
+    // 拖拽排序时隐藏 Controls，松手恢复
+    LaunchedEffect(draggedIndex) {
+        onListScrolling(draggedIndex != null)
     }
+
+    // controls 隐藏时，列表底部 padding 从 bottomBar 高度渐变到 0
+    val bottomPadding = innerPadding.calculateBottomPadding() * (1f - controlsSlide)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = innerPadding.calculateBottomPadding())
+            .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = bottomPadding)
     ) {
 
         // 拖拽到边界时自动滚动
@@ -817,6 +896,7 @@ private fun SharedTransitionScope.PlaylistPanel(
             flingBehavior = flingBehavior,
             modifier = Modifier
                 .fillMaxSize()
+                .nestedScroll(dismissNestedScrollConnection)
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
@@ -846,17 +926,31 @@ private fun SharedTransitionScope.PlaylistPanel(
             // 播放历史（仅有历史时才渲染）
             if (state.playHistory.isNotEmpty()) {
                 stickyHeader(key = "history_header") {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .drawBackdrop(
+                                backdrop = stickyBackdrop,
+                                shape = { RectangleShape },
+                                effects = {},
+                                highlight = null,
+                                shadow = null,
+                                onDrawFront = {
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            0f to Color.Black,
+                                            1f to Color.Transparent,
+                                            startY = size.height - 16.dp.toPx(),
+                                            endY = size.height
+                                        ),
+                                        blendMode = BlendMode.DstIn
+                                    )
+                                }
+                            )
+                    ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .drawBackdrop(
-                                    backdrop = stickyBackdrop,
-                                    shape = { RectangleShape },
-                                    effects = {},
-                                    highlight = null,
-                                    shadow = null
-                                )
                                 .padding(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Text(
@@ -874,7 +968,7 @@ private fun SharedTransitionScope.PlaylistPanel(
                                 modifier = Modifier.align(Alignment.CenterEnd)
                             )
                         }
-                        StickyHeaderFadeEdge(stickyBackdrop)
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
 
@@ -920,17 +1014,31 @@ private fun SharedTransitionScope.PlaylistPanel(
 
             // 四个按钮（stickyHeader 吸顶）
             stickyHeader(key = "action_buttons") {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawBackdrop(
+                            backdrop = stickyBackdrop,
+                            shape = { RectangleShape },
+                            effects = {},
+                            highlight = null,
+                            shadow = null,
+                            onDrawFront = {
+                                drawRect(
+                                    brush = Brush.verticalGradient(
+                                        0f to Color.Black,
+                                        1f to Color.Transparent,
+                                        startY = size.height - 16.dp.toPx(),
+                                        endY = size.height
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                        )
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .drawBackdrop(
-                                backdrop = stickyBackdrop,
-                                shape = { RectangleShape },
-                                effects = {},
-                                highlight = null,
-                                shadow = null
-                            )
                             .padding(horizontal = 24.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -1015,7 +1123,7 @@ private fun SharedTransitionScope.PlaylistPanel(
                         modifier = Modifier.padding(horizontal = 24.dp)
                     )
 
-                    StickyHeaderFadeEdge(stickyBackdrop)
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
@@ -1110,31 +1218,3 @@ private fun SharedTransitionScope.PlaylistPanel(
     }
 }
 
-/**
- * StickyHeader 底部渐隐条：用 drawBackdrop 绘制真实背景，再用渐变遮罩淡出
- */
-@Composable
-private fun StickyHeaderFadeEdge(backdrop: Backdrop) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(16.dp)
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RectangleShape },
-                effects = {},
-                highlight = null,
-                shadow = null,
-                onDrawFront = {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            0f to Color.Black,
-                            1f to Color.Transparent
-                        ),
-                        blendMode = BlendMode.DstIn
-                    )
-                }
-            )
-    )
-}

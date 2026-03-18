@@ -122,11 +122,15 @@ fun RythmeHeader(
 
                 Spacer(modifier = Modifier.weight(1f))
 
+                val topBarState = LocalTopBarState.current
                 AnimatedHeaderActions(
-                    showMoreButton = config.showMoreButton,
+                    moreAction = config.moreAction,
                     actions = config.actions,
                     routeKey = routeKey,
-                    skipAnimation = skipAnimation
+                    skipAnimation = skipAnimation,
+                    onMoreClick = {
+                        topBarState.getActionHandler(routeKey, config.moreAction?.key ?: "more")?.invoke()
+                    }
                 )
             }
 

@@ -105,13 +105,14 @@ enum class PanelAnchor {
  */
 @Composable
 fun AnimatedHeaderActions(
-    showMoreButton: Boolean,
+    moreAction: Action.Icon? = null,
     actions: List<Action>,
     routeKey: NavKey,
     skipAnimation: Boolean = false,
     onMoreClick: () -> Unit = {},
     backdrop: Backdrop = LocalBackdrop.current,
 ) {
+    val showMoreButton = moreAction != null
     val coroutineScope = rememberCoroutineScope()
     val animState = remember { HeaderActionsAnimState(coroutineScope) }
     val distance = with(LocalDensity.current) { 60.dp.toPx() }
@@ -119,19 +120,20 @@ fun AnimatedHeaderActions(
     // 初始化（仅首次）
     var initialized by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        animState.initialize(actions, showMoreButton)
+        animState.initialize(actions, showMoreButton, moreAction)
         initialized = true
     }
 
     // 输入变化时统一驱动动画
     LaunchedEffect(actions, showMoreButton) {
         if (!initialized) return@LaunchedEffect
-        animState.update(actions, showMoreButton, skipAnimation, distance)
+        animState.update(actions, showMoreButton, skipAnimation, distance, moreAction)
     }
 
-    // 同步 lambda 引用（不触发动画）
+    // 同步引用（不触发动画）：Tab 切换时 actions/moreAction 引用可能变但内容指纹相同
     SideEffect {
         animState.syncActionRefs(actions)
+        animState.syncMoreAction(moreAction)
     }
 
     // 未进入可见阶段，不渲染
@@ -203,11 +205,12 @@ fun AnimatedHeaderActions(
                         ) { onMoreClick() },
                     contentAlignment = Alignment.Center
                 ) {
+                    val displayMore = animState.displayMoreAction
                     Icon(
-                        painter = painterResource(R.drawable.ic_more),
-                        contentDescription = "更多",
+                        painter = painterResource(displayMore?.iconRes ?: R.drawable.ic_more),
+                        contentDescription = displayMore?.contentDescription ?: "更多",
                         tint = MaterialTheme.rythmeColors.textColor,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(displayMore?.iconSize ?: 22.dp)
                     )
                 }
             }

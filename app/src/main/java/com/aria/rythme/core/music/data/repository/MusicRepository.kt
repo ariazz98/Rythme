@@ -14,12 +14,18 @@ import com.aria.rythme.core.music.data.model.Song
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlin.math.abs
 
 /**
  * 音乐仓库
  *
  * 查询时自动合并用户覆盖层（song_overrides），
  * 确保用户手动编辑的信息不会被 MediaStore 同步覆盖。
+ *
+ * ## 聚合规则
+ * - Artist：按 override 后的 artist 名称分组（非 artistId），确保用户编辑后正确拆分/合并
+ * - Album：按 (albumId, album 名称) 分组，同一 albumId 下若 override 改了专辑名则拆分
+ * - 合辑专辑：同一专辑内多个不同 artist 时，专辑 artist 显示为"群星"
  */
 class MusicRepository(
     private val songDao: SongDao,
@@ -45,8 +51,14 @@ class MusicRepository(
     fun getSongsByAlbum(albumId: Long): Flow<List<Song>> =
         songDao.getSongsByAlbum(albumId).withOverrides()
 
+    /**
+     * 获取指定艺术家的歌曲（按 override 后的名称匹配）
+     */
     fun getSongsByArtist(artistId: Long): Flow<List<Song>> =
-        songDao.getSongsByArtist(artistId).withOverrides()
+        combine(getAllSongs(), artistDao.getAllArtists()) { songs, artists ->
+            val artistName = artists.firstOrNull { it.id == artistId }?.name ?: return@combine emptyList()
+            songs.filter { it.artist == artistName }
+        }
 
     fun getSongsByGenre(genre: String): Flow<List<Song>> =
         songDao.getAllSongs().withOverrides().map { songs ->
@@ -68,10 +80,16 @@ class MusicRepository(
         songDao.getRecentlyAdded(limit).withOverrides()
 
     /**
-     * 获取指定专辑中指定艺术家的歌曲
+     * 获取指定专辑中指定艺术家的歌曲（按 override 后的名称匹配）
      */
     fun getSongsByAlbumAndArtist(albumId: Long, artistId: Long): Flow<List<Song>> =
-        songDao.getSongsByAlbumAndArtist(albumId, artistId).withOverrides()
+        combine(
+            songDao.getSongsByAlbum(albumId).withOverrides(),
+            artistDao.getAllArtists()
+        ) { songs, artists ->
+            val artistName = artists.firstOrNull { it.id == artistId }?.name ?: return@combine emptyList()
+            songs.filter { it.artist == artistName }
+        }
 
     /**
      * 获取指定专辑中指定作曲者的歌曲（合并覆盖层后筛选）
@@ -101,10 +119,10 @@ class MusicRepository(
         albumDao.getAlbumsByArtist(artistId).map { entities -> entities.map { it.toAlbum() } }
 
     /**
-     * 查找包含指定艺术家歌曲的所有专辑（通过 songs 表 JOIN，不限于专辑主艺术家）
+     * 查找指定艺术家的所有专辑（直接通过 album.artistId 匹配，无需 JOIN songs）
      */
     fun getAlbumsContainingArtist(artistId: Long): Flow<List<Album>> =
-        albumDao.getAlbumsContainingArtist(artistId).map { entities -> entities.map { it.toAlbum() } }
+        albumDao.getAlbumsByArtist(artistId).map { entities -> entities.map { it.toAlbum() } }
 
     /**
      * 查找包含指定作曲者歌曲的所有专辑（合并覆盖层后提取 albumId，再批量查询）
@@ -186,19 +204,28 @@ class MusicRepository(
 
     /**
      * 从 songs 表 + 覆盖层聚合重建 albums 和 artists 表
+     *
+     * ## 聚合策略
+     * - Album：按 (albumId, album 名称) 分组，override 改了专辑名则拆分为不同专辑；
+     *          同一专辑内有多个不同 artist 时，专辑 artist 显示为"群星"
+     * - Artist：从重建后的 albums 按 albumArtist 分组（资料库链路：艺人→专辑→歌曲）
      */
     suspend fun rebuildAggregations() {
         val overrides = songOverrideDao.getAllOverridesOnce().asMap()
         val allSongs = songDao.getAllSongsOnce().map { it.applyOverride(overrides[it.id]) }
 
-        // 重建专辑表
-        val albums = allSongs.groupBy { it.albumId }.map { (albumId, songs) ->
+        // 重建专辑表：按 (albumId, album名称) 分组
+        val albums = allSongs.groupBy { it.albumId to it.album }.map { (key, songs) ->
+            val (albumId, albumName) = key
             val first = songs.first()
+            val distinctArtists = songs.map { it.artist }.distinct()
+            val isCompilation = distinctArtists.size > 1
+            val albumArtist = if (isCompilation) COMPILATION_ARTIST else first.albumArtist.ifEmpty { first.artist }
             AlbumEntity(
                 id = albumId,
-                title = first.album,
-                artist = first.albumArtist.ifEmpty { first.artist },
-                artistId = first.artistId,
+                title = albumName,
+                artist = albumArtist,
+                artistId = stableHash(albumArtist),
                 songCount = songs.size,
                 totalDuration = songs.sumOf { it.duration },
                 coverUri = first.coverUri,
@@ -208,16 +235,14 @@ class MusicRepository(
         albumDao.deleteAll()
         albumDao.upsertAll(albums)
 
-        // 重建艺术家表
-        val artists = allSongs.groupBy { it.artistId }.map { (artistId, songs) ->
-            val first = songs.first()
-            val albumIds = songs.map { it.albumId }.distinct()
+        // 重建艺术家表：从 albums 按 artist 名称分组
+        val artists = albums.groupBy { it.artist }.map { (artistName, artistAlbums) ->
             ArtistEntity(
-                id = artistId,
-                name = first.artist,
-                albumCount = albumIds.size,
-                songCount = songs.size,
-                coverUri = songs.maxByOrNull { it.dateAdded }?.coverUri
+                id = stableHash(artistName),
+                name = artistName,
+                albumCount = artistAlbums.size,
+                songCount = artistAlbums.sumOf { it.songCount },
+                coverUri = artistAlbums.firstOrNull()?.coverUri
             )
         }
         artistDao.deleteAll()
@@ -235,9 +260,19 @@ class MusicRepository(
             songs.map { it.toSong().applyOverride(overrideMap[it.id]) }
         }
 
+    companion object {
+        /** 合辑专辑的固定 artist 名称 */
+        const val COMPILATION_ARTIST = "群星"
+    }
 }
 
 // ==================== 扩展函数 ====================
+
+/**
+ * 根据字符串生成稳定的 Long 型 ID，避免与 MediaStore 的正数 ID 冲突
+ */
+private fun stableHash(value: String): Long =
+    abs(value.hashCode().toLong()) or 0x1_0000_0000L
 
 /**
  * 将覆盖层应用到 Song，非 null 字段覆盖原始值

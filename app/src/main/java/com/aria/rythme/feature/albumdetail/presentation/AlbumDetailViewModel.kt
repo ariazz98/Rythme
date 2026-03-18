@@ -2,6 +2,7 @@ package com.aria.rythme.feature.albumdetail.presentation
 
 import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
+import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.navigation.Navigator
 import kotlinx.coroutines.flow.launchIn
@@ -12,6 +13,7 @@ class AlbumDetailViewModel(
     private val albumId: Long,
     private val navigator: Navigator,
     private val musicRepository: MusicRepository,
+    private val playbackController: PlaybackController,
     private val filterArtistId: Long? = null,
     private val filterComposer: String? = null,
     private val filterGenre: String? = null
@@ -27,7 +29,11 @@ class AlbumDetailViewModel(
     override fun handleIntent(intent: AlbumDetailIntent) {
         when (intent) {
             is AlbumDetailIntent.GoBack -> navigator.goBack()
-            is AlbumDetailIntent.ClickSong -> { /* TODO: 播放歌曲 */ }
+            is AlbumDetailIntent.ClickSong -> {
+                viewModelScope.launch {
+                    playbackController.play(intent.song, currentState.songs)
+                }
+            }
         }
     }
 

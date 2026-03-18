@@ -10,9 +10,11 @@ import com.aria.rythme.core.music.data.indexer.MusicIndexer
 import com.aria.rythme.core.music.data.local.MusicDatabase
 import com.aria.rythme.core.music.data.observer.MediaStoreWatcher
 import com.aria.rythme.core.music.data.repository.MusicRepository
+import com.aria.rythme.core.music.data.repository.PlaylistRepository
 import com.aria.rythme.core.music.data.settings.AppSettingsRepository
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.feature.playlist.presentation.PlayListViewModel
+import com.aria.rythme.feature.playlistdetail.presentation.PlaylistDetailViewModel
 import com.aria.rythme.feature.search.presentation.SearchViewModel
 import com.aria.rythme.feature.albumdetail.presentation.AlbumDetailViewModel
 import com.aria.rythme.feature.albumlist.presentation.AlbumListViewModel
@@ -36,6 +38,8 @@ val playModule = module {
     single { get<MusicDatabase>().artistDao() }
     single { get<MusicDatabase>().scanMetadataDao() }
     single { get<MusicDatabase>().songOverrideDao() }
+    single { get<MusicDatabase>().playlistDao() }
+    single { PlaylistRepository(get(), get(), get()) }
     single { MediaStoreSource(androidContext(), get()) }
     single { MediaStoreWatcher(androidContext(), get(), get()) }
     single { MusicRepository(get(), get(), get(), get()) }
@@ -62,6 +66,7 @@ val albumDetailModule = module {
             albumId = params[0],
             navigator = params[1],
             musicRepository = get(),
+            playbackController = get(),
             filterArtistId = params[2],
             filterComposer = params[3],
             filterGenre = params[4]
@@ -154,7 +159,21 @@ val homeModule = module {
 
 val playListModule = module {
     viewModel { params ->
-        PlayListViewModel(params.get())
+        PlayListViewModel(
+            navigator = params.get(),
+            playlistRepository = get()
+        )
+    }
+}
+
+val playlistDetailModule = module {
+    viewModel { params ->
+        PlaylistDetailViewModel(
+            playlistId = params[0],
+            navigator = params[1],
+            playlistRepository = get(),
+            playbackController = get()
+        )
     }
 }
 
@@ -184,6 +203,7 @@ val appModules = listOf(
     songListModule,
     homeModule,
     playListModule,
+    playlistDetailModule,
     libraryModule,
     searchModule
 )
