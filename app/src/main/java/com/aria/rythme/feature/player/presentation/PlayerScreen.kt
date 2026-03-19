@@ -2,11 +2,7 @@ package com.aria.rythme.feature.player.presentation
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
@@ -73,7 +69,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -89,8 +84,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.extensions.customMarquee
-import com.aria.rythme.core.utils.GradientColors
-import com.aria.rythme.core.utils.ImageColorExtractor
 import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.component.PlaylistPanelState
 import androidx.compose.animation.AnimatedContentScope
@@ -106,17 +99,15 @@ import com.aria.rythme.ui.component.PlayListItem
 import com.aria.rythme.ui.component.PlayPauseIcon
 import com.aria.rythme.ui.component.PreviousIcon
 import com.aria.rythme.ui.component.ProgressItem
-import com.aria.rythme.ui.component.SongListItem
 import com.aria.rythme.ui.component.VoiceItem
 import com.kyant.backdrop.Backdrop
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Outline
 import com.aria.rythme.core.music.domain.model.RepeatMode
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
-import dev.chrisbanes.haze.HazeInputScale
-import dev.chrisbanes.haze.materials.CupertinoMaterials
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -126,6 +117,7 @@ import androidx.compose.ui.unit.Velocity
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.aria.rythme.core.utils.defaultGradientBrush
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -151,16 +143,6 @@ fun PlayerScreen(
     val state by viewModel.state.collectAsUiState()
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
-
-    var gradientColors by remember { mutableStateOf(GradientColors()) }
-    val animatedTop by animateColorAsState(gradientColors.top, tween(600))
-    val animatedCenter by animateColorAsState(gradientColors.center, tween(600))
-    val animatedBottom by animateColorAsState(gradientColors.bottom, tween(600))
-    val backgroundBrush = Brush.verticalGradient(
-        colors = listOf(animatedTop, animatedCenter, animatedBottom),
-        startY = 0f,
-        endY = Float.POSITIVE_INFINITY
-    )
 
     val width = LocalWindowInfo.current.containerDpSize.width
     val density = LocalDensity.current
@@ -261,7 +243,7 @@ fun PlayerScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .layerBackdrop(stickyBackdrop)
-                        .background(backgroundBrush)
+                        .background(defaultGradientBrush)
                 ) {
                     val coverUri = state.currentSong?.coverUri
                     if (coverUri != null) {
@@ -535,17 +517,7 @@ fun PlayerScreen(
                                             corner = 9.dp,
                                             song = state.currentSong,
                                             defaultBgColor = Color(0xFF606063),
-                                            defaultIconColor = Color(0xFF737376),
-                                            onBitmapReady = { bitmap ->
-                                                if (bitmap != null) {
-                                                    scope.launch {
-                                                        gradientColors = ImageColorExtractor.extractGradientColors(bitmap)
-                                                        bitmap.recycle()
-                                                    }
-                                                } else {
-                                                    gradientColors = GradientColors()
-                                                }
-                                            }
+                                            defaultIconColor = Color(0xFF737376)
                                         )
                                     }
 
@@ -658,20 +630,28 @@ fun PlayerScreen(
                                 Column(
                                     modifier = Modifier.fillMaxSize()
                                         .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = lyricsBottomPadding)
-                                        .clickable(
-                                            interactionSource = null,
-                                            indication = null
-                                        ) { controlsVisible = !controlsVisible }
                                 ) {
-                                    // 紧凑头部：封面 + 标题横排
+                                    // 紧凑头部：封面 + 标题横排，支持拖动关闭 Screen
                                     CompactNowPlayingHeader(
                                         state = state,
                                         playerVisible = playerVisible,
-                                        onGradientColorsChange = { gradientColors = it },
-                                        scope = scope,
                                         animatedContentScope = this@AnimatedContent,
                                         onCoverClick = {
                                             activePanel = PlayerPanel.NONE
+                                        },
+                                        dragState = rememberDraggableState { delta ->
+                                            dragOffsetY = (dragOffsetY + delta).coerceAtLeast(0f)
+                                        },
+                                        onDragStopped = { velocity ->
+                                            if (dragOffsetY > dismissThreshold || velocity > velocityThreshold) {
+                                                onBack()
+                                            } else {
+                                                scope.launch {
+                                                    animate(dragOffsetY, 0f) { value, _ ->
+                                                        dragOffsetY = value
+                                                    }
+                                                }
+                                            }
                                         }
                                     )
 
@@ -685,6 +665,9 @@ fun PlayerScreen(
                                         },
                                         isFullScreen = !controlsVisible,
                                         onToggleControls = { controlsVisible = true },
+                                        onUserScrolling = { scrollingDown ->
+                                            controlsVisible = !scrollingDown
+                                        },
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
@@ -693,7 +676,6 @@ fun PlayerScreen(
                                 PlaylistPanel(
                                     state = state,
                                     playerVisible = playerVisible,
-                                    onGradientColorsChange = { gradientColors = it },
                                     scope = scope,
                                     animatedContentScope = this@AnimatedContent,
                                     viewModel = viewModel,
@@ -727,14 +709,21 @@ fun PlayerScreen(
 private fun SharedTransitionScope.CompactNowPlayingHeader(
     state: PlayerState,
     playerVisible: Boolean,
-    onGradientColorsChange: (GradientColors) -> Unit,
-    scope: CoroutineScope,
     animatedContentScope: AnimatedContentScope,
-    onCoverClick: () -> Unit
+    onCoverClick: () -> Unit,
+    dragState: DraggableState? = null,
+    onDragStopped: (suspend CoroutineScope.(Float) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (dragState != null) Modifier.draggable(
+                    state = dragState,
+                    orientation = Orientation.Vertical,
+                    onDragStopped = onDragStopped ?: {}
+                ) else Modifier
+            )
             .padding(horizontal = 32.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -756,17 +745,7 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
             corner = 12.dp,
             song = state.currentSong,
             defaultBgColor = Color(0xFF606063),
-            defaultIconColor = Color(0xFF737376),
-            onBitmapReady = { bitmap ->
-                if (bitmap != null) {
-                    scope.launch {
-                        onGradientColorsChange(ImageColorExtractor.extractGradientColors(bitmap))
-                        bitmap.recycle()
-                    }
-                } else {
-                    onGradientColorsChange(GradientColors())
-                }
-            }
+            defaultIconColor = Color(0xFF737376)
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -845,7 +824,6 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
 private fun SharedTransitionScope.PlaylistPanel(
     state: PlayerState,
     playerVisible: Boolean,
-    onGradientColorsChange: (GradientColors) -> Unit,
     scope: CoroutineScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: PlayerViewModel,
@@ -1223,8 +1201,6 @@ private fun SharedTransitionScope.PlaylistPanel(
                     CompactNowPlayingHeader(
                         state = state,
                         playerVisible = playerVisible,
-                        onGradientColorsChange = onGradientColorsChange,
-                        scope = scope,
                         animatedContentScope = animatedContentScope,
                         onCoverClick = onCoverClick
                     )

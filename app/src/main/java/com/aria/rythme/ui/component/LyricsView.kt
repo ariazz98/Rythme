@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -68,7 +69,8 @@ fun LyricsView(
     onSeekToLine: (Int) -> Unit,
     modifier: Modifier = Modifier,
     isFullScreen: Boolean = false,
-    onToggleControls: (() -> Unit)? = null
+    onToggleControls: (() -> Unit)? = null,
+    onUserScrolling: ((Boolean) -> Unit)? = null
 ) {
     when {
         lyricsStatus == LyricsStatus.LOADING -> {
@@ -99,6 +101,7 @@ fun LyricsView(
                 onSeekToLine = onSeekToLine,
                 isFullScreen = isFullScreen,
                 onToggleControls = onToggleControls,
+                onUserScrolling = onUserScrolling,
                 modifier = modifier
             )
         }
@@ -171,6 +174,7 @@ private fun SyncedLyricsView(
     onSeekToLine: (Int) -> Unit,
     isFullScreen: Boolean,
     onToggleControls: (() -> Unit)?,
+    onUserScrolling: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -213,6 +217,24 @@ private fun SyncedLyricsView(
                 delay(5000L)
                 isClearMode = false
             }
+        }
+    }
+
+    // 检测用户滚动方向：向前（上）显示 Controls，向后（下）隐藏 Controls
+    LaunchedEffect(Unit) {
+        var prevIndex = listState.firstVisibleItemIndex
+        var prevOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }.collect { (index, offset) ->
+            if (isManualScrolling) {
+                val scrollingDown = index > prevIndex || (index == prevIndex && offset > prevOffset)
+                val scrollingUp = index < prevIndex || (index == prevIndex && offset < prevOffset)
+                if (scrollingUp) onUserScrolling?.invoke(false)
+                else if (scrollingDown) onUserScrolling?.invoke(true)
+            }
+            prevIndex = index
+            prevOffset = offset
         }
     }
 
