@@ -29,6 +29,7 @@ captures/
 # Keystore files
 *.jks
 *.keystore
+*.dm
 
 # External native build
 .externalNativeBuild/
@@ -51,3 +52,8 @@ lint/
 
 # Kotlin
 .kotlin/
+app/release/
+mydocs/
+CLAUDE.md
+INTEGRATION.md
+.claude/

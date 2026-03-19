@@ -62,6 +62,12 @@ sealed interface PlayerIntent : UserIntent {
 
     /** 拖拽重排播放列表 */
     data class ReorderPlaylist(val from: Int, val to: Int) : PlayerIntent
+
+    /** 切换交叉淡入淡出 */
+    data object ToggleCrossfade : PlayerIntent
+
+    /** 切换无限播放 */
+    data object ToggleInfinitePlay : PlayerIntent
 }
 
 /**
@@ -99,7 +105,22 @@ data class PlayerState(
     val volume: Int = 0,
 
     /** 播放历史 */
-    val playHistory: List<Song> = emptyList()
+    val playHistory: List<Song> = emptyList(),
+
+    /** 是否启用交叉淡入淡出 */
+    val isCrossfadeEnabled: Boolean = false,
+
+    /** 是否启用无限播放 */
+    val isInfinitePlayEnabled: Boolean = false,
+
+    /** 当前歌曲是否在 infinite 扩展列表中 */
+    val isPlayingInfiniteExtension: Boolean = false,
+
+    /** infinite 扩展歌曲列表 */
+    val infiniteExtension: List<Song> = emptyList(),
+
+    /** 歌单部分大小（用于区分歌单和扩展列表边界） */
+    val orderedPlaylistSize: Int = 0
 ) : UiState {
 
     /**
@@ -180,6 +201,21 @@ sealed interface PlayerAction : InternalAction {
 
     /** 更新播放历史 */
     data class UpdatePlayHistory(val history: List<Song>) : PlayerAction
+
+    /** 更新交叉淡入淡出状态 */
+    data class UpdateCrossfadeMode(val enabled: Boolean) : PlayerAction
+
+    /** 更新无限播放状态 */
+    data class UpdateInfinitePlayMode(val enabled: Boolean) : PlayerAction
+
+    /** 更新是否在播放 infinite 扩展歌曲 */
+    data class UpdateIsPlayingInfiniteExtension(val isInExtension: Boolean) : PlayerAction
+
+    /** 更新 infinite 扩展列表 */
+    data class UpdateInfiniteExtension(val extension: List<Song>) : PlayerAction
+
+    /** 更新歌单部分大小 */
+    data class UpdateOrderedPlaylistSize(val size: Int) : PlayerAction
 }
 
 /**

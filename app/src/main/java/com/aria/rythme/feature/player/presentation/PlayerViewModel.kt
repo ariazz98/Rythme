@@ -62,6 +62,8 @@ class PlayerViewModel(
             is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
             is PlayerIntent.SetVolume -> setVolume(intent.percentage)
             is PlayerIntent.ReorderPlaylist -> reorderPlaylist(intent.from, intent.to)
+            is PlayerIntent.ToggleCrossfade -> toggleCrossfade()
+            is PlayerIntent.ToggleInfinitePlay -> toggleInfinitePlay()
         }
     }
 
@@ -83,6 +85,11 @@ class PlayerViewModel(
             is PlayerAction.UpdateThemeColor -> currentState.copy(themeColor = action.color)
             is PlayerAction.UpdateVolume -> currentState.copy(volume = action.volume)
             is PlayerAction.UpdatePlayHistory -> currentState.copy(playHistory = action.history)
+            is PlayerAction.UpdateCrossfadeMode -> currentState.copy(isCrossfadeEnabled = action.enabled)
+            is PlayerAction.UpdateInfinitePlayMode -> currentState.copy(isInfinitePlayEnabled = action.enabled)
+            is PlayerAction.UpdateIsPlayingInfiniteExtension -> currentState.copy(isPlayingInfiniteExtension = action.isInExtension)
+            is PlayerAction.UpdateInfiniteExtension -> currentState.copy(infiniteExtension = action.extension)
+            is PlayerAction.UpdateOrderedPlaylistSize -> currentState.copy(orderedPlaylistSize = action.size)
         }
     }
 
@@ -181,7 +188,6 @@ class PlayerViewModel(
      */
     private fun toggleShuffleMode() {
         playbackController.toggleShuffleMode()
-        reduceAndUpdate(PlayerAction.UpdateShuffleMode(playbackController.shuffleMode.value))
     }
 
     /**
@@ -223,6 +229,29 @@ class PlayerViewModel(
     private fun reorderPlaylist(from: Int, to: Int) {
         viewModelScope.launch {
             playbackController.movePlaylistItem(from, to)
+        }
+    }
+
+    /**
+     * 切换交叉淡入淡出
+     */
+    private fun toggleCrossfade() {
+        playbackController.toggleCrossfade()
+        reduceAndUpdate(PlayerAction.UpdateCrossfadeMode(playbackController.isCrossfadeEnabled.value))
+    }
+
+    /**
+     * 切换无限播放
+     */
+    private fun toggleInfinitePlay() {
+        viewModelScope.launch {
+            try {
+                val allSongs = musicRepository.getAllSongsOnce()
+                playbackController.toggleInfinitePlay(allSongs)
+            } catch (e: Exception) {
+                RythmeLogger.e(TAG, "切换无限播放失败", e)
+                sendEffect(PlayerEffect.ShowError("操作失败: ${e.message}"))
+            }
         }
     }
 
@@ -289,10 +318,53 @@ class PlayerViewModel(
             }
             .launchIn(viewModelScope)
 
+        // 监听随机播放状态（独立启动）
+        playbackController.shuffleMode
+            .onEach { enabled ->
+                reduceAndUpdate(PlayerAction.UpdateShuffleMode(enabled))
+            }
+            .launchIn(viewModelScope)
+
         // 监听循环模式（独立启动）
         playbackController.repeatMode
             .onEach { repeatMode ->
                 reduceAndUpdate(PlayerAction.UpdateRepeatMode(repeatMode))
+            }
+            .launchIn(viewModelScope)
+
+        // 监听交叉淡入淡出状态（独立启动）
+        playbackController.isCrossfadeEnabled
+            .onEach { enabled ->
+                reduceAndUpdate(PlayerAction.UpdateCrossfadeMode(enabled))
+            }
+            .launchIn(viewModelScope)
+
+        // 监听无限播放状态（独立启动）
+        playbackController.isInfinitePlayEnabled
+            .onEach { enabled ->
+                reduceAndUpdate(PlayerAction.UpdateInfinitePlayMode(enabled))
+            }
+            .launchIn(viewModelScope)
+
+        // 监听是否在播放 infinite 扩展歌曲（独立启动）
+        playbackController.isPlayingInfiniteExtension
+            .onEach { isInExtension ->
+                reduceAndUpdate(PlayerAction.UpdateIsPlayingInfiniteExtension(isInExtension))
+            }
+            .launchIn(viewModelScope)
+
+        // 监听 infinite 扩展列表（独立启动）
+        playbackController.infiniteExtension
+            .onEach { extension ->
+                reduceAndUpdate(PlayerAction.UpdateInfiniteExtension(extension))
+                reduceAndUpdate(PlayerAction.UpdateOrderedPlaylistSize(playbackController.orderedPlaylistSize))
+            }
+            .launchIn(viewModelScope)
+
+        // 监听播放列表变化时同步 orderedPlaylistSize
+        playbackController.playlist
+            .onEach {
+                reduceAndUpdate(PlayerAction.UpdateOrderedPlaylistSize(playbackController.orderedPlaylistSize))
             }
             .launchIn(viewModelScope)
     }

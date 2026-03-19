@@ -40,7 +40,9 @@
     <string name="continue_play">继续播放</string>
     <string name="from">来自%s</string>
     <string name="auto_play">正在自动连播类似音乐</string>
+    <string name="infinite_extension">自动播放</string>
     <string name="no_music_in_queue">队列中无音乐</string>
+    <string name="infinite_exhausted">资料库中的所有歌曲都已在播放列表中</string>
     <string name="create_playlist">新建歌单</string>
     <string name="playlist_name_hint">歌单名称</string>
     <string name="cancel">取消</string>

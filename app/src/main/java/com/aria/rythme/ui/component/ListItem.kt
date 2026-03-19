@@ -406,13 +406,11 @@ fun rememberTrackNumberWidth(songs: List<Song>): Dp {
 
 @Composable
 fun HistoryListItem(
-    song: Song,
-    onClick: () -> Unit
+    song: Song
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

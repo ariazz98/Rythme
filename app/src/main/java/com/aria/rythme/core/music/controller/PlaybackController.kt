@@ -120,11 +120,26 @@ class PlaybackController(private val context: Context) {
     private val _shuffleMode = MutableStateFlow(false)
     val shuffleMode: StateFlow<Boolean> = _shuffleMode.asStateFlow()
 
-    // 播放列表
+    // ── 播放列表数据源 ──
+
+    // 原始歌单（不受 shuffle 影响的源顺序）
+    private val _sourcePlaylist = MutableStateFlow<List<Song>>(emptyList())
+
+    // 排序后的歌单（shuffle 时物理重排后的顺序，shuffle OFF 时与 source 相同）
+    private var _orderedPlaylist: List<Song> = emptyList()
+
+    // 随机歌曲列表（infinite 模式的扩展曲目）
+    private val _infiniteExtension = MutableStateFlow<List<Song>>(emptyList())
+    val infiniteExtension: StateFlow<List<Song>> = _infiniteExtension.asStateFlow()
+
+    // 歌单部分的大小（用于 UI 区分歌单和扩展列表边界）
+    val orderedPlaylistSize: Int get() = _orderedPlaylist.size
+
+    // 最终播放列表（对外暴露，由 rebuildFinalPlaylist 计算）
     private val _playlist = MutableStateFlow<List<Song>>(emptyList())
     val playlist: StateFlow<List<Song>> = _playlist.asStateFlow()
 
-    // 当前索引
+    // 当前索引（基于 _playlist）
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
 
@@ -139,6 +154,19 @@ class PlaybackController(private val context: Context) {
     // 音量百分比 (0-100)
     private val _volume = MutableStateFlow(0)
     val volume: StateFlow<Int> = _volume.asStateFlow()
+
+    // 交叉淡入淡出
+    private val _isCrossfadeEnabled = MutableStateFlow(false)
+    val isCrossfadeEnabled: StateFlow<Boolean> = _isCrossfadeEnabled.asStateFlow()
+
+    // 无限播放
+    private val _isInfinitePlayEnabled = MutableStateFlow(false)
+    val isInfinitePlayEnabled: StateFlow<Boolean> = _isInfinitePlayEnabled.asStateFlow()
+
+    // 是否正在播放 infinite 扩展列表中的歌曲
+    private val _isPlayingInfiniteExtension = MutableStateFlow(false)
+    val isPlayingInfiniteExtension: StateFlow<Boolean> = _isPlayingInfiniteExtension.asStateFlow()
+
 
     /**
      * 初始化控制器
@@ -188,6 +216,38 @@ class PlaybackController(private val context: Context) {
     }
 
     /**
+     * 重建最终播放列表
+     *
+     * 根据当前模式从 _orderedPlaylist + _infiniteExtension 计算最终列表。
+     * repeat 激活时不追加随机列表。
+     */
+    private fun rebuildFinalPlaylist() {
+        val base = _orderedPlaylist
+        _playlist.value = if (_isInfinitePlayEnabled.value && _repeatMode.value == RepeatMode.OFF) {
+            base + _infiniteExtension.value
+        } else {
+            base
+        }
+    }
+
+    /**
+     * 同步 ExoPlayer 媒体列表
+     *
+     * 用当前 _playlist 替换 ExoPlayer 中的所有 MediaItems，保持当前歌曲和播放位置。
+     */
+    private fun syncExoPlayer() {
+        val controller = mediaController ?: return
+        val list = _playlist.value
+        if (list.isEmpty()) return
+
+        val currentSongId = _currentSong.value?.id
+        val idx = list.indexOfFirst { it.id == currentSongId }.coerceAtLeast(0)
+        val mediaItems = list.map { createMediaItem(it) }
+        controller.setMediaItems(mediaItems, idx, controller.currentPosition)
+        _currentIndex.value = idx
+    }
+
+    /**
      * 播放指定歌曲
      *
      * 如果提供了播放列表，会把整个列表加载到 ExoPlayer，并跳转到指定歌曲。
@@ -211,14 +271,20 @@ class PlaybackController(private val context: Context) {
 
         if (playlist.isNotEmpty()) {
             val songIndex = playlist.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-            
+
             // 检查播放列表是否已经加载
-            if (_playlist.value != playlist) {
-                // 播放列表变化，重新加载所有 MediaItems
+            if (_sourcePlaylist.value != playlist) {
+                // 播放列表变化，重置所有状态
                 RythmeLogger.d(TAG, "加载播放列表: ${playlist.size} 首歌曲")
-                _playlist.value = playlist
-                
-                val mediaItems = playlist.map { createMediaItem(it) }
+                _sourcePlaylist.value = playlist
+                _orderedPlaylist = playlist
+                _infiniteExtension.value = emptyList()
+                _shuffleMode.value = false
+                _isInfinitePlayEnabled.value = false
+                _isPlayingInfiniteExtension.value = false
+
+                rebuildFinalPlaylist()
+                val mediaItems = _playlist.value.map { createMediaItem(it) }
                 controller.setMediaItems(mediaItems, songIndex, 0L)
                 controller.prepare()
                 controller.play()
@@ -228,7 +294,7 @@ class PlaybackController(private val context: Context) {
                 controller.seekToDefaultPosition(songIndex)
                 controller.play()
             }
-            
+
             _currentIndex.value = songIndex
         } else {
             // 没有播放列表，单曲播放
@@ -304,18 +370,11 @@ class PlaybackController(private val context: Context) {
      */
     fun next() {
         val controller = mediaController ?: return
-        
+
         if (controller.mediaItemCount > 1) {
-            // 使用 ExoPlayer 原生切换（已支持随机/顺序/循环模式）
             controller.seekToNextMediaItem()
         } else if (_playlist.value.isNotEmpty()) {
-            // 转为手动切换
-            val currentIndex = _currentIndex.value
-            val nextIndex = if (_shuffleMode.value) {
-                _playlist.value.indices.random()
-            } else {
-                (currentIndex + 1) % _playlist.value.size
-            }
+            val nextIndex = (_currentIndex.value + 1) % _playlist.value.size
             scope.launch { playAtIndex(nextIndex) }
         }
     }
@@ -381,8 +440,15 @@ class PlaybackController(private val context: Context) {
      */
     fun setRepeatMode(mode: RepeatMode) {
         val controller = mediaController ?: return
+        val oldMode = _repeatMode.value
         _repeatMode.value = mode
         controller.repeatMode = mode.toExoPlayerMode()
+
+        // repeat 状态变化影响是否追加 infinite extension
+        if (_isInfinitePlayEnabled.value && ((oldMode == RepeatMode.OFF) != (mode == RepeatMode.OFF))) {
+            rebuildFinalPlaylist()
+            syncExoPlayer()
+        }
     }
 
     /**
@@ -390,9 +456,9 @@ class PlaybackController(private val context: Context) {
      */
     fun toggleRepeatMode() {
         val nextMode = when (_repeatMode.value) {
-            RepeatMode.OFF -> RepeatMode.ONE
-            RepeatMode.ONE -> RepeatMode.ALL
-            RepeatMode.ALL -> RepeatMode.OFF
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
         }
         setRepeatMode(nextMode)
     }
@@ -400,24 +466,104 @@ class PlaybackController(private val context: Context) {
     /**
      * 设置随机播放
      *
+     * 开启时将歌单中当前位置之后的歌曲随机重排。
+     * 关闭时恢复原始顺序。
+     *
      * @param enabled 是否启用
      */
-    fun setShuffleMode(enabled: Boolean) {
-        val controller = mediaController ?: return
+    suspend fun setShuffleMode(enabled: Boolean) {
+        awaitInitialization()
+
+        if (enabled && !_shuffleMode.value) {
+            // 当前位置之前（含当前）保持不变，之后的歌曲随机重排
+            val source = _sourcePlaylist.value
+            val idx = _currentIndex.value.coerceIn(0, source.size - 1)
+            val past = source.subList(0, idx + 1)
+            val upcoming = source.subList(idx + 1, source.size).shuffled()
+            _orderedPlaylist = past + upcoming
+        } else if (!enabled && _shuffleMode.value) {
+            // 恢复原始顺序
+            _orderedPlaylist = _sourcePlaylist.value
+        }
+
         _shuffleMode.value = enabled
-        controller.shuffleModeEnabled = enabled
+        rebuildFinalPlaylist()
+        syncExoPlayer()
+        updateInfiniteExtensionState()
     }
 
     /**
      * 切换随机播放
      */
     fun toggleShuffleMode() {
-        setShuffleMode(!_shuffleMode.value)
+        scope.launch { setShuffleMode(!_shuffleMode.value) }
+    }
+
+    /**
+     * 切换交叉淡入淡出
+     */
+    fun toggleCrossfade() {
+        _isCrossfadeEnabled.value = !_isCrossfadeEnabled.value
+        RythmeLogger.d(TAG, "Crossfade: ${_isCrossfadeEnabled.value}")
+    }
+
+    /**
+     * 切换无限播放
+     *
+     * 激活时生成随机歌曲列表；取消时清空。
+     * 最终播放列表是否追加由 repeat 模式决定（repeat 激活时不追加）。
+     *
+     * @param allSongs 全部可用歌曲
+     */
+    suspend fun toggleInfinitePlay(allSongs: List<Song>) {
+        awaitInitialization()
+
+        if (_isInfinitePlayEnabled.value) {
+            // 取消：清空扩展列表
+            val wasInExtension = _isPlayingInfiniteExtension.value
+            _infiniteExtension.value = emptyList()
+            _isInfinitePlayEnabled.value = false
+
+            rebuildFinalPlaylist()
+            // 如果正在播放扩展歌曲，回到歌单最后一首
+            if (wasInExtension && _orderedPlaylist.isNotEmpty()) {
+                val lastIdx = _orderedPlaylist.size - 1
+                _currentIndex.value = lastIdx
+                mediaController?.seekToDefaultPosition(lastIdx)
+            }
+            syncExoPlayer()
+            _isPlayingInfiniteExtension.value = false
+            RythmeLogger.d(TAG, "无限播放已关闭")
+        } else {
+            // 激活：生成随机歌曲列表
+            val currentIds = _orderedPlaylist.map { it.id }.toSet()
+            val candidates = allSongs.filter { it.id !in currentIds }
+
+            if (candidates.isNotEmpty()) {
+                _infiniteExtension.value = candidates.shuffled().take(INFINITE_EXTENSION_SIZE)
+            } else {
+                // 歌单已包含全部歌曲，无法生成不重复的扩展列表
+                _infiniteExtension.value = emptyList()
+            }
+            RythmeLogger.d(TAG, "无限播放已开启，生成 ${_infiniteExtension.value.size} 首随机歌曲")
+            _isInfinitePlayEnabled.value = true
+            rebuildFinalPlaylist()
+            syncExoPlayer()
+            updateInfiniteExtensionState()
+        }
+    }
+
+    /**
+     * 更新是否在播放 infinite 扩展歌曲
+     */
+    private fun updateInfiniteExtensionState() {
+        _isPlayingInfiniteExtension.value =
+            _isInfinitePlayEnabled.value && _currentIndex.value >= _orderedPlaylist.size
     }
 
     /**
      * 设置播放列表
-     * 
+     *
      * 批量加载所有 MediaItems 到 ExoPlayer
      *
      * @param songs 歌曲列表
@@ -425,65 +571,115 @@ class PlaybackController(private val context: Context) {
      */
     suspend fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
         if (songs.isEmpty()) return
-        
+
         awaitInitialization()
         val controller = mediaController ?: return
-        
-        _playlist.value = songs
+
+        // 重置所有状态
+        _sourcePlaylist.value = songs
+        _orderedPlaylist = songs
+        _infiniteExtension.value = emptyList()
+        _shuffleMode.value = false
+        _isInfinitePlayEnabled.value = false
+        _isPlayingInfiniteExtension.value = false
+
+        rebuildFinalPlaylist()
         _currentIndex.value = startIndex.coerceIn(songs.indices)
         _currentSong.value = songs[_currentIndex.value]
-        
-        // 批量加载所有 MediaItems
-        val mediaItems = songs.map { createMediaItem(it) }
+
+        val mediaItems = _playlist.value.map { createMediaItem(it) }
         controller.setMediaItems(mediaItems, _currentIndex.value, 0L)
         controller.prepare()
         controller.play()
-        
+
         RythmeLogger.d(TAG, "已设置播放列表: ${songs.size} 首歌曲，从索引 ${_currentIndex.value} 开始")
     }
 
     /**
-     * 添加歌曲到播放列表
+     * 添加歌曲到播放列表（追加到原始歌单末尾）
      *
      * @param song 歌曲
      */
     fun addToPlaylist(song: Song) {
-        _playlist.value = _playlist.value + song
+        _sourcePlaylist.value = _sourcePlaylist.value + song
+        _orderedPlaylist = _orderedPlaylist + song
+        rebuildFinalPlaylist()
+        mediaController?.addMediaItem(_orderedPlaylist.size - 1, createMediaItem(song))
     }
 
     /**
      * 从播放列表移除歌曲
      *
-     * @param index 索引
+     * @param index 索引（基于最终播放列表）
      */
     fun removeFromPlaylist(index: Int) {
-        val currentList = _playlist.value.toMutableList()
-        if (index in currentList.indices) {
-            currentList.removeAt(index)
-            _playlist.value = currentList
+        val list = _playlist.value
+        if (index !in list.indices) return
 
-            // 如果删除的是当前播放的歌曲，播放下一首
-            if (index == _currentIndex.value) {
-                next()
-            }
+        val song = list[index]
+        val orderedSize = _orderedPlaylist.size
+
+        if (index < orderedSize) {
+            // 从歌单中移除
+            _orderedPlaylist = _orderedPlaylist.toMutableList().apply { removeAt(index) }
+            _sourcePlaylist.value = _sourcePlaylist.value.filter { it.id != song.id }
+        } else {
+            // 从 infinite extension 中移除
+            val extIdx = index - orderedSize
+            _infiniteExtension.value = _infiniteExtension.value.toMutableList().apply { removeAt(extIdx) }
+        }
+
+        rebuildFinalPlaylist()
+        mediaController?.removeMediaItem(index)
+
+        if (index == _currentIndex.value) {
+            next()
         }
     }
 
     /**
      * 移动播放列表中的歌曲位置
      *
-     * @param from 原位置
-     * @param to 目标位置
+     * 仅支持同一列表内重排（歌单内 或 随机列表内），不能跨列表。
+     *
+     * @param from 原位置（基于最终播放列表）
+     * @param to 目标位置（基于最终播放列表）
      */
     suspend fun movePlaylistItem(from: Int, to: Int) {
-        val currentList = _playlist.value.toMutableList()
-        if (from !in currentList.indices || to !in currentList.indices || from == to) return
+        val list = _playlist.value
+        if (from !in list.indices || to !in list.indices || from == to) return
 
-        val item = currentList.removeAt(from)
-        currentList.add(to, item)
-        _playlist.value = currentList
+        val orderedSize = _orderedPlaylist.size
+        val fromInOrdered = from < orderedSize
+        val toInOrdered = to < orderedSize
 
-        // 同步 ExoPlayer 的 MediaItem 顺序
+        // 不允许跨列表重排
+        if (fromInOrdered != toInOrdered) return
+
+        if (fromInOrdered) {
+            // 歌单内重排
+            val ordered = _orderedPlaylist.toMutableList()
+            val item = ordered.removeAt(from)
+            ordered.add(to, item)
+            _orderedPlaylist = ordered
+
+            // shuffle OFF 时同步更新 sourcePlaylist
+            if (!_shuffleMode.value) {
+                _sourcePlaylist.value = ordered
+            }
+        } else {
+            // infinite extension 内重排
+            val extFrom = from - orderedSize
+            val extTo = to - orderedSize
+            val ext = _infiniteExtension.value.toMutableList()
+            val item = ext.removeAt(extFrom)
+            ext.add(extTo, item)
+            _infiniteExtension.value = ext
+        }
+
+        rebuildFinalPlaylist()
+
+        // 同步 ExoPlayer
         awaitInitialization()
         mediaController?.moveMediaItem(from, to)
 
@@ -502,7 +698,13 @@ class PlaybackController(private val context: Context) {
      * 清空播放列表
      */
     fun clearPlaylist() {
-        _playlist.value = emptyList()
+        _sourcePlaylist.value = emptyList()
+        _orderedPlaylist = emptyList()
+        _infiniteExtension.value = emptyList()
+        _shuffleMode.value = false
+        _isInfinitePlayEnabled.value = false
+        _isPlayingInfiniteExtension.value = false
+        rebuildFinalPlaylist()
         _currentIndex.value = 0
     }
 
@@ -743,6 +945,7 @@ class PlaybackController(private val context: Context) {
                 val newIndex = _playlist.value.indexOfFirst { s -> s.id == songId }
                 if (newIndex >= 0) {
                     _currentIndex.value = newIndex
+                    updateInfiniteExtensionState()
                 }
             }
         }
@@ -751,5 +954,6 @@ class PlaybackController(private val context: Context) {
     companion object {
         private const val TAG = "PlaybackController"
         private const val MAX_HISTORY_SIZE = 50
+        private const val INFINITE_EXTENSION_SIZE = 30
     }
 }
