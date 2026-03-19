@@ -2,6 +2,7 @@ package com.aria.rythme.feature.player.presentation
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
@@ -19,7 +20,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -46,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
@@ -119,6 +123,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -224,7 +231,7 @@ fun PlayerScreen(
                             dragOffsetY = (dragOffsetY + delta).coerceAtLeast(0f)
                         },
                         orientation = Orientation.Vertical,
-                        enabled = activePanel != PlayerPanel.PLAYLIST,
+                        enabled = activePanel == PlayerPanel.NONE,
                         onDragStopped = { velocity ->
                             if (dragOffsetY > dismissThreshold || velocity > velocityThreshold) {
                                 onBack()
@@ -249,11 +256,30 @@ fun PlayerScreen(
                     )
             ) {
 
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(stickyBackdrop)
-                    .background(backgroundBrush)
-                )
+                // 背景：渐变色兜底 + 有封面时叠加模糊封面（Apple Music 风格）
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .layerBackdrop(stickyBackdrop)
+                        .background(backgroundBrush)
+                ) {
+                    val coverUri = state.currentSong?.coverUri
+                    if (coverUri != null) {
+                        val context = LocalContext.current
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(coverUri)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { scaleX = 1.5f; scaleY = 1.5f }
+                                .blur(60.dp)
+                        )
+                    }
+                }
 
                 Scaffold(
                     containerColor = Color.Transparent,
@@ -298,7 +324,7 @@ fun PlayerScreen(
                         }
                     },
                     bottomBar = {
-                        Column(
+                        if (showControls || controlsSlide < 1f) Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .draggable(
@@ -627,9 +653,11 @@ fun PlayerScreen(
                                 }
                             }
                             PlayerPanel.LYRICS -> {
+                                // controls 收起时 bottom padding 随动画归零，歌词全屏
+                                val lyricsBottomPadding = innerPadding.calculateBottomPadding() * (1f - controlsSlide)
                                 Column(
                                     modifier = Modifier.fillMaxSize()
-                                        .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = innerPadding.calculateBottomPadding())
+                                        .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = lyricsBottomPadding)
                                         .clickable(
                                             interactionSource = null,
                                             indication = null
@@ -647,8 +675,18 @@ fun PlayerScreen(
                                         }
                                     )
 
-                                    // 歌词占位
-                                    Box(modifier = Modifier.fillMaxSize())
+                                    // 歌词视图
+                                    com.aria.rythme.ui.component.LyricsView(
+                                        lyricsData = state.lyricsData,
+                                        lyricsStatus = state.lyricsStatus,
+                                        currentLyricIndex = state.currentLyricIndex,
+                                        onSeekToLine = { index ->
+                                            viewModel.sendIntent(PlayerIntent.SeekToLyricLine(index))
+                                        },
+                                        isFullScreen = !controlsVisible,
+                                        onToggleControls = { controlsVisible = true },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
                             }
                             PlayerPanel.PLAYLIST -> {

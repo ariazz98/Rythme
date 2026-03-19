@@ -9,6 +9,8 @@ import com.aria.rythme.core.music.data.datasource.MediaStoreSource
 import com.aria.rythme.core.music.data.indexer.MusicIndexer
 import com.aria.rythme.core.music.data.local.MusicDatabase
 import com.aria.rythme.core.music.data.observer.MediaStoreWatcher
+import com.aria.rythme.core.music.data.lyrics.EmbeddedLyricsReader
+import com.aria.rythme.core.music.data.repository.LyricsRepository
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
 import com.aria.rythme.core.music.data.settings.AppSettingsRepository
@@ -39,6 +41,9 @@ val playModule = module {
     single { get<MusicDatabase>().scanMetadataDao() }
     single { get<MusicDatabase>().songOverrideDao() }
     single { get<MusicDatabase>().playlistDao() }
+    single { get<MusicDatabase>().lyricsDao() }
+    single { EmbeddedLyricsReader(androidContext()) }
+    single { LyricsRepository(get(), get()) }
     single { PlaylistRepository(get(), get(), get()) }
     single { MediaStoreSource(androidContext(), get()) }
     single { MediaStoreWatcher(androidContext(), get(), get()) }
@@ -55,7 +60,8 @@ val playerModule = module {
     viewModel {
         PlayerViewModel(
             playbackController = get(),
-            musicRepository = get()
+            musicRepository = get(),
+            lyricsRepository = get()
         )
     }
 }

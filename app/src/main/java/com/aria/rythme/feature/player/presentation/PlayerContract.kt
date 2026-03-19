@@ -4,6 +4,8 @@ import com.aria.rythme.core.mvi.InternalAction
 import com.aria.rythme.core.mvi.SideEffect
 import com.aria.rythme.core.mvi.UiState
 import com.aria.rythme.core.mvi.UserIntent
+import com.aria.rythme.core.music.data.model.LyricsData
+import com.aria.rythme.core.music.data.model.LyricsStatus
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.domain.model.RepeatMode
 import java.util.Locale
@@ -68,6 +70,12 @@ sealed interface PlayerIntent : UserIntent {
 
     /** 切换无限播放 */
     data object ToggleInfinitePlay : PlayerIntent
+
+    /** 点击歌词行跳转播放 */
+    data class SeekToLyricLine(val index: Int) : PlayerIntent
+
+    /** 刷新歌词 */
+    data object RefreshLyrics : PlayerIntent
 }
 
 /**
@@ -120,7 +128,16 @@ data class PlayerState(
     val infiniteExtension: List<Song> = emptyList(),
 
     /** 歌单部分大小（用于区分歌单和扩展列表边界） */
-    val orderedPlaylistSize: Int = 0
+    val orderedPlaylistSize: Int = 0,
+
+    /** 歌词数据 */
+    val lyricsData: LyricsData? = null,
+
+    /** 歌词加载状态 */
+    val lyricsStatus: LyricsStatus = LyricsStatus.IDLE,
+
+    /** 当前高亮歌词行索引 */
+    val currentLyricIndex: Int = -1
 ) : UiState {
 
     /**
@@ -216,6 +233,12 @@ sealed interface PlayerAction : InternalAction {
 
     /** 更新歌单部分大小 */
     data class UpdateOrderedPlaylistSize(val size: Int) : PlayerAction
+
+    /** 更新歌词数据和状态 */
+    data class UpdateLyrics(val data: LyricsData?, val status: LyricsStatus) : PlayerAction
+
+    /** 更新当前高亮歌词行 */
+    data class UpdateCurrentLyricIndex(val index: Int) : PlayerAction
 }
 
 /**

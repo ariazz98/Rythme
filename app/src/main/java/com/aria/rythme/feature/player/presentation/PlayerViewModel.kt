@@ -4,6 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.utils.RythmeLogger
 import com.aria.rythme.core.music.controller.PlaybackController
+import com.aria.rythme.core.music.data.model.LyricsStatus
+import com.aria.rythme.core.music.data.repository.LyricsRepository
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -27,11 +29,18 @@ import kotlinx.coroutines.launch
  */
 class PlayerViewModel(
     private val playbackController: PlaybackController,
-    private val musicRepository: MusicRepository
+    private val musicRepository: MusicRepository,
+    private val lyricsRepository: LyricsRepository
 ) : BaseViewModel<PlayerIntent, PlayerState, PlayerAction, PlayerEffect>() {
 
     /** 进度更新任务 */
     private var progressUpdateJob: Job? = null
+
+    /** 歌词加载任务 */
+    private var lyricsLoadJob: Job? = null
+
+    /** 上一首加载过歌词的歌曲 ID */
+    private var lastLyricsSongId: Long? = null
 
     init {
         observePlaybackState()
@@ -64,6 +73,8 @@ class PlayerViewModel(
             is PlayerIntent.ReorderPlaylist -> reorderPlaylist(intent.from, intent.to)
             is PlayerIntent.ToggleCrossfade -> toggleCrossfade()
             is PlayerIntent.ToggleInfinitePlay -> toggleInfinitePlay()
+            is PlayerIntent.SeekToLyricLine -> seekToLyricLine(intent.index)
+            is PlayerIntent.RefreshLyrics -> refreshLyrics()
         }
     }
 
@@ -90,6 +101,12 @@ class PlayerViewModel(
             is PlayerAction.UpdateIsPlayingInfiniteExtension -> currentState.copy(isPlayingInfiniteExtension = action.isInExtension)
             is PlayerAction.UpdateInfiniteExtension -> currentState.copy(infiniteExtension = action.extension)
             is PlayerAction.UpdateOrderedPlaylistSize -> currentState.copy(orderedPlaylistSize = action.size)
+            is PlayerAction.UpdateLyrics -> currentState.copy(
+                lyricsData = action.data,
+                lyricsStatus = action.status,
+                currentLyricIndex = -1
+            )
+            is PlayerAction.UpdateCurrentLyricIndex -> currentState.copy(currentLyricIndex = action.index)
         }
     }
 
@@ -290,6 +307,13 @@ class PlayerViewModel(
                     if (index >= 0) {
                         reduceAndUpdate(PlayerAction.UpdateCurrentIndex(index))
                     }
+                    // 歌曲切换时加载歌词
+                    if (song.id != lastLyricsSongId) {
+                        loadLyrics(song)
+                    }
+                } ?: run {
+                    reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.IDLE))
+                    lastLyricsSongId = null
                 }
             }
             .launchIn(viewModelScope)
@@ -376,13 +400,14 @@ class PlayerViewModel(
      */
     private fun startProgressUpdate() {
         if (progressUpdateJob?.isActive == true) return
-        
+
         progressUpdateJob = viewModelScope.launch {
             while (true) {
-                // 直接从 PlaybackController 获取实时位置
                 val position = playbackController.getCurrentPosition()
                 val duration = playbackController.getDuration()
                 reduceAndUpdate(PlayerAction.UpdateProgress(position, duration))
+                // 计算当前歌词行
+                updateCurrentLyricIndex(position)
                 delay(PROGRESS_UPDATE_INTERVAL)
             }
         }
@@ -396,13 +421,100 @@ class PlayerViewModel(
         progressUpdateJob = null
     }
 
+    /**
+     * 加载歌词
+     */
+    private fun loadLyrics(song: com.aria.rythme.core.music.data.model.Song) {
+        lyricsLoadJob?.cancel()
+        lastLyricsSongId = song.id
+        reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.LOADING))
+
+        lyricsLoadJob = viewModelScope.launch {
+            try {
+                val data = lyricsRepository.getLyrics(song)
+                // 确保歌曲未切换
+                if (currentState.currentSong?.id == song.id) {
+                    if (data != null) {
+                        reduceAndUpdate(PlayerAction.UpdateLyrics(data, LyricsStatus.LOADED))
+                    } else {
+                        reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.NOT_FOUND))
+                    }
+                }
+            } catch (e: Exception) {
+                RythmeLogger.e(TAG, "歌词加载失败", e)
+                if (currentState.currentSong?.id == song.id) {
+                    reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.ERROR))
+                }
+            }
+        }
+    }
+
+    /**
+     * 刷新歌词（强制重新获取）
+     */
+    private fun refreshLyrics() {
+        currentState.currentSong?.let { loadLyrics(it) }
+    }
+
+    /**
+     * 点击歌词行跳转播放
+     */
+    private fun seekToLyricLine(index: Int) {
+        val lines = currentState.lyricsData?.lines ?: return
+        if (index in lines.indices) {
+            val timeMs = lines[index].startTimeMs
+            playbackController.seekTo(timeMs)
+            reduceAndUpdate(PlayerAction.UpdateProgress(timeMs, currentState.duration))
+            reduceAndUpdate(PlayerAction.UpdateCurrentLyricIndex(index))
+        }
+    }
+
+    /**
+     * 二分查找当前歌词行
+     *
+     * 仅当 index 变化时 dispatch Action，避免无谓的状态更新。
+     */
+    private fun updateCurrentLyricIndex(positionMs: Long) {
+        val lines = currentState.lyricsData?.lines ?: return
+        if (lines.isEmpty()) return
+
+        val newIndex = findCurrentLineIndex(lines, positionMs)
+        if (newIndex != currentState.currentLyricIndex) {
+            reduceAndUpdate(PlayerAction.UpdateCurrentLyricIndex(newIndex))
+        }
+    }
+
+    /**
+     * 二分查找：找到最后一个 startTimeMs <= positionMs 的行
+     */
+    private fun findCurrentLineIndex(
+        lines: List<com.aria.rythme.core.music.data.model.LyricLine>,
+        positionMs: Long
+    ): Int {
+        var low = 0
+        var high = lines.size - 1
+        var result = -1
+
+        while (low <= high) {
+            val mid = (low + high) / 2
+            if (lines[mid].startTimeMs <= positionMs) {
+                result = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return result
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdate()
+        lyricsLoadJob?.cancel()
     }
-    
+
     companion object {
         private const val TAG = "PlayerViewModel"
-        private const val PROGRESS_UPDATE_INTERVAL = 500L  // 500ms 更新一次，更平滑
+        private const val PROGRESS_UPDATE_INTERVAL = 200L
     }
 }

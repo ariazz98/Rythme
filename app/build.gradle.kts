@@ -79,7 +79,8 @@ dependencies {
     // 数据存储依赖
     implementation(libs.androidx.datastore.preferences)       // DataStore Preferences
     implementation(libs.androidx.room.runtime)                // Room 数据库
-    implementation(libs.androidx.room.ktx)                    // Room Kotlin 扩展
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.media3.inspector)                    // Room Kotlin 扩展
     ksp(libs.androidx.room.compiler)                          // Room 注解处理器
     
     // 导航依赖
