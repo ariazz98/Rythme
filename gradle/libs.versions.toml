@@ -7,7 +7,7 @@ coreKtx = "1.18.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
 kotlin = "2.3.20"
-composeBom = "2026.03.00"
+composeBom = "2026.03.01"
 
 # MVI 架构相关依赖版本
 lifecycleViewmodelCompose = "2.10.0"
@@ -15,7 +15,7 @@ kotlinxCoroutines = "1.10.2"
 koin = "4.2.0"
 
 # 媒体播放相关依赖版本
-media3 = "1.9.3"
+media3 = "1.10.0"
 palette = "1.0.0"
 
 # UI 相关依赖版本
