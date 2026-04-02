@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 /**
  * 歌词缓存实体
  *
- * 缓存解析后的 LRC 内容，避免重复解析和网络请求。
+ * 缓存原始歌词文本，避免重复解析和网络请求。
  */
 @Entity(
     tableName = "lyrics",
@@ -21,12 +21,15 @@ data class LyricsEntity(
     @ColumnInfo(name = "song_id")
     val songId: Long,
 
-    @ColumnInfo(name = "lrc_content")
-    val lrcContent: String,
+    @ColumnInfo(name = "raw_content")
+    val rawContent: String,
 
     @ColumnInfo(name = "source")
     val source: String,
 
     @ColumnInfo(name = "type")
-    val type: String
+    val type: String,
+
+    @ColumnInfo(name = "cached_at")
+    val cachedAt: Long
 )

@@ -9,8 +9,13 @@ import com.aria.rythme.core.music.data.datasource.MediaStoreSource
 import com.aria.rythme.core.music.data.indexer.MusicIndexer
 import com.aria.rythme.core.music.data.local.MusicDatabase
 import com.aria.rythme.core.music.data.observer.MediaStoreWatcher
-import com.aria.rythme.core.music.data.lyrics.EmbeddedLyricsReader
+import com.aria.rythme.core.music.data.lyrics.EmbeddedLyricsProvider
+import com.aria.rythme.core.music.data.lyrics.LocalLrcProvider
+import com.aria.rythme.core.music.data.lyrics.LrclibProvider
+import com.aria.rythme.core.music.data.lyrics.LyricsProvider
 import com.aria.rythme.core.music.data.repository.LyricsRepository
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
 import com.aria.rythme.core.music.data.settings.AppSettingsRepository
@@ -42,7 +47,19 @@ val playModule = module {
     single { get<MusicDatabase>().songOverrideDao() }
     single { get<MusicDatabase>().playlistDao() }
     single { get<MusicDatabase>().lyricsDao() }
-    single { EmbeddedLyricsReader(androidContext()) }
+    single {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+    single<List<LyricsProvider>> {
+        listOf(
+            EmbeddedLyricsProvider(androidContext()),
+            LocalLrcProvider(),
+            LrclibProvider(get())
+        )
+    }
     single { LyricsRepository(get(), get()) }
     single { PlaylistRepository(get(), get(), get()) }
     single { MediaStoreSource(androidContext(), get()) }

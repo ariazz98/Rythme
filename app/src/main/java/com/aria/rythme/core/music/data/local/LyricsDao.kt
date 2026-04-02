@@ -17,6 +17,9 @@ interface LyricsDao {
     @Query("DELETE FROM lyrics WHERE song_id = :songId")
     suspend fun deleteBySongId(songId: Long)
 
+    @Query("DELETE FROM lyrics WHERE cached_at < :threshold AND source = 'ONLINE'")
+    suspend fun deleteExpired(threshold: Long)
+
     @Query("DELETE FROM lyrics")
     suspend fun deleteAll()
 }

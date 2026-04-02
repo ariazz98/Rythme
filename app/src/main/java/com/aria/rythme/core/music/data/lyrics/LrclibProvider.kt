@@ -11,31 +11,17 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 
 /**
  * LRCLIB HTTP 客户端
  *
  * 从 https://lrclib.net 获取歌词。
- * OkHttp 由 coil-network-okhttp 传递依赖提供。
  */
-object LrclibApi {
+class LrclibProvider(private val client: OkHttpClient) : LyricsProvider {
 
-    private const val TAG = "LrclibApi"
-    private const val BASE_URL = "https://lrclib.net/api"
+    override val source = LyricsSource.ONLINE
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
-
-    /**
-     * 从 LRCLIB 获取歌词
-     *
-     * 先尝试 /get 精确匹配（track_name + artist_name + duration），
-     * 失败后回退到 /search 关键字搜索。
-     */
-    suspend fun fetch(song: Song): LyricsData? = withContext(Dispatchers.IO) {
+    override suspend fun provide(song: Song): LyricsData? = withContext(Dispatchers.IO) {
         // 精确匹配
         val exact = fetchExact(song)
         if (exact != null) return@withContext exact
@@ -54,7 +40,7 @@ object LrclibApi {
 
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Rythme 1.0 (https://github.com/ariazz98/Rythme)")
+                .header("User-Agent", USER_AGENT)
                 .get()
                 .build()
 
@@ -76,7 +62,7 @@ object LrclibApi {
 
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Rythme 1.0 (https://github.com/ariazz98/Rythme)")
+                .header("User-Agent", USER_AGENT)
                 .get()
                 .build()
 
@@ -87,7 +73,6 @@ object LrclibApi {
             val array = org.json.JSONArray(body)
             if (array.length() == 0) return null
 
-            // 取第一个结果
             return parseLrclibResponse(array.getJSONObject(0).toString())
         } catch (e: Exception) {
             RythmeLogger.e(TAG, "搜索失败", e)
@@ -113,7 +98,8 @@ object LrclibApi {
                     lines = emptyList(),
                     type = LyricsType.PLAIN,
                     source = LyricsSource.ONLINE,
-                    plainText = plainLyrics
+                    plainText = plainLyrics,
+                    rawContent = plainLyrics
                 )
             }
 
@@ -125,4 +111,10 @@ object LrclibApi {
     }
 
     private fun encode(s: String): String = URLEncoder.encode(s, "UTF-8")
+
+    companion object {
+        private const val TAG = "LrclibProvider"
+        private const val BASE_URL = "https://lrclib.net/api"
+        private const val USER_AGENT = "Rythme 1.0 (https://github.com/ariazz98/Rythme)"
+    }
 }

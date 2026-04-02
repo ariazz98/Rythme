@@ -26,10 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,10 +47,18 @@ import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
 import com.aria.rythme.core.music.data.model.LyricsData
 import com.aria.rythme.core.music.data.model.LyricsStatus
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.abs
+
+// 滚动动画时长
+private const val SCROLL_ANIMATION_DURATION_MS = 400
+
+// 当前行固定在距容器顶部的偏移
+private val TOP_OFFSET = 32.dp
+
+// 歌词字体
+private val LYRIC_FONT_SIZE = 32.sp
+private val LYRIC_LINE_HEIGHT = 44.sp
 
 /**
  * Apple Music 风格歌词视图
@@ -178,103 +183,84 @@ private fun SyncedLyricsView(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
+    val scrollState = rememberLyricsScrollState()
     val density = LocalDensity.current
     val lines = lyricsData.lines
 
-    // 当前行固定在距容器顶部 56dp
-    val topOffsetPx = with(density) { 32.dp.roundToPx() }
+    val topOffsetPx = with(density) { TOP_OFFSET.roundToPx() }
 
-    // 手动滚动状态机
-    var isManualScrolling by remember { mutableStateOf(false) }
-    var autoFollowResumeJob by remember { mutableStateOf<Job?>(null) }
-
-    // 拖动时取消模糊/alpha，松手后 5s 或歌词行切换时恢复
-    var isClearMode by remember { mutableStateOf(false) }
-    var clearModeResumeJob by remember { mutableStateOf<Job?>(null) }
-
-    // 标记程序触发的滚动，用于区分用户手动滚动
-    var isProgrammaticScroll by remember { mutableStateOf(false) }
-
-    // 监听 LazyColumn 滚动状态，排除程序触发的滚动
-    val isScrollInProgress = listState.isScrollInProgress
-    LaunchedEffect(isScrollInProgress) {
-        if (isScrollInProgress && !isProgrammaticScroll) {
-            // 用户手动滚动开始
-            isManualScrolling = true
-            isClearMode = true
-            autoFollowResumeJob?.cancel()
-            clearModeResumeJob?.cancel()
-        } else if (!isScrollInProgress && isManualScrolling) {
-            // 滚动停止，启动恢复计时
-            autoFollowResumeJob?.cancel()
-            autoFollowResumeJob = scope.launch {
-                delay(3000L)
-                isManualScrolling = false
-            }
-            clearModeResumeJob?.cancel()
-            clearModeResumeJob = scope.launch {
-                delay(5000L)
-                isClearMode = false
-            }
-        }
-    }
-
-    // 检测用户滚动方向：向前（上）显示 Controls，向后（下）隐藏 Controls
+    // LE#1: 滚动检测 + 方向 + 定时恢复
     LaunchedEffect(Unit) {
         var prevIndex = listState.firstVisibleItemIndex
         var prevOffset = listState.firstVisibleItemScrollOffset
+
         snapshotFlow {
-            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-        }.collect { (index, offset) ->
-            if (isManualScrolling) {
+            Triple(
+                listState.isScrollInProgress,
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset
+            )
+        }.collect { (isScrolling, index, offset) ->
+            if (isScrolling && !scrollState.isProgrammaticScroll) {
+                // 用户手动滚动中
+                if (scrollState.isAutoFollow || scrollState.mode is LyricsScrollMode.WaitingToResume) {
+                    scrollState.onUserScrollStart()
+                }
+                // 检测滚动方向
                 val scrollingDown = index > prevIndex || (index == prevIndex && offset > prevOffset)
                 val scrollingUp = index < prevIndex || (index == prevIndex && offset < prevOffset)
                 if (scrollingUp) onUserScrolling?.invoke(false)
                 else if (scrollingDown) onUserScrolling?.invoke(true)
+            } else if (!isScrolling && scrollState.mode is LyricsScrollMode.ManualScrolling) {
+                // 滚动停止，进入等待恢复
+                scrollState.onUserScrollStop(System.currentTimeMillis())
             }
             prevIndex = index
             prevOffset = offset
         }
     }
 
-    // 歌词行切换时，如果不在手动滚动中则立即恢复模糊
-    LaunchedEffect(currentLyricIndex) {
-        if (isClearMode && !isManualScrolling) {
-            isClearMode = false
-            clearModeResumeJob?.cancel()
+    // WaitingToResume 定时恢复
+    val mode = scrollState.mode
+    if (mode is LyricsScrollMode.WaitingToResume) {
+        LaunchedEffect(mode) {
+            val now = System.currentTimeMillis()
+            val waitMs = (mode.followResumeTimeMs - now).coerceAtLeast(0)
+            delay(waitMs)
+            scrollState.onResumeTimerFired()
         }
     }
 
-    // 自动滚动：当前行固定在距顶部指定偏移
-    LaunchedEffect(currentLyricIndex, isManualScrolling) {
-        if (!isManualScrolling) {
-            val targetItem = if (currentLyricIndex < 0) 0 else currentLyricIndex + 1
-            isProgrammaticScroll = true
+    // LE#2: 自动滚动 + 歌词行变更时恢复模糊
+    LaunchedEffect(currentLyricIndex, scrollState.isAutoFollow) {
+        // 歌词行变更时，如果在等待状态则立即恢复
+        scrollState.onLyricIndexChanged()
 
-            // 先确保目标 item 在可见范围附近（无动画快速定位到大致位置）
+        if (scrollState.isAutoFollow) {
+            val targetItem = if (currentLyricIndex < 0) 0 else currentLyricIndex + 1
+            scrollState.isProgrammaticScroll = true
+
             val layoutInfo = listState.layoutInfo
             val targetVisible = layoutInfo.visibleItemsInfo.any { it.index == targetItem }
             if (!targetVisible) {
-                // 目标不在视口内（如快速切歌），直接跳转
                 listState.scrollToItem(targetItem, scrollOffset = -topOffsetPx)
             } else {
-                // 目标在视口内，计算精确偏移量用平滑动画滚动
                 val currentItemInfo = layoutInfo.visibleItemsInfo.find { it.index == targetItem }
                 if (currentItemInfo != null) {
-                    val currentOffset = currentItemInfo.offset
-                    val desiredOffset = topOffsetPx
-                    val scrollDelta = (currentOffset - desiredOffset).toFloat()
+                    val scrollDelta = (currentItemInfo.offset - topOffsetPx).toFloat()
                     listState.animateScrollBy(
                         value = scrollDelta,
-                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        animationSpec = tween(
+                            durationMillis = SCROLL_ANIMATION_DURATION_MS,
+                            easing = FastOutSlowInEasing
+                        )
                     )
                 } else {
                     listState.animateScrollToItem(targetItem, scrollOffset = -topOffsetPx)
                 }
             }
 
-            isProgrammaticScroll = false
+            scrollState.isProgrammaticScroll = false
         }
     }
 
@@ -310,7 +296,7 @@ private fun SyncedLyricsView(
             item {
                 WaitingIndicator(
                     isActive = currentLyricIndex < 0,
-                    distance = if (currentLyricIndex < 0) 0 else abs(currentLyricIndex + 1) // 距离当前行
+                    distance = if (currentLyricIndex < 0) 0 else abs(currentLyricIndex + 1)
                 )
             }
 
@@ -322,21 +308,19 @@ private fun SyncedLyricsView(
                     text = line.text,
                     isCurrent = index == currentLyricIndex,
                     distance = distance,
-                    isClearMode = isClearMode,
+                    isClearMode = scrollState.isClearMode,
                     onClick = {
-                        if (isFullScreen && !isManualScrolling && distance > 1) {
-                            // 全屏自动滚动模式：非相邻行点击恢复 controls
+                        if (isFullScreen && scrollState.isAutoFollow && distance > 1) {
                             onToggleControls?.invoke()
                         } else {
                             onSeekToLine(index)
-                            isManualScrolling = false
-                            autoFollowResumeJob?.cancel()
+                            scrollState.onLyricLineClicked()
                         }
                     }
                 )
             }
 
-            // 底部填充：确保最后几行也能滚动到顶部固定位置
+            // 底部填充
             item {
                 Spacer(modifier = Modifier.fillParentMaxHeight(0.85f))
             }
@@ -407,11 +391,11 @@ private fun LyricLineItem(
     isClearMode: Boolean = false,
     onClick: () -> Unit
 ) {
-    val targetAlpha = if (isClearMode) 1f else when {
+    val targetAlpha = when {
         isCurrent -> 1f
-        distance == 1 -> 0.45f
-        distance == 3 -> 0.35f
-        else -> 0.25f
+        distance == 1 -> 0.55f
+        distance == 3 -> 0.45f
+        else -> 0.35f
     }
 
     val targetBlur = if (isClearMode) 0.dp else when {
@@ -434,16 +418,15 @@ private fun LyricLineItem(
 
     Text(
         text = text,
-        color = Color.White,
-        fontSize = 32.sp,
+        color = if (isCurrent) Color.White else Color.White.copy(alpha = animatedAlpha),
+        fontSize = LYRIC_FONT_SIZE,
         fontWeight = FontWeight.ExtraBold,
-        lineHeight = 44.sp,
+        lineHeight = LYRIC_LINE_HEIGHT,
         textAlign = TextAlign.Start,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .graphicsLayer {
-                alpha = animatedAlpha
                 transformOrigin = TransformOrigin(0f, 0.5f)
             }
             .then(

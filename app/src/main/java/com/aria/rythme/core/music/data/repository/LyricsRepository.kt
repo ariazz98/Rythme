@@ -1,14 +1,12 @@
 package com.aria.rythme.core.music.data.repository
 
-import androidx.media3.common.util.UnstableApi
 import com.aria.rythme.core.music.data.local.LyricsDao
 import com.aria.rythme.core.music.data.local.LyricsEntity
-import com.aria.rythme.core.music.data.lyrics.EmbeddedLyricsReader
-import com.aria.rythme.core.music.data.lyrics.LocalLrcMatcher
 import com.aria.rythme.core.music.data.lyrics.LrcParser
-import com.aria.rythme.core.music.data.lyrics.LrclibApi
+import com.aria.rythme.core.music.data.lyrics.LyricsProvider
 import com.aria.rythme.core.music.data.model.LyricsData
 import com.aria.rythme.core.music.data.model.LyricsSource
+import com.aria.rythme.core.music.data.model.LyricsType
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.utils.RythmeLogger
 
@@ -16,22 +14,22 @@ import com.aria.rythme.core.utils.RythmeLogger
  * 歌词仓库
  *
  * 统一调度歌词获取逻辑：
- * Room 缓存 → 内嵌标签 → 本地 .lrc → LRCLIB 在线
+ * Room 缓存 → 按优先级遍历 LyricsProvider 列表
  *
  * 获取到即停，结果缓存到 Room。"无歌词"不缓存（下次重试）。
  */
 class LyricsRepository(
     private val lyricsDao: LyricsDao,
-    private val embeddedReader: EmbeddedLyricsReader
+    private val providers: List<LyricsProvider>
 ) {
 
     /**
      * 获取歌词
-     *
-     * @param song 歌曲
-     * @return LyricsData 或 null
      */
     suspend fun getLyrics(song: Song): LyricsData? {
+        // 清理过期在线缓存（30 天 TTL）
+        lyricsDao.deleteExpired(System.currentTimeMillis() - TTL_ONLINE_MS)
+
         // 1. Room 缓存
         val cached = loadFromCache(song.id)
         if (cached != null) {
@@ -39,28 +37,14 @@ class LyricsRepository(
             return cached
         }
 
-        // 2. 内嵌标签
-        val embedded = embeddedReader.read(song.uri)
-        if (embedded != null) {
-            RythmeLogger.d(TAG, "内嵌歌词: ${song.title}")
-            saveToCache(song.id, embedded)
-            return embedded
-        }
-
-        // 3. 本地 .lrc 文件
-        val local = LocalLrcMatcher.find(song)
-        if (local != null) {
-            RythmeLogger.d(TAG, "本地歌词: ${song.title}")
-            saveToCache(song.id, local)
-            return local
-        }
-
-        // 4. LRCLIB 在线
-        val online = LrclibApi.fetch(song)
-        if (online != null) {
-            RythmeLogger.d(TAG, "在线歌词: ${song.title}")
-            saveToCache(song.id, online)
-            return online
+        // 2. 按优先级遍历 Provider
+        for (provider in providers) {
+            val data = provider.provide(song)
+            if (data != null) {
+                RythmeLogger.d(TAG, "${provider.source} 歌词: ${song.title}")
+                saveToCache(song.id, data)
+                return data
+            }
         }
 
         RythmeLogger.d(TAG, "无歌词: ${song.title}")
@@ -74,37 +58,42 @@ class LyricsRepository(
         } catch (e: Exception) {
             LyricsSource.CACHE
         }
-        return LrcParser.parse(entity.lrcContent, source)
+        val type = try {
+            LyricsType.valueOf(entity.type)
+        } catch (e: Exception) {
+            null
+        }
+
+        // 纯文本歌词直接返回
+        if (type == LyricsType.PLAIN) {
+            return LyricsData(
+                lines = emptyList(),
+                type = LyricsType.PLAIN,
+                source = source,
+                plainText = entity.rawContent,
+                rawContent = entity.rawContent
+            )
+        }
+
+        // 同步歌词重新解析
+        return LrcParser.parse(entity.rawContent, source)
     }
 
     private suspend fun saveToCache(songId: Long, data: LyricsData) {
-        // 只缓存有同步歌词的
-        if (data.lines.isEmpty()) return
-
-        val lrcContent = buildLrcContent(data)
+        val content = data.rawContent ?: data.plainText ?: return
         lyricsDao.insert(
             LyricsEntity(
                 songId = songId,
-                lrcContent = lrcContent,
+                rawContent = content,
                 source = data.source.name,
-                type = data.type.name
+                type = data.type.name,
+                cachedAt = System.currentTimeMillis()
             )
         )
     }
 
-    /**
-     * 将 LyricsData 还原为 LRC 文本用于缓存
-     */
-    private fun buildLrcContent(data: LyricsData): String {
-        return data.lines.joinToString("\n") { line ->
-            val min = line.startTimeMs / 60_000
-            val sec = (line.startTimeMs % 60_000) / 1_000
-            val ms = (line.startTimeMs % 1_000) / 10
-            "[%02d:%02d.%02d]%s".format(min, sec, ms, line.text)
-        }
-    }
-
     companion object {
         private const val TAG = "LyricsRepository"
+        private const val TTL_ONLINE_MS = 30L * 24 * 60 * 60 * 1000 // 30 天
     }
 }

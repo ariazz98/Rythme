@@ -54,5 +54,6 @@ data class LyricsData(
     val lines: List<LyricLine>,
     val type: LyricsType,
     val source: LyricsSource,
-    val plainText: String? = null
+    val plainText: String? = null,
+    val rawContent: String? = null
 )

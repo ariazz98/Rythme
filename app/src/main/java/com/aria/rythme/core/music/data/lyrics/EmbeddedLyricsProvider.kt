@@ -1,7 +1,6 @@
 package com.aria.rythme.core.music.data.lyrics
 
 import android.content.Context
-import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Metadata
 import androidx.media3.common.util.UnstableApi
@@ -9,6 +8,7 @@ import androidx.media3.inspector.MetadataRetriever
 import com.aria.rythme.core.music.data.model.LyricsData
 import com.aria.rythme.core.music.data.model.LyricsSource
 import com.aria.rythme.core.music.data.model.LyricsType
+import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.utils.RythmeLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,16 +19,13 @@ import kotlinx.coroutines.withContext
  * 支持 ID3v2 USLT（Unsynchronised Lyrics）和 Vorbis Comment LYRICS 字段。
  */
 @UnstableApi
-class EmbeddedLyricsReader(private val context: Context) {
+class EmbeddedLyricsProvider(private val context: Context) : LyricsProvider {
 
-    /**
-     * 从音频文件 URI 读取内嵌歌词
-     *
-     * @return LyricsData 或 null
-     */
-    suspend fun read(uri: Uri): LyricsData? = withContext(Dispatchers.IO) {
+    override val source = LyricsSource.EMBEDDED
+
+    override suspend fun provide(song: Song): LyricsData? = withContext(Dispatchers.IO) {
         try {
-            val mediaItem = MediaItem.fromUri(uri)
+            val mediaItem = MediaItem.fromUri(song.uri)
             val retriever = MetadataRetriever.Builder(context, mediaItem).build()
             val trackGroups = retriever.retrieveTrackGroups().get()
 
@@ -51,9 +48,6 @@ class EmbeddedLyricsReader(private val context: Context) {
     private fun extractLyricsFromMetadata(metadata: Metadata): LyricsData? {
         for (i in 0 until metadata.length()) {
             val entry = metadata.get(i)
-            if (entry is androidx.media3.extractor.metadata.id3.TextInformationFrame) {
-                continue
-            }
             val text = when (entry) {
                 is androidx.media3.extractor.metadata.id3.BinaryFrame -> {
                     if (entry.id == "USLT") {
@@ -78,7 +72,8 @@ class EmbeddedLyricsReader(private val context: Context) {
                     lines = emptyList(),
                     type = LyricsType.PLAIN,
                     source = LyricsSource.EMBEDDED,
-                    plainText = text
+                    plainText = text,
+                    rawContent = text
                 )
             }
         }
@@ -86,6 +81,6 @@ class EmbeddedLyricsReader(private val context: Context) {
     }
 
     companion object {
-        private const val TAG = "EmbeddedLyricsReader"
+        private const val TAG = "EmbeddedLyricsProvider"
     }
 }

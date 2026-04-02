@@ -78,7 +78,7 @@ object LrcParser {
             else -> LyricsType.SYNCED
         }
 
-        return LyricsData(lines = lines, type = type, source = source)
+        return LyricsData(lines = lines, type = type, source = source, rawContent = lrcContent)
     }
 
     /**
@@ -109,7 +109,7 @@ object LrcParser {
 
         for (i in wordTimeMatches.indices) {
             val currentMatch = wordTimeMatches[i]
-            val startMs = parseWordTimeTag(currentMatch)
+            val startMs = parseTimeTag(currentMatch)
 
             // 提取当前时间标签之后到下一个时间标签之前的文本
             val textStart = currentMatch.range.last + 1
@@ -124,7 +124,7 @@ object LrcParser {
 
             // 结束时间为下一个标签的时间，最后一个词没有明确结束时间则用 startMs
             val endMs = if (i + 1 < wordTimeMatches.size) {
-                parseWordTimeTag(wordTimeMatches[i + 1])
+                parseTimeTag(wordTimeMatches[i + 1])
             } else {
                 startMs
             }
@@ -135,18 +135,4 @@ object LrcParser {
         return words
     }
 
-    /**
-     * 解析逐字时间标签
-     */
-    private fun parseWordTimeTag(match: MatchResult): Long {
-        val minutes = match.groupValues[1].toLong()
-        val seconds = match.groupValues[2].toLong()
-        val fraction = match.groupValues[3]
-        val millis = if (fraction.length == 2) {
-            fraction.toLong() * 10
-        } else {
-            fraction.toLong()
-        }
-        return minutes * 60_000 + seconds * 1_000 + millis
-    }
 }

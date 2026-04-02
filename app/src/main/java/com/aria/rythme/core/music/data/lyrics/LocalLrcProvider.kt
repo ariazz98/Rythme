@@ -16,19 +16,15 @@ import java.io.File
  * 2. 同目录 "标题 - 艺术家.lrc"
  * 3. 同目录 "艺术家 - 标题.lrc"
  */
-object LocalLrcMatcher {
+class LocalLrcProvider : LyricsProvider {
 
-    private const val TAG = "LocalLrcMatcher"
+    override val source = LyricsSource.LOCAL_FILE
 
-    /**
-     * 查找并解析本地 .lrc 文件
-     */
-    suspend fun find(song: Song): LyricsData? = withContext(Dispatchers.IO) {
+    override suspend fun provide(song: Song): LyricsData? = withContext(Dispatchers.IO) {
         val audioFile = File(song.path)
         val dir = audioFile.parentFile ?: return@withContext null
         val baseName = audioFile.nameWithoutExtension
 
-        // 候选文件名列表
         val candidates = listOf(
             "$baseName.lrc",
             "${song.title} - ${song.artist}.lrc",
@@ -51,5 +47,9 @@ object LocalLrcMatcher {
             }
         }
         null
+    }
+
+    companion object {
+        private const val TAG = "LocalLrcProvider"
     }
 }
