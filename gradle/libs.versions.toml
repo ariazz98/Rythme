@@ -30,7 +30,7 @@ ksp = "2.3.6"
 navigation3 = "1.0.1"
 lifecycleViewmodelNav3="2.10.0"
 kotlinSerialization="2.3.20"
-kotlinxSerializationCore="1.10.0"
+kotlinxSerializationCore="1.11.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
