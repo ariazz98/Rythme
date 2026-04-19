@@ -145,6 +145,13 @@ class MusicPlaybackService : MediaSessionService() {
             action: String,
             extras: Bundle
         ): Boolean = false
+
+        override fun getNotificationChannelInfo(): MediaNotification.Provider.NotificationChannelInfo {
+            return MediaNotification.Provider.NotificationChannelInfo(
+                CHANNEL_ID,
+                "音乐播放"
+            )
+        }
     }
 
     private class PlayerEventListener : Player.Listener {
