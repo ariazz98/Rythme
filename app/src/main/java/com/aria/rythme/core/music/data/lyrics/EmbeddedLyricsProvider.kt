@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Metadata
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.extractor.metadata.id3.BinaryFrame
+import androidx.media3.extractor.metadata.vorbis.VorbisComment
 import androidx.media3.inspector.MetadataRetriever
 import com.aria.rythme.core.music.data.model.LyricsData
 import com.aria.rythme.core.music.data.model.LyricsSource
@@ -49,12 +51,12 @@ class EmbeddedLyricsProvider(private val context: Context) : LyricsProvider {
         for (i in 0 until metadata.length()) {
             val entry = metadata.get(i)
             val text = when (entry) {
-                is androidx.media3.extractor.metadata.id3.BinaryFrame -> {
+                is BinaryFrame -> {
                     if (entry.id == "USLT") {
                         String(entry.data, Charsets.UTF_8)
                     } else null
                 }
-                is androidx.media3.extractor.metadata.vorbis.VorbisComment -> {
+                is VorbisComment -> {
                     if (entry.key.equals("LYRICS", ignoreCase = true) ||
                         entry.key.equals("UNSYNCEDLYRICS", ignoreCase = true) ||
                         entry.key.equals("SYNCEDLYRICS", ignoreCase = true)
