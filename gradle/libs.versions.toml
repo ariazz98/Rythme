@@ -1,5 +1,5 @@
 [versions]
-agp = "9.1.0"
+agp = "9.2.0"
 backdrop = "1.0.6"
 capsule = "2.1.3"
 haze = "1.7.2"
@@ -7,7 +7,7 @@ coreKtx = "1.18.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
 kotlin = "2.3.21"
-composeBom = "2026.03.01"
+composeBom = "2026.04.01"
 
 # MVI 架构相关依赖版本
 lifecycleViewmodelCompose = "2.10.0"
@@ -24,10 +24,10 @@ coil = "3.4.0"
 # 数据存储相关依赖版本
 datastore = "1.2.1"
 room = "2.8.4"
-ksp = "2.3.6"
+ksp = "2.3.7"
 
 # 导航相关依赖版本
-navigation3 = "1.1.0"
+navigation3 = "1.1.1"
 lifecycleViewmodelNav3="2.10.0"
 kotlinSerialization="2.3.21"
 kotlinxSerializationCore="1.11.0"
