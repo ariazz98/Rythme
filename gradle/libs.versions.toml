@@ -27,7 +27,7 @@ room = "2.8.4"
 ksp = "2.3.7"
 
 # 导航相关依赖版本
-navigation3 = "1.1.0"
+navigation3 = "1.1.1"
 lifecycleViewmodelNav3="2.10.0"
 kotlinSerialization="2.3.20"
 kotlinxSerializationCore="1.11.0"
