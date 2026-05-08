@@ -11,7 +11,7 @@ composeBom = "2026.04.01"
 
 # MVI 架构相关依赖版本
 lifecycleViewmodelCompose = "2.10.0"
-kotlinxCoroutines = "1.10.2"
+kotlinxCoroutines = "1.11.0"
 koin = "4.2.1"
 
 # 媒体播放相关依赖版本
