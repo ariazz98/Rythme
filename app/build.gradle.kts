@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.aria.rythme"
     compileSdk {
-        version = release(36) {
+        version = release(37) {
             minorApiLevel = 1
         }
     }
