@@ -28,7 +28,7 @@ ksp = "2.3.11"
 
 # 导航相关依赖版本
 navigation3 = "1.1.7"
-lifecycleViewmodelNav3="2.10.0"
+lifecycleViewmodelNav3="2.11.0"
 kotlinSerialization="2.3.21"
 kotlinxSerializationCore="1.11.0"
 
