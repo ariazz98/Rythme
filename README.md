@@ -20,14 +20,14 @@
 
 ## About
 
-Rythme is an open-source Android music player designed for local audio files, inspired by Apple Music's visual design. It features iOS-style frosted glass / liquid glass effects, smooth shared-element transitions, and a clean MVI architecture — all built with 100% Jetpack Compose and zero XML layouts.
+Rythme is an open-source Android music player designed for local audio files, inspired by Apple Music's visual design. It features iOS-style frosted glass / liquid glass effects, smooth shared-element transitions, and complexity-driven state management — all built with 100% Jetpack Compose and zero XML layouts.
 
 ### Goals
 
 - Deliver a polished, fluid music playback experience on Android
-- Showcase modern Android development best practices (Compose, MVI, Navigation3, Koin)
+- Showcase modern Android development practices (Compose, Navigation3, StateFlow, Koin)
 - Bring liquid glass morphism and smooth gesture-driven animations to a music player
-- Stay lightweight and offline — no network dependency, no accounts, just your music
+- Stay local-first and account-free; network lyrics remain optional
 
 ## Screenshots
 
@@ -49,9 +49,9 @@ Rythme is an open-source Android music player designed for local audio files, in
 - [x] **Drag-to-Dismiss** — gesture to close the full-screen player with squash & stretch deformation
 - [x] **Album Art Theme Extraction** — dynamic color palette derived from current track artwork
 - [x] **Local Music Scanning** — MediaStore-based scanner with Room caching
-- [x] **Auto Refresh** — MediaStoreObserver detects file changes and refreshes automatically
+- [x] **Auto Refresh** — MediaStoreWatcher detects file changes and refreshes automatically
 - [x] **Background Playback** — foreground service with MediaSession & notification controls
-- [x] **MVI Architecture** — strict unidirectional data flow across all features
+- [x] **Complexity-driven Architecture** — callbacks for navigation, StateFlow for ordinary data, reducers only for real state machines
 - [x] **Type-safe Navigation** — Navigation3 with serializable routes, per-tab back stacks
 
 ### Planned
@@ -77,7 +77,7 @@ Rythme is an open-source Android music player designed for local audio files, in
 |---|---|
 | **Language** | Kotlin 2.3.10 |
 | **UI** | Jetpack Compose (BOM 2026.02), Material3 |
-| **Architecture** | MVI (custom BaseViewModel), single-activity |
+| **Architecture** | Complexity-driven state management, single-activity |
 | **Navigation** | AndroidX Navigation3 1.0.1 (type-safe routes) |
 | **DI** | Koin 4.1.1 |
 | **Media** | Media3 / ExoPlayer 1.9.2, MediaSession |
@@ -100,13 +100,13 @@ app/src/main/java/com/aria/rythme/
 ├── core/
 │   ├── mvi/            # BaseViewModel, marker interfaces
 │   ├── music/          # Domain models, Room DB, MediaStore, PlaybackController
-│   ├── navigation/     # NavigationState, Navigator, RythmeRoute
+│   ├── navigation/     # NavigationState and UI-owned Navigator
 │   └── extensions/     # Compose helpers
 ├── feature/            # One package per screen (home, player, library, search, ...)
 │   └── {name}/
-│       ├── {Name}Contract.kt    # Intent / State / Action / Effect
-│       ├── {Name}ViewModel.kt   # handleIntent() + reduce()
-│       └── {Name}Screen.kt      # Compose UI
+│       ├── {Name}Screen.kt      # Compose UI + explicit navigation callbacks
+│       ├── {Name}ViewModel.kt   # Optional StateFlow + operations
+│       └── {Name}Contract.kt    # Optional, only for a real state machine
 ├── ui/
 │   ├── component/      # Shared composables (MiniPlayer, BottomTabs, ...)
 │   └── theme/          # Colors, typography, theming
@@ -120,7 +120,7 @@ MediaStore / Room DB
        ↓
   MusicRepository (StateFlows)
        ↓
-  ViewModel (MVI: Intent → Action → State)
+  ViewModel when needed (StateFlow + operations)
        ↓
   Compose UI (collectAsState)
 ```
@@ -128,10 +128,13 @@ MediaStore / Room DB
 ### Key Design Decisions
 
 - **Player is NOT a route** — it renders as an `AnimatedVisibility` overlay so the bottom nav and back stack remain alive underneath
+- **Navigation belongs to the UI boundary** — screens receive callbacks; ViewModels do not retain a Navigator
 - **Glass effects require API 33+** for full lens refraction; blur/vibrancy work on API 31+
 - **No XML layouts** — the entire UI is Jetpack Compose
 - **No Hilt** — Koin is used for dependency injection
-- **No network** — all media comes from local MediaStore
+- **Local-first catalog** — media comes from local MediaStore; online lyrics are optional
+
+See [the product and motion baseline](docs/PRODUCT_MOTION_BASELINE.md) before changing navigation, app chrome, Player, menus, or shared motion.
 
 ## Getting Started
 
@@ -178,7 +181,7 @@ Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Follow the existing MVI pattern for new features
+3. Follow `AGENTS.md` and the product/motion baseline; choose the smallest feature structure that fits
 4. Commit your changes (`git commit -m 'Add amazing feature'`)
 5. Push to the branch (`git push origin feature/amazing-feature`)
 6. Open a Pull Request
@@ -196,14 +199,14 @@ This project is licensed under the Apache License 2.0 — see the [LICENSE](LICE
 
 ## 关于
 
-Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple Music。它采用 iOS 风格的毛玻璃/液态玻璃视觉效果、流畅的共享元素过渡动画，以及清晰的 MVI 架构——全部使用 Jetpack Compose 构建，零 XML 布局。
+Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple Music。它采用 iOS 风格的毛玻璃/液态玻璃视觉效果、流畅的共享元素过渡动画，以及按复杂度选择的状态管理——全部使用 Jetpack Compose 构建，零 XML 布局。
 
 ### 项目目标
 
 - 在 Android 上提供精致、流畅的音乐播放体验
-- 展示现代 Android 开发最佳实践（Compose、MVI、Navigation3、Koin）
+- 展示现代 Android 开发实践（Compose、Navigation3、StateFlow、Koin）
 - 将液态玻璃拟态和手势驱动动画带入音乐播放器
-- 保持轻量和离线——无需网络、无需账户，只播放你的音乐
+- 保持本地优先且无需账户；网络歌词为可选能力
 
 ## 截图
 
@@ -225,9 +228,9 @@ Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple 
 - [x] **下拉关闭手势** — 拖拽关闭全屏播放器，带挤压拉伸形变
 - [x] **封面主题色提取** — 从当前曲目封面动态提取调色板
 - [x] **本地音乐扫描** — 基于 MediaStore 的扫描器，Room 数据库缓存
-- [x] **自动刷新** — MediaStoreObserver 监听文件变化并自动刷新
+- [x] **自动刷新** — MediaStoreWatcher 监听文件变化并自动刷新
 - [x] **后台播放** — 前台服务 + MediaSession + 通知栏控制
-- [x] **MVI 架构** — 所有功能模块严格遵循单向数据流
+- [x] **按复杂度选择架构** — 导航使用回调，普通数据使用 StateFlow，真正的状态机才使用 reducer
 - [x] **类型安全导航** — Navigation3 + 序列化路由，按标签管理返回栈
 
 ### 待完成
@@ -252,7 +255,7 @@ Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple 
 |---|---|
 | **语言** | Kotlin 2.3.10 |
 | **UI** | Jetpack Compose (BOM 2026.02)、Material3 |
-| **架构** | MVI（自定义 BaseViewModel）、单 Activity |
+| **架构** | 按复杂度选择状态管理、单 Activity |
 | **导航** | AndroidX Navigation3 1.0.1（类型安全路由） |
 | **依赖注入** | Koin 4.1.1 |
 | **媒体播放** | Media3 / ExoPlayer 1.9.2、MediaSession |
@@ -275,13 +278,13 @@ app/src/main/java/com/aria/rythme/
 ├── core/
 │   ├── mvi/            # BaseViewModel、标记接口
 │   ├── music/          # 领域模型、Room 数据库、MediaStore、PlaybackController
-│   ├── navigation/     # NavigationState、Navigator、RythmeRoute
+│   ├── navigation/     # NavigationState、由 UI 持有的 Navigator
 │   └── extensions/     # Compose 扩展函数
 ├── feature/            # 每个页面一个包（home、player、library、search……）
 │   └── {name}/
-│       ├── {Name}Contract.kt    # Intent / State / Action / Effect
-│       ├── {Name}ViewModel.kt   # handleIntent() + reduce()
-│       └── {Name}Screen.kt      # Compose UI
+│       ├── {Name}Screen.kt      # Compose UI + 明确的导航回调
+│       ├── {Name}ViewModel.kt   # 可选的 StateFlow + 操作
+│       └── {Name}Contract.kt    # 可选，仅用于真正的状态机
 ├── ui/
 │   ├── component/      # 共享组件（MiniPlayer、BottomTabs……）
 │   └── theme/          # 颜色、字体、主题
@@ -295,7 +298,7 @@ MediaStore / Room 数据库
        ↓
   MusicRepository（StateFlow）
        ↓
-  ViewModel（MVI：Intent → Action → State）
+  按需使用 ViewModel（StateFlow + 操作）
        ↓
   Compose UI（collectAsState）
 ```
@@ -303,10 +306,13 @@ MediaStore / Room 数据库
 ### 关键设计决策
 
 - **播放器不是路由** — 它作为 `AnimatedVisibility` 覆盖层渲染，底部导航和返回栈保持活跃
+- **导航归 UI 边界所有** — 页面接收导航回调，ViewModel 不持有 Navigator
 - **玻璃效果要求 API 33+** 才能获得完整的镜头折射效果；模糊和鲜艳度在 API 31+ 可用
 - **零 XML 布局** — 整个 UI 均为 Jetpack Compose
 - **不使用 Hilt** — 使用 Koin 进行依赖注入
-- **不依赖网络** — 所有媒体数据来自本地 MediaStore
+- **本地优先曲库** — 媒体数据来自本地 MediaStore，在线歌词为可选能力
+
+修改导航、全局栏、播放器、菜单或共享动效前，请先阅读[产品与动效基线](docs/PRODUCT_MOTION_BASELINE.md)。
 
 ## 开始使用
 
@@ -353,7 +359,7 @@ cd Rythme
 
 1. Fork 本仓库
 2. 创建功能分支（`git checkout -b feature/amazing-feature`）
-3. 新功能请遵循现有的 MVI 模式
+3. 遵循 `AGENTS.md` 和产品/动效基线，选择足够且最小的功能结构
 4. 提交更改（`git commit -m 'Add amazing feature'`）
 5. 推送到分支（`git push origin feature/amazing-feature`）
 6. 发起 Pull Request

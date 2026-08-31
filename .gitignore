@@ -57,4 +57,5 @@ mydocs/
 CLAUDE.md
 INTEGRATION.md
 .claude/
-docs/
+docs/*
+!docs/PRODUCT_MOTION_BASELINE.md
