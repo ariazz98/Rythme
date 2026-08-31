@@ -15,7 +15,11 @@ import com.aria.rythme.ui.theme.rythmeColors
  */
 @Composable
 fun LibraryScreen(
-    viewModel: LibraryViewModel
+    onArtistsClick: () -> Unit,
+    onAlbumsClick: () -> Unit,
+    onSongsClick: () -> Unit,
+    onGenresClick: () -> Unit,
+    onComposersClick: () -> Unit
 ) {
 
     MainListPage(
@@ -29,7 +33,7 @@ fun LibraryScreen(
                     icon = R.drawable.ic_artist,
                     title = R.string.music_artist,
                     iconColor = MaterialTheme.rythmeColors.primary,
-                    onClick = { viewModel.sendIntent(LibraryIntent.NavToArtistList) }
+                    onClick = onArtistsClick
                 )
             }
 
@@ -39,7 +43,7 @@ fun LibraryScreen(
                     icon = R.drawable.ic_album,
                     title = R.string.music_album,
                     iconColor = MaterialTheme.rythmeColors.primary,
-                    onClick = { viewModel.sendIntent(LibraryIntent.NavToAlbumList) }
+                    onClick = onAlbumsClick
                 )
             }
 
@@ -49,7 +53,7 @@ fun LibraryScreen(
                     icon = R.drawable.ic_music_library,
                     title = R.string.music_song,
                     iconColor = MaterialTheme.rythmeColors.primary,
-                    onClick = { viewModel.sendIntent(LibraryIntent.NavToSongList) }
+                    onClick = onSongsClick
                 )
             }
 
@@ -59,7 +63,7 @@ fun LibraryScreen(
                     icon = R.drawable.ic_type,
                     title = R.string.music_type,
                     iconColor = MaterialTheme.rythmeColors.primary,
-                    onClick = { viewModel.sendIntent(LibraryIntent.NavToGenreList) }
+                    onClick = onGenresClick
                 )
             }
 
@@ -69,7 +73,7 @@ fun LibraryScreen(
                     icon = R.drawable.ic_composer,
                     title = R.string.music_composer,
                     iconColor = MaterialTheme.rythmeColors.primary,
-                    onClick = { viewModel.sendIntent(LibraryIntent.NavToComposerList) }
+                    onClick = onComposersClick
                 )
             }
         }

@@ -8,7 +8,6 @@ import com.aria.rythme.core.music.data.model.Playlist
 import com.aria.rythme.core.music.data.model.Song
 
 sealed interface PlaylistDetailIntent : UserIntent {
-    data object GoBack : PlaylistDetailIntent
     data class PlaySong(val song: Song) : PlaylistDetailIntent
     data object PlayAll : PlaylistDetailIntent
     data object ShufflePlay : PlaylistDetailIntent

@@ -26,8 +26,6 @@ data class AlbumListState(
 ) : UiState
 
 sealed interface AlbumListIntent : UserIntent {
-    data object GoBack : AlbumListIntent
-    data class ClickAlbum(val album: Album) : AlbumListIntent
     data class SetSort(val sortBy: AlbumSortBy) : AlbumListIntent
     data class SetLayout(val layoutMode: AlbumLayoutMode) : AlbumListIntent
 }

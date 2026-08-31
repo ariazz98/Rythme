@@ -4,14 +4,12 @@ import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import com.aria.rythme.core.navigation.Navigator
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class AlbumDetailViewModel(
     private val albumId: Long,
-    private val navigator: Navigator,
     private val musicRepository: MusicRepository,
     private val playbackController: PlaybackController,
     private val filterArtistId: Long? = null,
@@ -28,7 +26,6 @@ class AlbumDetailViewModel(
 
     override fun handleIntent(intent: AlbumDetailIntent) {
         when (intent) {
-            is AlbumDetailIntent.GoBack -> navigator.goBack()
             is AlbumDetailIntent.ClickSong -> {
                 viewModelScope.launch {
                     playbackController.play(intent.song, currentState.songs)

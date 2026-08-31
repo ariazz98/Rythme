@@ -1,47 +1,20 @@
 package com.aria.rythme.feature.genrelist.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
+import com.aria.rythme.core.mvi.UiState
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
-class GenreListViewModel(
-    private val navigator: Navigator,
-    private val musicRepository: MusicRepository
-) : BaseViewModel<GenreListIntent, GenreListState, GenreListAction, GenreListEffect>() {
+data class GenreListState(
+    val genres: List<String> = emptyList(),
+    val isLoading: Boolean = true
+) : UiState
 
-    init {
-        observeGenres()
-    }
-
-    override fun createInitialState(): GenreListState = GenreListState()
-
-    override fun handleIntent(intent: GenreListIntent) {
-        when (intent) {
-            is GenreListIntent.GoBack -> navigator.goBack()
-            is GenreListIntent.ClickGenre -> navigator.navigate(
-                RythmeRoute.GenreDetail(intent.genre)
-            )
-        }
-    }
-
-    override fun reduce(action: GenreListAction): GenreListState {
-        return when (action) {
-            is GenreListAction.GenresLoaded -> currentState.copy(
-                genres = action.genres,
-                isLoading = false
-            )
-        }
-    }
-
-    private fun observeGenres() {
-        musicRepository.getAllGenres()
-            .onEach { genres ->
-                reduceAndUpdate(GenreListAction.GenresLoaded(genres))
-            }
-            .launchIn(viewModelScope)
-    }
+class GenreListViewModel(musicRepository: MusicRepository) : ViewModel() {
+    val state = musicRepository.getAllGenres()
+        .map { genres -> GenreListState(genres = genres, isLoading = false) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GenreListState())
 }

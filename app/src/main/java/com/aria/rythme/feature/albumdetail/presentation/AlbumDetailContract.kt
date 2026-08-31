@@ -15,7 +15,6 @@ data class AlbumDetailState(
 ) : UiState
 
 sealed interface AlbumDetailIntent : UserIntent {
-    data object GoBack : AlbumDetailIntent
     data class ClickSong(val song: Song) : AlbumDetailIntent
 }
 

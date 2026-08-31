@@ -1,47 +1,21 @@
 package com.aria.rythme.feature.artistlist.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
+import com.aria.rythme.core.mvi.UiState
+import com.aria.rythme.core.music.data.model.Artist
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
-class ArtistListViewModel(
-    private val navigator: Navigator,
-    private val musicRepository: MusicRepository
-) : BaseViewModel<ArtistListIntent, ArtistListState, ArtistListAction, ArtistListEffect>() {
+data class ArtistListState(
+    val artists: List<Artist> = emptyList(),
+    val isLoading: Boolean = true
+) : UiState
 
-    init {
-        observeArtists()
-    }
-
-    override fun createInitialState(): ArtistListState = ArtistListState()
-
-    override fun handleIntent(intent: ArtistListIntent) {
-        when (intent) {
-            is ArtistListIntent.GoBack -> navigator.goBack()
-            is ArtistListIntent.ClickArtist -> navigator.navigate(
-                RythmeRoute.ArtistDetail(intent.artist.id.toString())
-            )
-        }
-    }
-
-    override fun reduce(action: ArtistListAction): ArtistListState {
-        return when (action) {
-            is ArtistListAction.ArtistsLoaded -> currentState.copy(
-                artists = action.artists,
-                isLoading = false
-            )
-        }
-    }
-
-    private fun observeArtists() {
-        musicRepository.getAllArtists()
-            .onEach { artists ->
-                reduceAndUpdate(ArtistListAction.ArtistsLoaded(artists))
-            }
-            .launchIn(viewModelScope)
-    }
+class ArtistListViewModel(musicRepository: MusicRepository) : ViewModel() {
+    val state = musicRepository.getAllArtists()
+        .map { artists -> ArtistListState(artists = artists, isLoading = false) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ArtistListState())
 }

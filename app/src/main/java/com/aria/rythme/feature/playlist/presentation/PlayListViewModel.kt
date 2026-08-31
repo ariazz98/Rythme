@@ -3,14 +3,11 @@ package com.aria.rythme.feature.playlist.presentation
 import androidx.lifecycle.viewModelScope
 import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class PlayListViewModel(
-    private val navigator: Navigator,
     private val playlistRepository: PlaylistRepository
 ) : BaseViewModel<PlayListIntent, PlayListState, PlayListAction, PlayListEffect>() {
 
@@ -38,9 +35,6 @@ class PlayListViewModel(
                 viewModelScope.launch {
                     playlistRepository.deletePlaylist(intent.id)
                 }
-            }
-            is PlayListIntent.OpenDetail -> {
-                navigator.navigate(RythmeRoute.PlaylistDetail(intent.id.toString()))
             }
         }
     }

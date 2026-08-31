@@ -5,14 +5,12 @@ import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
-import com.aria.rythme.core.navigation.Navigator
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class PlaylistDetailViewModel(
     private val playlistId: Long,
-    private val navigator: Navigator,
     private val playlistRepository: PlaylistRepository,
     private val playbackController: PlaybackController
 ) : BaseViewModel<PlaylistDetailIntent, PlaylistDetailState, PlaylistDetailAction, PlaylistDetailEffect>() {
@@ -26,7 +24,6 @@ class PlaylistDetailViewModel(
 
     override fun handleIntent(intent: PlaylistDetailIntent) {
         when (intent) {
-            is PlaylistDetailIntent.GoBack -> navigator.goBack()
             is PlaylistDetailIntent.PlaySong -> playSong(intent.song)
             is PlaylistDetailIntent.PlayAll -> playAll()
             is PlaylistDetailIntent.ShufflePlay -> shufflePlay()

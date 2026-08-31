@@ -3,8 +3,6 @@
 
 package com.aria.rythme.di
 
-import com.aria.rythme.feature.home.presentation.HomeViewModel
-import com.aria.rythme.feature.library.presentation.LibraryViewModel
 import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.datasource.MediaStoreSource
 import com.aria.rythme.core.music.data.indexer.MusicIndexer
@@ -23,7 +21,6 @@ import com.aria.rythme.core.music.data.settings.AppSettingsRepository
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.feature.playlist.presentation.PlayListViewModel
 import com.aria.rythme.feature.playlistdetail.presentation.PlaylistDetailViewModel
-import com.aria.rythme.feature.search.presentation.SearchViewModel
 import com.aria.rythme.feature.albumdetail.presentation.AlbumDetailViewModel
 import com.aria.rythme.feature.albumlist.presentation.AlbumListViewModel
 import com.aria.rythme.feature.artistdetail.presentation.ArtistDetailViewModel
@@ -88,20 +85,18 @@ val albumDetailModule = module {
     viewModel { params ->
         AlbumDetailViewModel(
             albumId = params[0],
-            navigator = params[1],
             musicRepository = get(),
             playbackController = get(),
-            filterArtistId = params[2],
-            filterComposer = params[3],
-            filterGenre = params[4]
+            filterArtistId = params[1],
+            filterComposer = params[2],
+            filterGenre = params[3]
         )
     }
 }
 
 val albumListModule = module {
-    viewModel { params ->
+    viewModel {
         AlbumListViewModel(
-            navigator = params.get(),
             musicRepository = get(),
             appSettings = get()
         )
@@ -112,16 +107,14 @@ val artistDetailModule = module {
     viewModel { params ->
         ArtistDetailViewModel(
             artistId = params.get(),
-            navigator = params.get(),
             musicRepository = get()
         )
     }
 }
 
 val artistListModule = module {
-    viewModel { params ->
+    viewModel {
         ArtistListViewModel(
-            navigator = params.get(),
             musicRepository = get()
         )
     }
@@ -131,16 +124,14 @@ val genreDetailModule = module {
     viewModel { params ->
         GenreDetailViewModel(
             genreName = params[0],
-            navigator = params[1],
             musicRepository = get()
         )
     }
 }
 
 val genreListModule = module {
-    viewModel { params ->
+    viewModel {
         GenreListViewModel(
-            navigator = params.get(),
             musicRepository = get()
         )
     }
@@ -150,41 +141,31 @@ val composerDetailModule = module {
     viewModel { params ->
         ComposerDetailViewModel(
             composerName = params[0],
-            navigator = params[1],
             musicRepository = get()
         )
     }
 }
 
 val composerListModule = module {
-    viewModel { params ->
+    viewModel {
         ComposerListViewModel(
-            navigator = params.get(),
             musicRepository = get()
         )
     }
 }
 
 val songListModule = module {
-    viewModel { params ->
+    viewModel {
         SongListViewModel(
-            navigator = params.get(),
             musicRepository = get(),
             playbackController = get()
         )
     }
 }
 
-val homeModule = module {
-    viewModel { params ->
-        HomeViewModel(params.get())
-    }
-}
-
 val playListModule = module {
-    viewModel { params ->
+    viewModel {
         PlayListViewModel(
-            navigator = params.get(),
             playlistRepository = get()
         )
     }
@@ -194,22 +175,9 @@ val playlistDetailModule = module {
     viewModel { params ->
         PlaylistDetailViewModel(
             playlistId = params[0],
-            navigator = params[1],
             playlistRepository = get(),
             playbackController = get()
         )
-    }
-}
-
-val libraryModule = module {
-    viewModel { params ->
-        LibraryViewModel(params.get())
-    }
-}
-
-val searchModule = module {
-    viewModel { params ->
-        SearchViewModel(params.get())
     }
 }
 
@@ -225,9 +193,6 @@ val appModules = listOf(
     composerDetailModule,
     composerListModule,
     songListModule,
-    homeModule,
     playListModule,
-    playlistDetailModule,
-    libraryModule,
-    searchModule
+    playlistDetailModule
 )

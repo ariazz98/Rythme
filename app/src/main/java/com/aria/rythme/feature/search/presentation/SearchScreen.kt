@@ -14,9 +14,7 @@ import com.aria.rythme.ui.component.SmallCategoryCard
  * 包含搜索框和分类浏览卡片
  */
 @Composable
-fun SearchScreen(
-    viewModel: SearchViewModel
-) {
+fun SearchScreen() {
 
     MainGridPage(
         title = stringResource(R.string.title_search),

@@ -10,7 +10,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
-import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.LargeVerticalCard
 import com.aria.rythme.ui.component.MainListPage
@@ -23,9 +22,7 @@ import com.aria.rythme.ui.component.SmallSquareCard
  * 包含专属精选推荐、最近播放等板块
  */
 @Composable
-fun HomeScreen(
-    viewModel: HomeViewModel
-) {
+fun HomeScreen() {
 
     MainListPage(
         title = stringResource(R.string.title_home),

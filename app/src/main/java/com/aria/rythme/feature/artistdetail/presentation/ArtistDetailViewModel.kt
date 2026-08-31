@@ -1,58 +1,36 @@
 package com.aria.rythme.feature.artistdetail.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
+import com.aria.rythme.core.mvi.UiState
+import com.aria.rythme.core.music.data.model.Album
+import com.aria.rythme.core.music.data.model.Artist
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+data class ArtistDetailState(
+    val artist: Artist? = null,
+    val albums: List<Album> = emptyList()
+) : UiState
 
 class ArtistDetailViewModel(
     private val artistId: Long,
-    private val navigator: Navigator,
     private val musicRepository: MusicRepository
-) : BaseViewModel<ArtistDetailIntent, ArtistDetailState, ArtistDetailAction, ArtistDetailEffect>() {
+) : ViewModel() {
+    private val _state = MutableStateFlow(ArtistDetailState())
+    val state = _state.asStateFlow()
 
     init {
-        loadArtist()
-        observeAlbums()
-    }
-
-    override fun createInitialState(): ArtistDetailState = ArtistDetailState()
-
-    override fun handleIntent(intent: ArtistDetailIntent) {
-        when (intent) {
-            is ArtistDetailIntent.GoBack -> navigator.goBack()
-            is ArtistDetailIntent.ClickAlbum -> { navigator.navigate(RythmeRoute.AlbumDetail(intent.album.id.toString())) }
-        }
-    }
-
-    override fun reduce(action: ArtistDetailAction): ArtistDetailState {
-        return when (action) {
-            is ArtistDetailAction.ArtistLoaded -> currentState.copy(
-                artist = action.artist
-            )
-            is ArtistDetailAction.AlbumsLoaded -> currentState.copy(
-                albums = action.albums
-            )
-        }
-    }
-
-    private fun loadArtist() {
         viewModelScope.launch {
-            musicRepository.getArtistById(artistId)?.let { artist ->
-                reduceAndUpdate(ArtistDetailAction.ArtistLoaded(artist))
-            }
+            _state.update { it.copy(artist = musicRepository.getArtistById(artistId)) }
         }
-    }
-
-    private fun observeAlbums() {
         musicRepository.getAlbumsContainingArtist(artistId)
-            .onEach { albums ->
-                reduceAndUpdate(ArtistDetailAction.AlbumsLoaded(albums))
-            }
+            .onEach { albums -> _state.update { it.copy(albums = albums) } }
             .launchIn(viewModelScope)
     }
 }

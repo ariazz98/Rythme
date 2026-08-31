@@ -5,8 +5,6 @@ import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.core.music.data.settings.AppSettingsRepository
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -17,7 +15,6 @@ import kotlinx.coroutines.launch
  * 从 MusicRepository 读取专辑列表并展示。
  */
 class AlbumListViewModel(
-    private val navigator: Navigator,
     private val musicRepository: MusicRepository,
     private val appSettings: AppSettingsRepository
 ) : BaseViewModel<AlbumListIntent, AlbumListState, AlbumListAction, AlbumListEffect>() {
@@ -42,10 +39,6 @@ class AlbumListViewModel(
 
     override fun handleIntent(intent: AlbumListIntent) {
         when (intent) {
-            is AlbumListIntent.GoBack -> navigator.goBack()
-            is AlbumListIntent.ClickAlbum -> navigator.navigate(
-                RythmeRoute.AlbumDetail(intent.album.id.toString())
-            )
             is AlbumListIntent.SetSort -> {
                 reduceAndUpdate(AlbumListAction.SortChanged(intent.sortBy, sortAlbums(rawAlbums, intent.sortBy)))
                 viewModelScope.launch { appSettings.setPagePreference(PAGE_KEY, KEY_SORT, intent.sortBy) }

@@ -22,7 +22,6 @@ data class SongListState(
  * 用户意图
  */
 sealed interface SongListIntent : UserIntent {
-    data object GoBack : SongListIntent
     data object PlayAll : SongListIntent
     data object ShufflePlay : SongListIntent
     data class PlaySong(val song: Song) : SongListIntent

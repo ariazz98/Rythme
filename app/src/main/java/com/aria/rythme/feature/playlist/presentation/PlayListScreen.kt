@@ -40,10 +40,12 @@ import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousRoundedRectangle
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun PlayListScreen(
-    viewModel: PlayListViewModel
+    onPlaylistClick: (Long) -> Unit,
+    viewModel: PlayListViewModel = koinViewModel()
 ) {
     val state = viewModel.state.collectAsUiState()
     val playlists = state.value.playlists
@@ -78,7 +80,7 @@ fun PlayListScreen(
                 PlaylistItem(
                     playlist = playlist,
                     showDivider = playlist != playlists.last(),
-                    onClick = { viewModel.sendIntent(PlayListIntent.OpenDetail(playlist.id)) }
+                    onClick = { onPlaylistClick(playlist.id) }
                 )
             }
         }

@@ -12,6 +12,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ComposerListScreen(
+    onComposerClick: (String) -> Unit,
     viewModel: ComposerListViewModel = koinViewModel()
 ) {
     val state = viewModel.state.collectAsUiState()
@@ -25,7 +26,7 @@ fun ComposerListScreen(
             CommonListItem(
                 title = composer,
                 showDivider = index != composers.size - 1,
-                onClick = { viewModel.sendIntent(ComposerListIntent.ClickComposer(composer)) }
+                onClick = { onComposerClick(composer) }
             )
         }
     }

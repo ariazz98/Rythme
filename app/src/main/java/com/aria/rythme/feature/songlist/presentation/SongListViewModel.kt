@@ -5,7 +5,6 @@ import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import com.aria.rythme.core.navigation.Navigator
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -17,7 +16,6 @@ import kotlinx.coroutines.launch
  * 播放操作通过 PlaybackController 直接发起，PlayerViewModel 会自动观察到状态变化。
  */
 class SongListViewModel(
-    private val navigator: Navigator,
     private val musicRepository: MusicRepository,
     private val playbackController: PlaybackController
 ) : BaseViewModel<SongListIntent, SongListState, SongListAction, SongListEffect>() {
@@ -30,7 +28,6 @@ class SongListViewModel(
 
     override fun handleIntent(intent: SongListIntent) {
         when (intent) {
-            is SongListIntent.GoBack -> navigator.goBack()
             is SongListIntent.PlayAll -> playAll()
             is SongListIntent.ShufflePlay -> shufflePlay()
             is SongListIntent.PlaySong -> playSong(intent.song)

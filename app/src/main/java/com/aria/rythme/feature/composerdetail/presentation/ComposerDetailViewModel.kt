@@ -1,48 +1,21 @@
 package com.aria.rythme.feature.composerdetail.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
+import com.aria.rythme.core.mvi.UiState
+import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import com.aria.rythme.core.navigation.Navigator
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+
+data class ComposerDetailState(val albums: List<Album> = emptyList()) : UiState
 
 class ComposerDetailViewModel(
-    private val composerName: String,
-    private val navigator: Navigator,
-    private val musicRepository: MusicRepository
-) : BaseViewModel<ComposerDetailIntent, ComposerDetailState, ComposerDetailAction, ComposerDetailEffect>() {
-
-    init {
-        observeAlbums()
-    }
-
-    override fun createInitialState(): ComposerDetailState = ComposerDetailState()
-
-    override fun handleIntent(intent: ComposerDetailIntent) {
-        when (intent) {
-            is ComposerDetailIntent.GoBack -> navigator.goBack()
-            is ComposerDetailIntent.ClickAlbum -> {
-                navigator.navigate(RythmeRoute.AlbumDetail(id = intent.album.id.toString(), filterComposer = composerName))
-            }
-        }
-    }
-
-    override fun reduce(action: ComposerDetailAction): ComposerDetailState {
-        return when (action) {
-            is ComposerDetailAction.AlbumLoaded -> currentState.copy(
-                albums = action.albums
-            )
-        }
-    }
-
-    private fun observeAlbums() {
-        musicRepository.getAlbumsContainingComposer(composerName)
-            .onEach { albums ->
-                reduceAndUpdate(ComposerDetailAction.AlbumLoaded(albums))
-            }
-            .launchIn(viewModelScope)
-    }
+    composerName: String,
+    musicRepository: MusicRepository
+) : ViewModel() {
+    val state = musicRepository.getAlbumsContainingComposer(composerName)
+        .map(::ComposerDetailState)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ComposerDetailState())
 }

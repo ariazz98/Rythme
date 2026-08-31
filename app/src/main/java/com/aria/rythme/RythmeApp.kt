@@ -92,7 +92,7 @@ fun RythmeApp() {
         startRoute = RythmeRoute.Home,
         topLevelRoutes = ALL_TOP_LEVEL_ROUTES
     )
-    val navigator = Navigator.getOrCreate(navigationState)
+    val navigator = remember(navigationState) { Navigator(navigationState) }
     // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
     var playerVisible by remember { mutableStateOf(false) }
     val overlayMenuState = remember { OverlayMenuState() }
@@ -241,28 +241,38 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                     },
                     entries = navigationState.toEntries(
                         entryProvider {
-                            entry<RythmeRoute.Home> {
-                                HomeScreen(viewModel = koinViewModel { parametersOf(navigator) })
-                            }
+                            entry<RythmeRoute.Home> { HomeScreen() }
                             entry<RythmeRoute.Playlist> {
-                                PlayListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                PlayListScreen(
+                                    onPlaylistClick = { id ->
+                                        navigator.navigate(RythmeRoute.PlaylistDetail(id.toString()))
+                                    }
+                                )
                             }
                             entry<RythmeRoute.Library> {
-                                LibraryScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                LibraryScreen(
+                                    onArtistsClick = { navigator.navigate(RythmeRoute.ArtistList) },
+                                    onAlbumsClick = { navigator.navigate(RythmeRoute.AlbumList) },
+                                    onSongsClick = { navigator.navigate(RythmeRoute.SongList) },
+                                    onGenresClick = { navigator.navigate(RythmeRoute.GenreList) },
+                                    onComposersClick = { navigator.navigate(RythmeRoute.ComposerList) }
+                                )
                             }
-                            entry<RythmeRoute.Search> {
-                                SearchScreen(viewModel = koinViewModel { parametersOf(navigator) })
-                            }
+                            entry<RythmeRoute.Search> { SearchScreen() }
                             entry<RythmeRoute.SongList>{
-                                SongListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                SongListScreen()
                             }
                             entry<RythmeRoute.AlbumList>{
-                                AlbumListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                AlbumListScreen(
+                                    onAlbumClick = { album ->
+                                        navigator.navigate(RythmeRoute.AlbumDetail(album.id.toString()))
+                                    }
+                                )
                             }
                             entry<RythmeRoute.PlaylistDetail> { key ->
                                 PlaylistDetailScreen(
                                     viewModel = koinViewModel(key = key.id) {
-                                        parametersOf(key.id.toLong(), navigator)
+                                        parametersOf(key.id.toLong())
                                     }
                                 )
                             }
@@ -276,35 +286,60 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                                 AlbumDetailScreen(
                                     albumId = key.id,
                                     viewModel = koinViewModel(key = "${key.id}_${key.filterArtistId}_${key.filterComposer}_${key.filterGenre}") {
-                                        parametersOf(key.id.toLong(), navigator, key.filterArtistId, key.filterComposer, key.filterGenre)
+                                        parametersOf(key.id.toLong(), key.filterArtistId, key.filterComposer, key.filterGenre)
                                     }
                                 )
                             }
                             entry<RythmeRoute.ArtistList>{
-                                ArtistListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                ArtistListScreen(
+                                    onArtistClick = { artist ->
+                                        navigator.navigate(RythmeRoute.ArtistDetail(artist.id.toString()))
+                                    }
+                                )
                             }
                             entry<RythmeRoute.ArtistDetail> { key ->
                                 ArtistDetailScreen(
                                     artistId = key.id,
-                                    viewModel = koinViewModel { parametersOf(key.id.toLong(), navigator) }
+                                    onAlbumClick = { album ->
+                                        navigator.navigate(RythmeRoute.AlbumDetail(album.id.toString()))
+                                    },
+                                    viewModel = koinViewModel { parametersOf(key.id.toLong()) }
                                 )
                             }
                             entry<RythmeRoute.GenreList> {
-                                GenreListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                GenreListScreen(
+                                    onGenreClick = { genre ->
+                                        navigator.navigate(RythmeRoute.GenreDetail(genre))
+                                    }
+                                )
                             }
                             entry<RythmeRoute.GenreDetail> { key ->
                                 GenreDetailScreen(
                                     genreName = key.genre,
-                                    viewModel = koinViewModel(key = key.genre) { parametersOf(key.genre, navigator) }
+                                    onAlbumClick = { album ->
+                                        navigator.navigate(
+                                            RythmeRoute.AlbumDetail(album.id.toString(), filterGenre = key.genre)
+                                        )
+                                    },
+                                    viewModel = koinViewModel(key = key.genre) { parametersOf(key.genre) }
                                 )
                             }
                             entry<RythmeRoute.ComposerList> {
-                                ComposerListScreen(viewModel = koinViewModel { parametersOf(navigator) })
+                                ComposerListScreen(
+                                    onComposerClick = { composer ->
+                                        navigator.navigate(RythmeRoute.ComposerDetail(composer))
+                                    }
+                                )
                             }
                             entry<RythmeRoute.ComposerDetail> { key ->
                                 ComposerDetailScreen(
                                     composerName = key.composer,
-                                    viewModel = koinViewModel(key = key.composer) { parametersOf(key.composer, navigator) }
+                                    onAlbumClick = { album ->
+                                        navigator.navigate(
+                                            RythmeRoute.AlbumDetail(album.id.toString(), filterComposer = key.composer)
+                                        )
+                                    },
+                                    viewModel = koinViewModel(key = key.composer) { parametersOf(key.composer) }
                                 )
                             }
                         }

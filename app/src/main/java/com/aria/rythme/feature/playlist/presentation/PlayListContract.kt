@@ -11,7 +11,6 @@ sealed interface PlayListIntent : UserIntent {
     data object DismissCreateDialog : PlayListIntent
     data class CreatePlaylist(val name: String) : PlayListIntent
     data class DeletePlaylist(val id: Long) : PlayListIntent
-    data class OpenDetail(val id: Long) : PlayListIntent
 }
 
 data class PlayListState(

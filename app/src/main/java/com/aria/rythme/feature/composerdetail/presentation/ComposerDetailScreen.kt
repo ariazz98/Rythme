@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.CommonOperateButton
@@ -18,6 +19,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun ComposerDetailScreen(
     composerName: String,
+    onAlbumClick: (Album) -> Unit,
     viewModel: ComposerDetailViewModel = koinViewModel()
 ) {
     val state = viewModel.state.collectAsUiState()
@@ -38,9 +40,7 @@ fun ComposerDetailScreen(
         }
 
         items(albums, key = {album -> album.id }) { album ->
-            AlbumItem(album = album) {
-                viewModel.sendIntent(ComposerDetailIntent.ClickAlbum(album))
-            }
+            AlbumItem(album = album) { onAlbumClick(album) }
         }
     }
 }

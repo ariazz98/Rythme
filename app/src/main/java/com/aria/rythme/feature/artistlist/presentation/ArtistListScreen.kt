@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.core.music.data.model.Artist
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.ArtistListItem
 import com.aria.rythme.ui.component.HeaderMode
@@ -13,6 +14,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ArtistListScreen(
+    onArtistClick: (Artist) -> Unit,
     viewModel: ArtistListViewModel = koinViewModel()
 ) {
     val state = viewModel.state.collectAsUiState()
@@ -26,7 +28,7 @@ fun ArtistListScreen(
             ArtistListItem(
                 artist = artist,
                 showDivider = index != artists.size - 1,
-                onClick = { viewModel.sendIntent(ArtistListIntent.ClickArtist(artist)) }
+                onClick = { onArtistClick(artist) }
             )
         }
     }

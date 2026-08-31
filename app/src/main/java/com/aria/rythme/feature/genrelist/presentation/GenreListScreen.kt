@@ -17,6 +17,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun GenreListScreen(
+    onGenreClick: (String) -> Unit,
     viewModel: GenreListViewModel = koinViewModel()
 ) {
     val state = viewModel.state.collectAsUiState()
@@ -30,7 +31,7 @@ fun GenreListScreen(
             CommonListItem(
                 title = genre,
                 showDivider = index != genres.size - 1,
-                onClick = { viewModel.sendIntent(GenreListIntent.ClickGenre(genre)) }
+                onClick = { onGenreClick(genre) }
             )
         }
     }
