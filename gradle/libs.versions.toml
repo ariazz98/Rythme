@@ -10,7 +10,7 @@ kotlin = "2.3.21"
 composeBom = "2026.08.00"
 
 # MVI 架构相关依赖版本
-lifecycleViewmodelCompose = "2.10.0"
+lifecycleViewmodelCompose = "2.11.0"
 kotlinxCoroutines = "1.11.0"
 koin = "4.2.2"
 
