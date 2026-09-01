@@ -68,11 +68,11 @@ class PlayerViewModel(
             is PlayerIntent.ToggleRepeatMode -> toggleRepeatMode()
             is PlayerIntent.ToggleShuffleMode -> toggleShuffleMode()
             is PlayerIntent.LoadAndPlayRandom -> loadAndPlayRandom()
-            is PlayerIntent.SelectSongFromPlaylist -> selectSongFromPlaylist(intent.index)
+            is PlayerIntent.SelectQueueEntry -> selectQueueEntry(intent.entryId)
             is PlayerIntent.SetVolume -> setVolume(intent.percentage)
-            is PlayerIntent.ReorderPlaylist -> reorderPlaylist(intent.from, intent.to)
-            is PlayerIntent.ToggleCrossfade -> toggleCrossfade()
+            is PlayerIntent.ReorderQueue -> reorderQueue(intent.fromEntryId, intent.toEntryId)
             is PlayerIntent.ToggleInfinitePlay -> toggleInfinitePlay()
+            is PlayerIntent.ClearHistory -> playbackController.clearHistory()
             is PlayerIntent.SeekToLyricLine -> seekToLyricLine(intent.index)
             is PlayerIntent.RefreshLyrics -> refreshLyrics()
         }
@@ -84,23 +84,17 @@ class PlayerViewModel(
     override fun reduce(action: PlayerAction): PlayerState {
         return when (action) {
             is PlayerAction.UpdatePlayState -> currentState.copy(isPlaying = action.isPlaying)
-            is PlayerAction.UpdateCurrentSong -> currentState.copy(currentSong = action.song)
             is PlayerAction.UpdateProgress -> currentState.copy(
                 currentPosition = action.position,
                 duration = action.duration
             )
-            is PlayerAction.UpdatePlaylist -> currentState.copy(playlist = action.playlist)
-            is PlayerAction.UpdateCurrentIndex -> currentState.copy(currentIndex = action.index)
+            is PlayerAction.UpdateQueue -> currentState.copy(queue = action.queue)
             is PlayerAction.UpdateRepeatMode -> currentState.copy(repeatMode = action.mode)
             is PlayerAction.UpdateShuffleMode -> currentState.copy(isShuffleEnabled = action.enabled)
             is PlayerAction.UpdateThemeColor -> currentState.copy(themeColor = action.color)
             is PlayerAction.UpdateVolume -> currentState.copy(volume = action.volume)
             is PlayerAction.UpdatePlayHistory -> currentState.copy(playHistory = action.history)
-            is PlayerAction.UpdateCrossfadeMode -> currentState.copy(isCrossfadeEnabled = action.enabled)
             is PlayerAction.UpdateInfinitePlayMode -> currentState.copy(isInfinitePlayEnabled = action.enabled)
-            is PlayerAction.UpdateIsPlayingInfiniteExtension -> currentState.copy(isPlayingInfiniteExtension = action.isInExtension)
-            is PlayerAction.UpdateInfiniteExtension -> currentState.copy(infiniteExtension = action.extension)
-            is PlayerAction.UpdateOrderedPlaylistSize -> currentState.copy(orderedPlaylistSize = action.size)
             is PlayerAction.UpdateLyrics -> currentState.copy(
                 lyricsData = action.data,
                 lyricsStatus = action.status,
@@ -115,7 +109,7 @@ class PlayerViewModel(
      */
     private fun playSong(song: com.aria.rythme.core.music.data.model.Song) {
         viewModelScope.launch {
-            playbackController.play(song, currentState.playlist)
+            playbackController.play(song, currentState.queue.entries.map { it.song })
         }
     }
 
@@ -130,8 +124,11 @@ class PlayerViewModel(
             val currentSong = currentState.currentSong
             if (currentSong != null && !currentState.isPlaying) {
                 // 检查是否需要加载歌曲到播放器
-                if (playbackController.currentSong.value == null) {
-                    playbackController.play(currentSong, currentState.playlist)
+                if (playbackController.queue.value.currentEntry == null) {
+                    playbackController.play(
+                        currentSong,
+                        currentState.queue.entries.map { it.song }
+                    )
                 } else {
                     playbackController.togglePlayPause()
                 }
@@ -234,27 +231,19 @@ class PlayerViewModel(
     /**
      * 从播放列表选择歌曲
      */
-    private fun selectSongFromPlaylist(index: Int) {
+    private fun selectQueueEntry(entryId: String) {
         viewModelScope.launch {
-            playbackController.playAtIndex(index)
+            playbackController.playQueueEntry(entryId)
         }
     }
 
     /**
      * 拖拽重排播放列表
      */
-    private fun reorderPlaylist(from: Int, to: Int) {
+    private fun reorderQueue(fromEntryId: String, toEntryId: String) {
         viewModelScope.launch {
-            playbackController.movePlaylistItem(from, to)
+            playbackController.moveQueueEntry(fromEntryId, toEntryId)
         }
-    }
-
-    /**
-     * 切换交叉淡入淡出
-     */
-    private fun toggleCrossfade() {
-        playbackController.toggleCrossfade()
-        reduceAndUpdate(PlayerAction.UpdateCrossfadeMode(playbackController.isCrossfadeEnabled.value))
     }
 
     /**
@@ -298,32 +287,16 @@ class PlayerViewModel(
             }
             .launchIn(viewModelScope)
 
-        // 监听当前歌曲（独立启动）
-        playbackController.currentSong
-            .onEach { song ->
-                reduceAndUpdate(PlayerAction.UpdateCurrentSong(song))
-                song?.let {
-                    val index = currentState.playlist.indexOfFirst { it.id == song.id }
-                    if (index >= 0) {
-                        reduceAndUpdate(PlayerAction.UpdateCurrentIndex(index))
-                    }
-                    // 歌曲切换时加载歌词
-                    if (song.id != lastLyricsSongId) {
-                        loadLyrics(song)
-                    }
-                } ?: run {
+        // 队列、当前条目和自动播放边界由一个快照原子更新。
+        playbackController.queue
+            .onEach { queue ->
+                reduceAndUpdate(PlayerAction.UpdateQueue(queue))
+                val song = queue.currentEntry?.song
+                if (song == null) {
                     reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.IDLE))
                     lastLyricsSongId = null
-                }
-            }
-            .launchIn(viewModelScope)
-        
-        // 监听播放列表（独立启动）
-        playbackController.playlist
-            .onEach { playlist ->
-                if (playlist.isNotEmpty()) {
-                    RythmeLogger.d(TAG, "播放列表更新: ${playlist.size} 首")
-                    reduceAndUpdate(PlayerAction.UpdatePlaylist(playlist))
+                } else if (song.id != lastLyricsSongId) {
+                    loadLyrics(song)
                 }
             }
             .launchIn(viewModelScope)
@@ -356,13 +329,6 @@ class PlayerViewModel(
             }
             .launchIn(viewModelScope)
 
-        // 监听交叉淡入淡出状态（独立启动）
-        playbackController.isCrossfadeEnabled
-            .onEach { enabled ->
-                reduceAndUpdate(PlayerAction.UpdateCrossfadeMode(enabled))
-            }
-            .launchIn(viewModelScope)
-
         // 监听无限播放状态（独立启动）
         playbackController.isInfinitePlayEnabled
             .onEach { enabled ->
@@ -370,27 +336,6 @@ class PlayerViewModel(
             }
             .launchIn(viewModelScope)
 
-        // 监听是否在播放 infinite 扩展歌曲（独立启动）
-        playbackController.isPlayingInfiniteExtension
-            .onEach { isInExtension ->
-                reduceAndUpdate(PlayerAction.UpdateIsPlayingInfiniteExtension(isInExtension))
-            }
-            .launchIn(viewModelScope)
-
-        // 监听 infinite 扩展列表（独立启动）
-        playbackController.infiniteExtension
-            .onEach { extension ->
-                reduceAndUpdate(PlayerAction.UpdateInfiniteExtension(extension))
-                reduceAndUpdate(PlayerAction.UpdateOrderedPlaylistSize(playbackController.orderedPlaylistSize))
-            }
-            .launchIn(viewModelScope)
-
-        // 监听播放列表变化时同步 orderedPlaylistSize
-        playbackController.playlist
-            .onEach {
-                reduceAndUpdate(PlayerAction.UpdateOrderedPlaylistSize(playbackController.orderedPlaylistSize))
-            }
-            .launchIn(viewModelScope)
     }
 
     /**

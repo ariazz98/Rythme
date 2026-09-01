@@ -461,13 +461,6 @@ fun PlayerScreen(
                                     )
                                 }
 
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_airplay),
-                                    contentDescription = "",
-                                    tint = Color(0x80FFFFFF),
-                                    modifier = Modifier.size(24.dp)
-                                )
-
                                 Box(
                                     modifier = Modifier.size(40.dp)
                                         .then(if (activePanel == PlayerPanel.PLAYLIST) {
@@ -779,7 +772,7 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
                 )
                 if (!state.currentSong?.artist.isNullOrEmpty()) {
                     Text(
-                        text = state.currentSong.artist,
+                        text = state.currentSong?.artist.orEmpty(),
                         fontSize = 14.sp,
                         color = Color(0x80FFFFFF),
                         maxLines = 1
@@ -1020,13 +1013,14 @@ private fun SharedTransitionScope.PlaylistPanel(
     }
 
     // ── 计算主列表内容 ──
-    val upcomingOffset = state.currentIndex + 1
-    val orderedEnd = state.orderedPlaylistSize.coerceAtMost(state.playlist.size)
+    val upcomingOffset = state.queue.currentIndex + 1
+    val orderedEnd = state.queue.orderedEntryCount.coerceAtMost(state.queue.entries.size)
     val upcomingOrdered = if (upcomingOffset in 0 until orderedEnd) {
-        state.playlist.subList(upcomingOffset, orderedEnd)
+        state.queue.entries.subList(upcomingOffset, orderedEnd)
     } else {
         emptyList()
     }
+    val autoplayEntries = state.queue.autoplayEntries
     val showInfinite = state.isInfinitePlayEnabled && state.repeatMode == RepeatMode.OFF
 
     // 主列表中的固定索引偏移（NowPlaying 和 ActionButtons 已移出 LazyColumn）
@@ -1118,6 +1112,9 @@ private fun SharedTransitionScope.PlaylistPanel(
                 listState = historyListState,
                 stickyBackdrop = stickyBackdrop,
                 nestedScrollConnection = historyNestedScrollConnection,
+                onClear = {
+                    viewModel.sendIntent(PlayerIntent.ClearHistory)
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
@@ -1231,7 +1228,7 @@ private fun SharedTransitionScope.PlaylistPanel(
                     }
 
                     // ── 歌单待播列表 ──
-                    itemsIndexed(upcomingOrdered, key = { _, song -> song.id }) { index, song ->
+                    itemsIndexed(upcomingOrdered, key = { _, entry -> entry.id }) { index, entry ->
                         val isDragged = draggedIndex == index
                         val currentIndex by rememberUpdatedState(index)
                         Box(
@@ -1253,9 +1250,9 @@ private fun SharedTransitionScope.PlaylistPanel(
                                 } else Modifier)
                         ) {
                             PlayListItem(
-                                song,
+                                entry.song,
                                 onClick = {
-                                    viewModel.sendIntent(PlayerIntent.SelectSongFromPlaylist(currentIndex + upcomingOffset))
+                                    viewModel.sendIntent(PlayerIntent.SelectQueueEntry(entry.id))
                                 },
                                 dragModifier = Modifier.pointerInput(Unit) {
                                     detectDragGesturesAfterLongPress(
@@ -1280,7 +1277,12 @@ private fun SharedTransitionScope.PlaylistPanel(
                                                 if ((dragged < itemLocalIndex && draggedCenter > itemCenter) ||
                                                     (dragged > itemLocalIndex && draggedCenter < itemCenter)
                                                 ) {
-                                                    viewModel.sendIntent(PlayerIntent.ReorderPlaylist(dragged + upcomingOffset, itemLocalIndex + upcomingOffset))
+                                                    viewModel.sendIntent(
+                                                        PlayerIntent.ReorderQueue(
+                                                            fromEntryId = upcomingOrdered[dragged].id,
+                                                            toEntryId = upcomingOrdered[itemLocalIndex].id
+                                                        )
+                                                    )
                                                     draggedIndex = itemLocalIndex
                                                     val sizeDiff = item.size - draggedItem.size
                                                     dragOffsetY += if (dragged < itemLocalIndex) -item.size.toFloat() + sizeDiff else item.size.toFloat() - sizeDiff
@@ -1340,7 +1342,7 @@ private fun SharedTransitionScope.PlaylistPanel(
                                 )
                                 Text(
                                     text = stringResource(
-                                        if (state.infiniteExtension.isEmpty()) R.string.infinite_exhausted
+                                        if (autoplayEntries.isEmpty()) R.string.infinite_exhausted
                                         else R.string.auto_play
                                     ),
                                     fontSize = 14.sp,
@@ -1351,10 +1353,8 @@ private fun SharedTransitionScope.PlaylistPanel(
                             }
                         }
 
-                        if (state.infiniteExtension.isNotEmpty()) {
-                            val extensionOffset = orderedEnd
-
-                            itemsIndexed(state.infiniteExtension, key = { _, song -> "inf_${song.id}" }) { index, song ->
+                        if (autoplayEntries.isNotEmpty()) {
+                            itemsIndexed(autoplayEntries, key = { _, entry -> entry.id }) { index, entry ->
                                 val extDragTag = index + upcomingOrdered.size + 1
                                 val currentIndex by rememberUpdatedState(index)
                                 Box(
@@ -1376,9 +1376,9 @@ private fun SharedTransitionScope.PlaylistPanel(
                                         } else Modifier)
                                 ) {
                                     PlayListItem(
-                                        song,
+                                        entry.song,
                                         onClick = {
-                                            viewModel.sendIntent(PlayerIntent.SelectSongFromPlaylist(currentIndex + extensionOffset))
+                                            viewModel.sendIntent(PlayerIntent.SelectQueueEntry(entry.id))
                                         },
                                         dragModifier = Modifier.pointerInput(Unit) {
                                             detectDragGesturesAfterLongPress(
@@ -1399,12 +1399,17 @@ private fun SharedTransitionScope.PlaylistPanel(
 
                                                     mainListState.layoutInfo.visibleItemsInfo.forEach { item ->
                                                         val itemExtIdx = item.index - extStartLazy
-                                                        if (itemExtIdx < 0 || itemExtIdx >= state.infiniteExtension.size || itemExtIdx == dragLocalIdx) return@forEach
+                                                        if (itemExtIdx < 0 || itemExtIdx >= autoplayEntries.size || itemExtIdx == dragLocalIdx) return@forEach
                                                         val itemCenter = item.offset + item.size / 2
                                                         if ((dragLocalIdx < itemExtIdx && draggedCenter > itemCenter) ||
                                                             (dragLocalIdx > itemExtIdx && draggedCenter < itemCenter)
                                                         ) {
-                                                            viewModel.sendIntent(PlayerIntent.ReorderPlaylist(dragLocalIdx + extensionOffset, itemExtIdx + extensionOffset))
+                                                            viewModel.sendIntent(
+                                                                PlayerIntent.ReorderQueue(
+                                                                    fromEntryId = autoplayEntries[dragLocalIdx].id,
+                                                                    toEntryId = autoplayEntries[itemExtIdx].id
+                                                                )
+                                                            )
                                                             draggedIndex = itemExtIdx + upcomingOrdered.size + 1
                                                             val sizeDiff = item.size - draggedItem.size
                                                             dragOffsetY += if (dragLocalIdx < itemExtIdx) -item.size.toFloat() + sizeDiff else item.size.toFloat() - sizeDiff
@@ -1439,7 +1444,7 @@ private fun SharedTransitionScope.PlaylistPanel(
 }
 
 /**
- * 操作按钮行（Shuffle / Repeat / Infinite / Crossfade）
+ * 操作按钮行（Shuffle / Repeat / Autoplay）
  */
 @Composable
 private fun ActionButtonsRow(
@@ -1454,7 +1459,7 @@ private fun ActionButtonsRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         // Shuffle
-        val shuffleEnabled = state.playlist.isNotEmpty() && !state.isPlayingInfiniteExtension
+        val shuffleEnabled = state.queue.entries.isNotEmpty() && !state.isPlayingInfiniteExtension
         ActionButton(
             icon = R.drawable.ic_shuffle_hard,
             iconSize = 20.dp,
@@ -1463,7 +1468,7 @@ private fun ActionButtonsRow(
         ) { viewModel.sendIntent(PlayerIntent.ToggleShuffleMode) }
 
         // Repeat
-        val repeatEnabled = state.playlist.isNotEmpty() && !state.isPlayingInfiniteExtension
+        val repeatEnabled = state.queue.entries.isNotEmpty() && !state.isPlayingInfiniteExtension
         val repeatIcon = if (state.repeatMode == RepeatMode.ONE) R.drawable.ic_repeat_1 else R.drawable.ic_repeat
         val repeatActive = state.repeatMode != RepeatMode.OFF
         ActionButton(
@@ -1474,7 +1479,7 @@ private fun ActionButtonsRow(
         ) { viewModel.sendIntent(PlayerIntent.ToggleRepeatMode) }
 
         // Infinite
-        val infiniteEnabled = state.playlist.isNotEmpty()
+        val infiniteEnabled = state.queue.entries.isNotEmpty()
         ActionButton(
             icon = R.drawable.ic_infinite,
             iconSize = 23.dp,
@@ -1482,14 +1487,6 @@ private fun ActionButtonsRow(
             active = state.isInfinitePlayEnabled
         ) { viewModel.sendIntent(PlayerIntent.ToggleInfinitePlay) }
 
-        // Crossfade
-        val crossfadeEnabled = state.playlist.isNotEmpty()
-        ActionButton(
-            icon = R.drawable.ic_cross_fade,
-            iconSize = 24.dp,
-            enabled = crossfadeEnabled,
-            active = state.isCrossfadeEnabled
-        ) { viewModel.sendIntent(PlayerIntent.ToggleCrossfade) }
     }
 
     Spacer(modifier = Modifier.height(8.dp))
@@ -1504,6 +1501,7 @@ private fun HistoryList(
     listState: LazyListState,
     stickyBackdrop: Backdrop,
     nestedScrollConnection: NestedScrollConnection,
+    onClear: () -> Unit,
     modifier: Modifier
 ) {
     LazyColumn(
@@ -1576,7 +1574,13 @@ private fun HistoryList(
                         text = stringResource(R.string.play_history_clear),
                         fontSize = 14.sp,
                         color = Color(0x66FFFFFF),
-                        modifier = Modifier.align(Alignment.CenterEnd)
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .clickable(
+                                interactionSource = null,
+                                indication = null,
+                                onClick = onClear
+                            )
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))

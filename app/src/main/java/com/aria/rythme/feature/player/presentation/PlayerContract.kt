@@ -7,6 +7,7 @@ import com.aria.rythme.core.mvi.UserIntent
 import com.aria.rythme.core.music.data.model.LyricsData
 import com.aria.rythme.core.music.data.model.LyricsStatus
 import com.aria.rythme.core.music.data.model.Song
+import com.aria.rythme.core.music.domain.model.PlaybackQueue
 import com.aria.rythme.core.music.domain.model.RepeatMode
 import java.util.Locale
 
@@ -56,20 +57,20 @@ sealed interface PlayerIntent : UserIntent {
     /** 加载歌曲列表并随机播放一首 */
     data object LoadAndPlayRandom : PlayerIntent
 
-    /** 选择播放列表中的歌曲 */
-    data class SelectSongFromPlaylist(val index: Int) : PlayerIntent
+    /** 选择一个具体队列条目 */
+    data class SelectQueueEntry(val entryId: String) : PlayerIntent
 
     /** 设置音量百分比 */
     data class SetVolume(val percentage: Int) : PlayerIntent
 
-    /** 拖拽重排播放列表 */
-    data class ReorderPlaylist(val from: Int, val to: Int) : PlayerIntent
-
-    /** 切换交叉淡入淡出 */
-    data object ToggleCrossfade : PlayerIntent
+    /** 拖拽重排队列条目 */
+    data class ReorderQueue(val fromEntryId: String, val toEntryId: String) : PlayerIntent
 
     /** 切换无限播放 */
     data object ToggleInfinitePlay : PlayerIntent
+
+    /** 清空播放历史 */
+    data object ClearHistory : PlayerIntent
 
     /** 点击歌词行跳转播放 */
     data class SeekToLyricLine(val index: Int) : PlayerIntent
@@ -82,9 +83,6 @@ sealed interface PlayerIntent : UserIntent {
  * UI 状态
  */
 data class PlayerState(
-    /** 当前播放的歌曲 */
-    val currentSong: Song? = null,
-
     /** 是否正在播放 */
     val isPlaying: Boolean = false,
 
@@ -94,11 +92,8 @@ data class PlayerState(
     /** 歌曲总时长（毫秒） */
     val duration: Long = 0L,
 
-    /** 播放列表 */
-    val playlist: List<Song> = emptyList(),
-
-    /** 当前歌曲在播放列表中的索引 */
-    val currentIndex: Int = 0,
+    /** 播放队列、当前条目和自动播放边界的原子快照 */
+    val queue: PlaybackQueue = PlaybackQueue(),
 
     /** 循环模式 */
     val repeatMode: RepeatMode = RepeatMode.OFF,
@@ -115,20 +110,8 @@ data class PlayerState(
     /** 播放历史 */
     val playHistory: List<Song> = emptyList(),
 
-    /** 是否启用交叉淡入淡出 */
-    val isCrossfadeEnabled: Boolean = false,
-
     /** 是否启用无限播放 */
     val isInfinitePlayEnabled: Boolean = false,
-
-    /** 当前歌曲是否在 infinite 扩展列表中 */
-    val isPlayingInfiniteExtension: Boolean = false,
-
-    /** infinite 扩展歌曲列表 */
-    val infiniteExtension: List<Song> = emptyList(),
-
-    /** 歌单部分大小（用于区分歌单和扩展列表边界） */
-    val orderedPlaylistSize: Int = 0,
 
     /** 歌词数据 */
     val lyricsData: LyricsData? = null,
@@ -139,6 +122,12 @@ data class PlayerState(
     /** 当前高亮歌词行索引 */
     val currentLyricIndex: Int = -1
 ) : UiState {
+
+    val currentSong: Song?
+        get() = queue.currentEntry?.song
+
+    val isPlayingInfiniteExtension: Boolean
+        get() = queue.currentIndex >= queue.orderedEntryCount && queue.currentEntry != null
 
     /**
      * 当前进度百分比（0-1）
@@ -151,17 +140,10 @@ data class PlayerState(
         }
 
     /**
-     * 当前队列项的展示身份。
-     *
-     * 同一歌曲可重复入队，因此不能只用 MediaStore song id；同一队列中的出现序号
-     * 让共享元素在重复歌曲之间仍能区分当前项。
+     * 当前队列项的稳定身份；同一歌曲重复入队时每次出现都有独立 ID。
      */
     val currentQueueEntryIdentity: String
-        get() = queueEntryPresentationIdentity(
-            currentSongId = currentSong?.id,
-            playlistSongIds = playlist.map { it.id },
-            currentIndex = currentIndex
-        )
+        get() = queue.currentEntry?.id ?: "empty"
 
     /**
      * 格式化后的当前位置
@@ -189,30 +171,15 @@ data class PlayerState(
      * 是否可以播放上一首
      */
     val canPlayPrevious: Boolean
-        get() = playlist.isNotEmpty() && (currentIndex > 0 || repeatMode == RepeatMode.ALL)
+        get() = queue.entries.isNotEmpty() &&
+            (queue.currentIndex > 0 || repeatMode == RepeatMode.ALL)
 
     /**
      * 是否可以播放下一首
      */
     val canPlayNext: Boolean
-        get() = playlist.isNotEmpty() && (currentIndex < playlist.size - 1 || repeatMode == RepeatMode.ALL)
-}
-
-internal fun queueEntryPresentationIdentity(
-    currentSongId: Long?,
-    playlistSongIds: List<Long>,
-    currentIndex: Int
-): String {
-    val songId = currentSongId ?: return "empty"
-    val inclusiveEnd = (currentIndex + 1).coerceIn(0, playlistSongIds.size)
-    val occurrence = playlistSongIds
-        .take(inclusiveEnd)
-        .count { it == songId }
-    return if (occurrence > 0) {
-        "$songId:${occurrence - 1}"
-    } else {
-        "$songId:$currentIndex"
-    }
+        get() = queue.entries.isNotEmpty() &&
+            (queue.currentIndex < queue.entries.size - 1 || repeatMode == RepeatMode.ALL)
 }
 
 /**
@@ -222,17 +189,11 @@ sealed interface PlayerAction : InternalAction {
     /** 更新播放状态 */
     data class UpdatePlayState(val isPlaying: Boolean) : PlayerAction
 
-    /** 更新当前歌曲 */
-    data class UpdateCurrentSong(val song: Song?) : PlayerAction
-
     /** 更新进度 */
     data class UpdateProgress(val position: Long, val duration: Long) : PlayerAction
 
-    /** 更新播放列表 */
-    data class UpdatePlaylist(val playlist: List<Song>) : PlayerAction
-
-    /** 更新当前索引 */
-    data class UpdateCurrentIndex(val index: Int) : PlayerAction
+    /** 更新播放队列快照 */
+    data class UpdateQueue(val queue: PlaybackQueue) : PlayerAction
 
     /** 更新循环模式 */
     data class UpdateRepeatMode(val mode: RepeatMode) : PlayerAction
@@ -249,20 +210,8 @@ sealed interface PlayerAction : InternalAction {
     /** 更新播放历史 */
     data class UpdatePlayHistory(val history: List<Song>) : PlayerAction
 
-    /** 更新交叉淡入淡出状态 */
-    data class UpdateCrossfadeMode(val enabled: Boolean) : PlayerAction
-
     /** 更新无限播放状态 */
     data class UpdateInfinitePlayMode(val enabled: Boolean) : PlayerAction
-
-    /** 更新是否在播放 infinite 扩展歌曲 */
-    data class UpdateIsPlayingInfiniteExtension(val isInExtension: Boolean) : PlayerAction
-
-    /** 更新 infinite 扩展列表 */
-    data class UpdateInfiniteExtension(val extension: List<Song>) : PlayerAction
-
-    /** 更新歌单部分大小 */
-    data class UpdateOrderedPlaylistSize(val size: Int) : PlayerAction
 
     /** 更新歌词数据和状态 */
     data class UpdateLyrics(val data: LyricsData?, val status: LyricsStatus) : PlayerAction
