@@ -151,6 +151,19 @@ data class PlayerState(
         }
 
     /**
+     * 当前队列项的展示身份。
+     *
+     * 同一歌曲可重复入队，因此不能只用 MediaStore song id；同一队列中的出现序号
+     * 让共享元素在重复歌曲之间仍能区分当前项。
+     */
+    val currentQueueEntryIdentity: String
+        get() = queueEntryPresentationIdentity(
+            currentSongId = currentSong?.id,
+            playlistSongIds = playlist.map { it.id },
+            currentIndex = currentIndex
+        )
+
+    /**
      * 格式化后的当前位置
      */
     val currentPositionText: String
@@ -183,6 +196,23 @@ data class PlayerState(
      */
     val canPlayNext: Boolean
         get() = playlist.isNotEmpty() && (currentIndex < playlist.size - 1 || repeatMode == RepeatMode.ALL)
+}
+
+internal fun queueEntryPresentationIdentity(
+    currentSongId: Long?,
+    playlistSongIds: List<Long>,
+    currentIndex: Int
+): String {
+    val songId = currentSongId ?: return "empty"
+    val inclusiveEnd = (currentIndex + 1).coerceIn(0, playlistSongIds.size)
+    val occurrence = playlistSongIds
+        .take(inclusiveEnd)
+        .count { it == songId }
+    return if (occurrence > 0) {
+        "$songId:${occurrence - 1}"
+    } else {
+        "$songId:$currentIndex"
+    }
 }
 
 /**

@@ -74,6 +74,7 @@ import com.kyant.capsule.ContinuousCapsule
 fun MiniPlayer(
     modifier: Modifier = Modifier,
     song: Song?,
+    sharedIdentity: String,
     isPlaying: Boolean,
     canPlayNext: Boolean,
     onClick: () -> Unit,
@@ -139,7 +140,9 @@ fun MiniPlayer(
                 modifier = Modifier
                     .padding(start = 16.dp)
                     .sharedElementWithCallerManagedVisibility(
-                        sharedContentState = rememberSharedContentState(key = "cover"),
+                        sharedContentState = rememberSharedContentState(
+                            key = "playerArtworkOverlay_$sharedIdentity"
+                        ),
                         visible = !playerVisible
                     ),
                 size = 32.dp,
@@ -150,51 +153,59 @@ fun MiniPlayer(
             )
         }
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song?.title ?: stringResource(R.string.not_play),
-                color = MaterialTheme.rythmeColors.textColor,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                fontSize = 12.sp,
+        with(sharedTransitionScope) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    // Offscreen 使 DstIn BlendMode 正确裁剪文字，而非裁剪整个 Row
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        // 左侧渐隐：从左边缘 0 到 8dp 由透明过渡到不透明，消除边缘截断感
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                0f to Color.Transparent,
-                                1f to Color.Black,
-                                startX = 0f,
-                                endX = 8.dp.toPx()
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                        // 右侧渐隐：最后 15% 宽度淡出，为跑马灯文字提供柔和出口
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                0.85f to Color.Black,
-                                1f to Color.Transparent
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-                    .customMarquee()
-                    .padding(start = 8.dp)
-            )
-            if (!song?.artist.isNullOrEmpty()) {
+                    .weight(1f)
+                    .sharedElementWithCallerManagedVisibility(
+                        sharedContentState = rememberSharedContentState(
+                            key = "playerInfoOverlay_$sharedIdentity"
+                        ),
+                        visible = !playerVisible
+                    )
+            ) {
                 Text(
-                    text = song.artist,
+                    text = song?.title ?: stringResource(R.string.not_play),
                     color = MaterialTheme.rythmeColors.textColor,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            compositingStrategy = CompositingStrategy.Offscreen
+                        }
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    0f to Color.Transparent,
+                                    1f to Color.Black,
+                                    startX = 0f,
+                                    endX = 8.dp.toPx()
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    0.85f to Color.Black,
+                                    1f to Color.Transparent
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
+                        .customMarquee()
+                        .padding(start = 8.dp)
                 )
+                if (!song?.artist.isNullOrEmpty()) {
+                    Text(
+                        text = song.artist,
+                        color = MaterialTheme.rythmeColors.textColor,
+                        maxLines = 1,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
             }
         }
 

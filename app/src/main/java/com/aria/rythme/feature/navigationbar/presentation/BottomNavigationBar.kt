@@ -130,6 +130,7 @@ fun BottomNavigationBar(
                             MiniPlayer(
                                 modifier = Modifier.fillMaxSize(),
                                 song = playerState.currentSong,
+                                sharedIdentity = playerState.currentQueueEntryIdentity,
                                 canPlayNext = playerState.canPlayNext,
                                 isPlaying = playerState.isPlaying,
                                 onClick = onClickPlayer,

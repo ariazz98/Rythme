@@ -2,6 +2,8 @@ package com.aria.rythme.feature.player.presentation
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
@@ -143,6 +145,7 @@ fun PlayerScreen(
     val state by viewModel.state.collectAsUiState()
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
+    val sharedIdentity = state.currentQueueEntryIdentity
 
     val width = LocalWindowInfo.current.containerDpSize.width
     val density = LocalDensity.current
@@ -198,10 +201,14 @@ fun PlayerScreen(
     val stickyBackdrop = rememberLayerBackdrop()
 
     with(sharedTransitionScope) {
+        val playerContainerState = rememberSharedContentState(key = "playerContainer")
+        val containerTransitionActive =
+            playerContainerState.isMatchFound && sharedTransitionScope.isTransitionActive
+
         AnimatedVisibility(
             visible = playerVisible,
-            enter = fadeIn(),
-            exit = fadeOut()
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
 
             Box(
@@ -226,12 +233,7 @@ fun PlayerScreen(
                             }
                         }
                     )
-                    .sharedBounds(
-                        sharedContentState = rememberSharedContentState(key = "playerContainer"),
-                        animatedVisibilityScope = this@AnimatedVisibility,
-                        resizeMode = ResizeMode.RemeasureToBounds
-                    )
-                    .then(if (sharedTransitionScope.isTransitionActive || dragOffsetY > 0)
+                    .then(if (dragOffsetY > 0)
                         Modifier.clip(ContinuousRoundedRectangle(rememberScreenCornerRadiusDp()))
                     else
                        Modifier
@@ -242,6 +244,20 @@ fun PlayerScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .sharedBounds(
+                            sharedContentState = playerContainerState,
+                            animatedVisibilityScope = this@AnimatedVisibility,
+                            resizeMode = ResizeMode.RemeasureToBounds
+                        )
+                        .then(
+                            if (containerTransitionActive || dragOffsetY > 0) {
+                                Modifier.clip(
+                                    ContinuousRoundedRectangle(rememberScreenCornerRadiusDp())
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
                         .layerBackdrop(stickyBackdrop)
                         .background(defaultGradientBrush)
                 ) {
@@ -263,11 +279,16 @@ fun PlayerScreen(
                     }
                 }
 
-                Scaffold(
-                    containerColor = Color.Transparent,
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    topBar = {
+                AnimatedVisibility(
+                    visible = !containerTransitionActive,
+                    enter = fadeIn(tween(180)),
+                    exit = ExitTransition.None
+                ) {
+                    Scaffold(
+                        containerColor = Color.Transparent,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        topBar = {
                         // Handle bar（顶部）
                         Box(
                             modifier = Modifier
@@ -483,7 +504,7 @@ fun PlayerScreen(
                             Spacer(modifier = Modifier.height(56.dp))
                         }
                     }
-                ) { innerPadding ->
+                    ) { innerPadding ->
                     AnimatedContent(
                         targetState = activePanel,
                         contentKey = { it != PlayerPanel.NONE },
@@ -505,11 +526,15 @@ fun PlayerScreen(
                                         CoverItem(
                                             modifier = Modifier
                                                 .sharedElementWithCallerManagedVisibility(
-                                                    sharedContentState = rememberSharedContentState(key = "cover"),
+                                                    sharedContentState = rememberSharedContentState(
+                                                        key = "playerArtworkOverlay_$sharedIdentity"
+                                                    ),
                                                     visible = playerVisible
                                                 )
                                                 .sharedBounds(
-                                                    sharedContentState = rememberSharedContentState(key = "playerCover"),
+                                                    sharedContentState = rememberSharedContentState(
+                                                        key = "playerArtworkInternal_$sharedIdentity"
+                                                    ),
                                                     animatedVisibilityScope = this@AnimatedContent,
                                                     resizeMode = ResizeMode.RemeasureToBounds
                                                 ),
@@ -526,8 +551,16 @@ fun PlayerScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .sharedElementWithCallerManagedVisibility(
+                                                sharedContentState = rememberSharedContentState(
+                                                    key = "playerInfoOverlay_$sharedIdentity"
+                                                ),
+                                                visible = playerVisible
+                                            )
                                             .sharedBounds(
-                                                sharedContentState = rememberSharedContentState(key = "playerSongInfo"),
+                                                sharedContentState = rememberSharedContentState(
+                                                    key = "playerInfoInternal_$sharedIdentity"
+                                                ),
                                                 animatedVisibilityScope = this@AnimatedContent,
                                                 resizeMode = ResizeMode.RemeasureToBounds
                                             ),
@@ -581,44 +614,7 @@ fun PlayerScreen(
                                             }
                                         }
 
-                                        if (state.currentSong != null) {
-
-                                            Spacer(modifier = Modifier.width(8.dp))
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(32.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0x30FFFFFF)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.ic_star),
-                                                    contentDescription = "",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.width(16.dp))
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(32.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0x30FFFFFF)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.ic_more),
-                                                    contentDescription = "",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.width(32.dp))
-                                        }
+                                        Spacer(modifier = Modifier.width(32.dp))
                                     }
 
                                     Spacer(modifier = Modifier.height(32.dp))
@@ -696,6 +692,7 @@ fun PlayerScreen(
                             }
                         }
                     }
+                    }
                 }
             }
         }
@@ -730,11 +727,15 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
         CoverItem(
             modifier = Modifier
                 .sharedElementWithCallerManagedVisibility(
-                    sharedContentState = rememberSharedContentState(key = "cover"),
+                    sharedContentState = rememberSharedContentState(
+                        key = "playerArtworkOverlay_${state.currentQueueEntryIdentity}"
+                    ),
                     visible = playerVisible
                 )
                 .sharedBounds(
-                    sharedContentState = rememberSharedContentState(key = "playerCover"),
+                    sharedContentState = rememberSharedContentState(
+                        key = "playerArtworkInternal_${state.currentQueueEntryIdentity}"
+                    ),
                     animatedVisibilityScope = animatedContentScope,
                     resizeMode = ResizeMode.RemeasureToBounds
                 )
@@ -753,8 +754,16 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
         Row(
             modifier = Modifier
                 .weight(1f)
+                .sharedElementWithCallerManagedVisibility(
+                    sharedContentState = rememberSharedContentState(
+                        key = "playerInfoOverlay_${state.currentQueueEntryIdentity}"
+                    ),
+                    visible = playerVisible
+                )
                 .sharedBounds(
-                    sharedContentState = rememberSharedContentState(key = "playerSongInfo"),
+                    sharedContentState = rememberSharedContentState(
+                        key = "playerInfoInternal_${state.currentQueueEntryIdentity}"
+                    ),
                     animatedVisibilityScope = animatedContentScope,
                     resizeMode = ResizeMode.RemeasureToBounds
                 ),
@@ -778,41 +787,6 @@ private fun SharedTransitionScope.CompactNowPlayingHeader(
                 }
             }
 
-            if (state.currentSong != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x30FFFFFF)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_star),
-                        contentDescription = "",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x30FFFFFF)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_more),
-                        contentDescription = "",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
         }
     }
 }
@@ -1681,4 +1655,3 @@ private fun ActionButton(
         )
     }
 }
-
