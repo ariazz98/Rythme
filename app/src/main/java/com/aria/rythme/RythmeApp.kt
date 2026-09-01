@@ -5,6 +5,7 @@
 package com.aria.rythme
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.aria.rythme.core.navigation.NavigationState
+import com.aria.rythme.core.navigation.NavigationOperation
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.core.navigation.rememberNavigationState
 import com.aria.rythme.core.navigation.toEntries
@@ -95,6 +97,7 @@ fun RythmeApp() {
         topLevelRoutes = ALL_TOP_LEVEL_ROUTES
     )
     val navigator = remember(navigationState) { Navigator(navigationState) }
+    val activity = LocalActivity.current
     // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
     var playerVisible by remember { mutableStateOf(false) }
     val overlayMenuState = remember { OverlayMenuState() }
@@ -132,7 +135,9 @@ fun RythmeApp() {
                         } else if (topBarState.isSearchActive(navigationState.currentRoute)) {
                             topBarState.updateSearchActive(navigationState.currentRoute, false)
                         } else {
-                            navigator.goBack()
+                            if (!navigator.goBack()) {
+                                activity?.finish()
+                            }
                         }
                     }
                 )
@@ -170,7 +175,7 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                 onSearchClose = {
                     topBarState.updateSearchActive(navigationState.currentRoute, false)
                 },
-                skipAnimation = navigationState.isTabSwitch,
+                skipAnimation = navigationState.operation == NavigationOperation.TabSwitch,
                 onBackClick = { navigator.goBack() }
             )
         },
@@ -233,7 +238,7 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                         .layerBackdrop(backdrop),
                     onBack = onBack,
                     transitionSpec = {
-                        if (navigationState.isTabSwitch) snapSpec
+                        if (navigationState.operation == NavigationOperation.TabSwitch) snapSpec
                         else slideInHorizontally(
                             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
                         ) { it } togetherWith slideOutHorizontally(
@@ -241,7 +246,7 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                         ) { -it / 2 }
                     },
                     popTransitionSpec = {
-                        if (navigationState.isTabSwitch) snapSpec
+                        if (navigationState.operation == NavigationOperation.TabSwitch) snapSpec
                         else slideInHorizontally(
                             animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
                         ) { -it / 2 } togetherWith slideOutHorizontally(
@@ -287,9 +292,17 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                             }
                             entry<RythmeRoute.AlbumDetail>(
                                 metadata = NavDisplay.transitionSpec {
-                                    fadeIn(tween(400)) togetherWith fadeOut(tween(400))
+                                    if (navigationState.operation == NavigationOperation.TabSwitch) {
+                                        snapSpec
+                                    } else {
+                                        fadeIn(tween(400)) togetherWith fadeOut(tween(400))
+                                    }
                                 } + NavDisplay.popTransitionSpec {
-                                    fadeIn(tween(400)) togetherWith fadeOut(tween(400))
+                                    if (navigationState.operation == NavigationOperation.TabSwitch) {
+                                        snapSpec
+                                    } else {
+                                        fadeIn(tween(400)) togetherWith fadeOut(tween(400))
+                                    }
                                 }
                             ) { key ->
                                 AlbumDetailScreen(

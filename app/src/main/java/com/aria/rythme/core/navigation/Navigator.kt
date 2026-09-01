@@ -11,25 +11,31 @@ class Navigator(private val state: NavigationState) {
 
     fun navigate(route: NavKey) {
         if (route in state.backStacks.keys) {
-            state.isTabSwitch = true
+            state.operation = NavigationOperation.TabSwitch
             state.topLevelRoute = route
         } else {
-            state.isTabSwitch = false
+            state.operation = NavigationOperation.Push
             state.backStacks[state.topLevelRoute]?.add(route)
         }
     }
 
-    fun goBack() {
+    /** 返回 true 表示已由应用导航消费；false 表示应交给 Activity 退出。 */
+    fun goBack(): Boolean {
         val currentStack = state.backStacks[state.topLevelRoute] ?:
         error("Stack for ${state.topLevelRoute} not found")
         val currentRoute = currentStack.last()
 
         if (currentRoute == state.topLevelRoute) {
-            state.isTabSwitch = true
+            if (state.topLevelRoute == state.startRoute) {
+                state.operation = NavigationOperation.Idle
+                return false
+            }
+            state.operation = NavigationOperation.TabSwitch
             state.topLevelRoute = state.startRoute
         } else {
-            state.isTabSwitch = false
+            state.operation = NavigationOperation.Pop
             currentStack.removeLastOrNull()
         }
+        return true
     }
 }

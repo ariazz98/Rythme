@@ -19,6 +19,13 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.runtime.serialization.NavKeySerializer
 import androidx.savedstate.compose.serialization.serializers.MutableStateSerializer
 
+enum class NavigationOperation {
+    Idle,
+    TabSwitch,
+    Push,
+    Pop
+}
+
 /**
  * Create a navigation state that persists config changes and process death.
  */
@@ -59,8 +66,8 @@ class NavigationState(
 ) {
     var topLevelRoute: NavKey by topLevelRoute
 
-    /** 最近一次导航是否为 Tab 切换（而非栈内 push/pop） */
-    var isTabSwitch: Boolean by mutableStateOf(false)
+    /** 最近一次改变 back stack 的明确操作，供全局栏与内容选择正确的过渡。 */
+    var operation: NavigationOperation by mutableStateOf(NavigationOperation.Idle)
         internal set
 
     /** 当前 Tab 栈顶的路由（即用户正在看的页面） */
