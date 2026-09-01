@@ -72,6 +72,7 @@ import com.kyant.capsule.ContinuousCapsule
  */
 @Composable
 fun MiniPlayer(
+    modifier: Modifier = Modifier,
     song: Song?,
     isPlaying: Boolean,
     canPlayNext: Boolean,
@@ -96,7 +97,7 @@ fun MiniPlayer(
     val playerVisible = LocalPlayerVisible.current
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { ContinuousCapsule },

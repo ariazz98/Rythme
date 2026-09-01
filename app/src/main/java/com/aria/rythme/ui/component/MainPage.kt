@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import kotlinx.coroutines.flow.first
 import com.aria.rythme.LocalInnerPadding
+import com.aria.rythme.feature.navigationbar.presentation.LocalBottomBarState
 import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
 import com.aria.rythme.ui.theme.rythmeColors
 
@@ -73,6 +74,7 @@ fun MainListPage(
     }
 
     val innerPadding = LocalInnerPadding.current
+    val bottomBarState = LocalBottomBarState.current
     val topPadding = innerPadding.calculateTopPadding()
     val bottomPadding = innerPadding.calculateBottomPadding()
 
@@ -131,6 +133,7 @@ fun MainListPage(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .nestedScroll(bottomBarState.nestedScrollConnection)
                 .then(
                     if (!isTopPage) Modifier.nestedScroll(collapsibleState.nestedScrollConnection)
                     else Modifier
@@ -257,6 +260,7 @@ fun MainGridPage(
     }
 
     val innerPadding = LocalInnerPadding.current
+    val bottomBarState = LocalBottomBarState.current
     val topPadding = innerPadding.calculateTopPadding()
     val bottomPadding = innerPadding.calculateBottomPadding()
 
@@ -317,6 +321,7 @@ fun MainGridPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 21.dp)
+                .nestedScroll(bottomBarState.nestedScrollConnection)
                 .then(
                     if (!isTopPage) Modifier.nestedScroll(collapsibleState.nestedScrollConnection)
                     else Modifier

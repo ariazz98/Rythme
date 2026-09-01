@@ -30,6 +30,7 @@ import com.aria.rythme.feature.composerlist.presentation.ComposerListViewModel
 import com.aria.rythme.feature.genredetail.presentation.GenreDetailViewModel
 import com.aria.rythme.feature.genrelist.presentation.GenreListViewModel
 import com.aria.rythme.feature.songlist.presentation.SongListViewModel
+import com.aria.rythme.feature.search.presentation.SearchViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.module.dsl.viewModel
@@ -163,6 +164,15 @@ val songListModule = module {
     }
 }
 
+val searchModule = module {
+    viewModel {
+        SearchViewModel(
+            musicRepository = get(),
+            playbackController = get()
+        )
+    }
+}
+
 val playListModule = module {
     viewModel {
         PlayListViewModel(
@@ -193,6 +203,7 @@ val appModules = listOf(
     composerDetailModule,
     composerListModule,
     songListModule,
+    searchModule,
     playListModule,
     playlistDetailModule
 )

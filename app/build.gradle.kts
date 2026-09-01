@@ -96,4 +96,6 @@ dependencies {
     implementation(libs.capsule)
     implementation(libs.haze)
     implementation(libs.haze.materials)
+
+    testImplementation(libs.junit)
 }

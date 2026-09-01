@@ -231,7 +231,8 @@ fun MiddleHorizontalCard(
 @Composable
 fun SmallCategoryCard(
     cover: Brush,
-    title: String? = null
+    title: String? = null,
+    onClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -239,9 +240,13 @@ fun SmallCategoryCard(
             .aspectRatio(1.8f)
             .clip(ContinuousRoundedRectangle(18.dp))
             .background(cover)
-            .clickable {
-                // TODO: 点击卡片
-            }
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
     ) {
         if (!title.isNullOrEmpty()) {
             // 分类标题

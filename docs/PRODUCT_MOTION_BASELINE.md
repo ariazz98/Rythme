@@ -29,8 +29,8 @@ Online lyrics are optional; the app does not require an account.
 ## BottomBar
 
 - Expanded: all primary tabs and Search are inside one outer capsule; Search is a visually grouped ordinary tab.
-- MiniPlayer is an attached accessory immediately above the tab capsule.
-- Collapsed: show the most recently selected non-Search tab, MiniPlayer, and Search.
+- Expanded: MiniPlayer is an attached accessory immediately above the tab capsule.
+- Collapsed: show the most recently selected non-Search tab, MiniPlayer, and Search in one row.
 - `lastPrimaryTab` changes only when a non-Search tab is selected.
 - Tapping any tab forces expansion, including tapping the selected tab.
 - Collapse/expansion is triggered by accumulated downward/upward user scroll past a threshold.

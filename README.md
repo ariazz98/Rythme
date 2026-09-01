@@ -44,7 +44,7 @@ Rythme is an open-source Android music player designed for local audio files, in
 - [x] **Full-screen Player** — album art, playback controls (play/pause, next/previous, shuffle, repeat), seek bar, volume slider
 - [x] **Liquid Glass Effects** — frosted blur, vibrancy, lens refraction using AGSL shaders (API 33+)
 - [x] **Mini Player** — persistent bottom bar with current track info and quick controls
-- [x] **Glass Bottom Navigation** — animated tab selector with press deformation and spring physics
+- [x] **Adaptive Glass Bottom Navigation** — four-tab capsule that minimizes to current tab, MiniPlayer, and Search while scrolling
 - [x] **Shared Element Transitions** — smooth mini player to full player animation
 - [x] **Drag-to-Dismiss** — gesture to close the full-screen player with squash & stretch deformation
 - [x] **Album Art Theme Extraction** — dynamic color palette derived from current track artwork
@@ -53,15 +53,14 @@ Rythme is an open-source Android music player designed for local audio files, in
 - [x] **Background Playback** — foreground service with MediaSession & notification controls
 - [x] **Complexity-driven Architecture** — callbacks for navigation, StateFlow for ordinary data, reducers only for real state machines
 - [x] **Type-safe Navigation** — Navigation3 with serializable routes, per-tab back stacks
+- [x] **Local Search** — page-owned search field with live results from the local catalog
 
 ### Planned
 
 - [ ] **Home Screen** — carousel with recommended content sections
 - [ ] **Library Browser** — organized by playlists, artists, albums, songs
-- [ ] **Search Categories** — grid of music category cards
 - [ ] **Song List View** — scrollable list with artwork and transition animations
 - [ ] **Light / Dark Theme** — dynamic theming
-- [ ] Search functionality (text search for artists, songs)
 - [ ] Playlist creation & management
 - [ ] Favorites & recently played tracking
 - [ ] Artist / Album detail pages
@@ -223,7 +222,7 @@ Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple 
 - [x] **全屏播放器** — 专辑封面、播放控制（播放/暂停、上一首/下一首、随机、循环）、进度条、音量调节
 - [x] **液态玻璃效果** — 使用 AGSL 着色器实现毛玻璃模糊、鲜艳度增强、镜头折射（API 33+）
 - [x] **迷你播放器** — 底部常驻栏，显示当前曲目信息和快捷控制
-- [x] **玻璃底部导航栏** — 带按压形变和弹簧物理动画的标签选择器
+- [x] **自适应玻璃底部导航栏** — 四标签胶囊随滚动收为当前标签、迷你播放器和搜索
 - [x] **共享元素过渡** — 迷你播放器到全屏播放器的平滑动画
 - [x] **下拉关闭手势** — 拖拽关闭全屏播放器，带挤压拉伸形变
 - [x] **封面主题色提取** — 从当前曲目封面动态提取调色板
@@ -232,14 +231,13 @@ Rythme 是一款开源 Android 本地音乐播放器，设计灵感来自 Apple 
 - [x] **后台播放** — 前台服务 + MediaSession + 通知栏控制
 - [x] **按复杂度选择架构** — 导航使用回调，普通数据使用 StateFlow，真正的状态机才使用 reducer
 - [x] **类型安全导航** — Navigation3 + 序列化路由，按标签管理返回栈
+- [x] **本地搜索** — 搜索框归页面持有，实时查询本地曲库
 
 ### 待完成
 - [ ] **主页** — 轮播图 + 推荐内容区块
 - [ ] **资料库浏览** — 按歌单、艺人、专辑、歌曲分类
-- [ ] **搜索分类** — 音乐分类卡片网格
 - [ ] **歌曲列表** — 带封面图和过渡动画的滚动列表
 - [ ] **亮色/暗色主题** — 动态主题
-- [ ] 搜索功能（按艺人、歌曲等搜索）
 - [ ] 歌单创建与管理
 - [ ] 收藏与最近播放记录
 - [ ] 艺人/专辑详情页

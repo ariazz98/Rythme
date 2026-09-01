@@ -20,6 +20,9 @@
     <string name="music_composer">作曲者</string>
     <string name="music_type">类型</string>
     <string name="search_hint">艺人、歌曲、歌词以及更多内容</string>
+    <string name="search_clear">清除搜索内容</string>
+    <string name="searching">正在搜索…</string>
+    <string name="search_no_results">没有找到匹配的本地歌曲</string>
     <string name="music_play">播放</string>
     <string name="music_random_play">随机播放</string>
     <string name="sort_by_title">标题</string>

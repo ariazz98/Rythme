@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,6 +40,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -103,6 +106,91 @@ fun SearchPlaceholder(
             tint = MaterialTheme.rythmeColors.textColor,
             modifier = Modifier.size(18.dp).alpha(contentAlpha)
         )
+    }
+}
+
+/** Search 顶级页面自己的输入框；查询状态由页面持有，不与 BottomBar 耦合。 */
+@Composable
+fun PageSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val focusManager = LocalFocusManager.current
+
+    Row(
+        modifier = modifier
+            .clip(ContinuousCapsule)
+            .background(MaterialTheme.rythmeColors.searchBg)
+            .fillMaxWidth()
+            .height(44.dp)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_search),
+            contentDescription = stringResource(R.string.title_search),
+            tint = MaterialTheme.rythmeColors.textColor,
+            modifier = Modifier.size(18.dp)
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            cursorBrush = SolidColor(MaterialTheme.rythmeColors.primary),
+            textStyle = TextStyle(
+                color = MaterialTheme.rythmeColors.textColor,
+                fontSize = 16.sp
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+            decorationBox = { innerTextField ->
+                Box {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.search_hint),
+                            color = MaterialTheme.rythmeColors.subTitleColor,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+            modifier = Modifier.weight(1f)
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        if (value.isEmpty()) {
+            Icon(
+                painter = painterResource(R.drawable.ic_mic),
+                contentDescription = null,
+                tint = MaterialTheme.rythmeColors.textColor,
+                modifier = Modifier.size(18.dp)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(ContinuousCapsule)
+                    .clickable(interactionSource = null, indication = null) {
+                        onValueChange("")
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_close),
+                    contentDescription = stringResource(R.string.search_clear),
+                    tint = MaterialTheme.rythmeColors.textColor,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
     }
 }
 

@@ -58,6 +58,8 @@ import com.aria.rythme.feature.library.presentation.LibraryScreen
 import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.feature.navigationbar.presentation.BottomNavigationBar
+import com.aria.rythme.feature.navigationbar.presentation.LocalBottomBarState
+import com.aria.rythme.feature.navigationbar.presentation.rememberBottomBarState
 import com.aria.rythme.feature.player.presentation.PlayerScreen
 import com.aria.rythme.feature.playlist.presentation.PlayListScreen
 import com.aria.rythme.feature.playlistdetail.presentation.PlaylistDetailScreen
@@ -97,6 +99,13 @@ fun RythmeApp() {
     var playerVisible by remember { mutableStateOf(false) }
     val overlayMenuState = remember { OverlayMenuState() }
     val topBarState = rememberTopBarState()
+    val bottomBarState = rememberBottomBarState(
+        initialPrimaryTabIndex = when (navigationState.topLevelRoute) {
+            RythmeRoute.Playlist -> 1
+            RythmeRoute.Library -> 2
+            else -> 0
+        }
+    )
     val backdrop = rememberLayerBackdrop()
 
     SharedTransitionLayout {
@@ -105,7 +114,8 @@ fun RythmeApp() {
             LocalPlayerVisible provides playerVisible,
             LocalOverlayMenu provides overlayMenuState,
             LocalBackdrop provides backdrop,
-            LocalTopBarState provides topBarState
+            LocalTopBarState provides topBarState,
+            LocalBottomBarState provides bottomBarState
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 ScaffoldNavigation(
@@ -166,7 +176,6 @@ private fun SharedTransitionScope.ScaffoldNavigation(
         },
         bottomBar = {
             BottomNavigationBar(
-                isHeaderSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
                 selectedTabIndex = {
                     when (navigationState.topLevelRoute) {
                         RythmeRoute.Home -> 0

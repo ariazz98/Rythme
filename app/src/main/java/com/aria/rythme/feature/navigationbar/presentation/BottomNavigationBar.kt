@@ -1,138 +1,169 @@
 package com.aria.rythme.feature.navigationbar.presentation
 
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.core.extensions.collectAsUiState
+import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
+import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.feature.player.presentation.PlayerIntent
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
+import com.aria.rythme.ui.component.CompactBottomTab
 import com.aria.rythme.ui.component.LiquidBottomTabs
 import com.aria.rythme.ui.component.MiniPlayer
 import org.koin.androidx.compose.koinViewModel
 
 /**
- * 底部导航栏（液态玻璃动效版）。
+ * iOS 27 结构的 BottomBar。
  *
- * ## 双区布局
- *
- * ```
- * 正常态:
- * ┌─────────────────────────────────┐  8dp  ┌──────┐
- * │  [Home] [Playlist] [Library]    │  gap  │  🔍  │
- * │         3-tab 胶囊               │       │ 圆形  │
- * └─────────────────────────────────┘       └──────┘
- *
- * 搜索态:
- * ┌──────┐  8dp  ┌─────────────────────────────────┐
- * │ icon │  gap  │  🔍                              │
- * │ 圆形  │       │         搜索胶囊                  │
- * └──────┘       └─────────────────────────────────┘
- * ```
- *
- * ## 三层叠加架构（Tabs Section 内）
- *
- * ```
- * ┌──────────────────────────────────────────────┐
- * │  Layer 3：选择器胶囊（56dp，宽 1/3）           │  ← 拖拽手势 + Squash&Stretch
- * │  Layer 2：accent 染色录制层（56dp，alpha=0）   │  ← 供选择器采样 accent 着色内容
- * │  Layer 1：主 Bar（64dp，可见）                 │  ← vibrancy + blur + lens
- * └──────────────────────────────────────────────┘
- * ```
- *
- * @param selectedTabIndex   当前选中的路由，由父级导航状态驱动
- * @param onTabSelected   Tab 切换回调，通知父级更新导航
- * @param onClickPlayer 点击 MiniPlayer 时打开播放器页面的回调
+ * 展开态：MiniPlayer 在上，四个普通 Tab 共用一个胶囊。
+ * 收起态：最近主 Tab、MiniPlayer、Search 在同一行。
  */
 @Composable
 fun BottomNavigationBar(
-    isHeaderSearchActive: Boolean = false,
     selectedTabIndex: () -> Int,
     onTabSelected: (index: Int) -> Unit,
     onClickPlayer: () -> Unit,
     viewModel: PlayerViewModel = koinViewModel()
 ) {
-    val state by viewModel.state.collectAsUiState()
-
+    val playerState by viewModel.state.collectAsUiState()
+    val bottomBarState = LocalBottomBarState.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
+    val expandFraction by animateFloatAsState(
+        targetValue = if (bottomBarState.isExpanded) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = 700f
+        ),
+        label = "bottomBarExpansion"
+    )
 
-    // 键盘高度（减去导航栏高度，仅取键盘本身）
-    val density = LocalDensity.current
-    val imeBottom = WindowInsets.ime.getBottom(density)
-    val navBottom = WindowInsets.navigationBars.getBottom(density)
-    val imeOffset = if (!isHeaderSearchActive) (imeBottom - navBottom).coerceAtLeast(0) else 0
+    val selectTab: (Int) -> Unit = { index ->
+        bottomBarState.onTabSelected(index)
+        onTabSelected(index)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight()
-            .graphicsLayer { translationY = -imeOffset.toFloat() }
             .background(verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f))))
             .navigationBarsPadding()
             .padding(start = 21.dp, end = 21.dp, bottom = 8.dp)
     ) {
-        // 固定高度防止 MiniPlayer 退出时布局抖动
-        Box(modifier = Modifier.fillMaxWidth().height(50.dp)) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = !playerVisible,
-                enter = fadeIn(),
-                exit = fadeOut()
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(lerp(50.dp, 122.dp, expandFraction))
+        ) {
+            val compactMiniWidth = (maxWidth - 116.dp).coerceAtLeast(120.dp)
+            val miniPlayerWidth = lerp(compactMiniWidth, maxWidth, expandFraction)
+            val miniPlayerOffsetX = lerp(58.dp, 0.dp, expandFraction)
+            val compactAlpha = 1f - expandFraction
+
+            CompactBottomTab(
+                item = TOP_LEVEL_DESTINATIONS.values.elementAt(bottomBarState.lastPrimaryTabIndex),
+                selected = selectedTabIndex() == bottomBarState.lastPrimaryTabIndex,
+                onClick = { selectTab(bottomBarState.lastPrimaryTabIndex) },
+                modifier = Modifier.graphicsLayer {
+                    alpha = compactAlpha
+                }
+            )
+
+            CompactBottomTab(
+                item = TOP_LEVEL_DESTINATIONS[RythmeRoute.Search]!!,
+                selected = selectedTabIndex() == SEARCH_TAB_INDEX,
+                onClick = { selectTab(SEARCH_TAB_INDEX) },
+                modifier = Modifier
+                    .offset(x = maxWidth - 50.dp)
+                    .graphicsLayer {
+                        alpha = compactAlpha
+                    }
+            )
+
+            Box(
+                modifier = Modifier
+                    .offset(x = miniPlayerOffsetX)
+                    .width(miniPlayerWidth)
+                    .height(50.dp)
             ) {
-                val animVisScope = this
-                with(sharedTransitionScope) {
-                    Box(
-                        modifier = Modifier.sharedBounds(
-                            sharedContentState = rememberSharedContentState(key = "playerContainer"),
-                            animatedVisibilityScope = animVisScope,
-                            resizeMode = ResizeMode.RemeasureToBounds
-                        )
-                    ) {
-                        MiniPlayer(
-                            song = state.currentSong,
-                            canPlayNext = state.canPlayNext,
-                            isPlaying = state.isPlaying,
-                            onClick = { onClickPlayer() },
-                            onPlayPauseClick = {
-                                if (state.currentSong == null) {
-                                    viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
-                                } else {
-                                    viewModel.sendIntent(PlayerIntent.TogglePlayPause)
-                                }
-                            },
-                            onNextClick = { viewModel.sendIntent(PlayerIntent.Next) }
-                        )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !playerVisible,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    val animatedVisibilityScope = this
+                    with(sharedTransitionScope) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .sharedBounds(
+                                    sharedContentState = rememberSharedContentState(key = "playerContainer"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    resizeMode = ResizeMode.RemeasureToBounds
+                                )
+                        ) {
+                            MiniPlayer(
+                                modifier = Modifier.fillMaxSize(),
+                                song = playerState.currentSong,
+                                canPlayNext = playerState.canPlayNext,
+                                isPlaying = playerState.isPlaying,
+                                onClick = onClickPlayer,
+                                onPlayPauseClick = {
+                                    if (playerState.currentSong == null) {
+                                        viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                                    } else {
+                                        viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                                    }
+                                },
+                                onNextClick = { viewModel.sendIntent(PlayerIntent.Next) }
+                            )
+                        }
                     }
                 }
             }
+
+            Box(
+                modifier = Modifier
+                    .offset(y = 58.dp)
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .graphicsLayer {
+                        alpha = expandFraction
+                    }
+            ) {
+                LiquidBottomTabs(
+                    selectedTabIndex = selectedTabIndex,
+                    onTabSelected = selectTab,
+                    enabled = expandFraction > 0.9f
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LiquidBottomTabs(
-            selectedTabIndex = selectedTabIndex,
-            onTabSelected = onTabSelected
-        )
     }
 }
+
+private const val SEARCH_TAB_INDEX = 3

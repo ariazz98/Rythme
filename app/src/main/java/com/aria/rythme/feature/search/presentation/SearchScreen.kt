@@ -1,179 +1,121 @@
 package com.aria.rythme.feature.search.presentation
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
+import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.MainGridPage
+import com.aria.rythme.ui.component.OverlayMenu
+import com.aria.rythme.ui.component.PageSearchField
 import com.aria.rythme.ui.component.SmallCategoryCard
+import com.aria.rythme.ui.component.SongListItem
+import com.aria.rythme.ui.component.buildSongContextMenuConfigs
+import com.aria.rythme.ui.theme.rythmeColors
+import org.koin.compose.viewmodel.koinViewModel
 
-/**
- * 搜索页面
- * 包含搜索框和分类浏览卡片
- */
 @Composable
-fun SearchScreen() {
+fun SearchScreen(
+    viewModel: SearchViewModel = koinViewModel()
+) {
+    val state by viewModel.state.collectAsUiState()
+    val overlayMenu = LocalOverlayMenu.current
+    val categories = remember { searchCategories() }
 
     MainGridPage(
         title = stringResource(R.string.title_search),
         routeKey = RythmeRoute.Search
     ) {
-        // 农历新年
-        item {
-            SmallCategoryCard(
-                title = "农历新年",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF87CEEB),
-                        Color(0xFFFFB6C1)
-                    )
-                )
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            PageSearchField(
+                value = state.query,
+                onValueChange = viewModel::updateQuery
             )
         }
 
-        // C-Pop
-        item {
-            SmallCategoryCard(
-                title = "C-Pop",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFE85D75),
-                        Color(0xFFFF8FA3)
-                    )
+        if (state.query.isBlank()) {
+            items(categories, key = { it.title }) { category ->
+                SmallCategoryCard(
+                    title = category.title,
+                    cover = Brush.linearGradient(category.colors)
                 )
-            )
-        }
-
-        // 爱
-        item {
-            SmallCategoryCard(
-                title = "爱",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFE8D5C4),
-                        Color(0xFFF5EBE0)
-                    )
+            }
+        } else if (state.isSearching) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SearchMessage(stringResource(R.string.searching))
+            }
+        } else if (state.songs.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SearchMessage(stringResource(R.string.search_no_results))
+            }
+        } else {
+            items(
+                items = state.songs,
+                key = { it.id },
+                span = { GridItemSpan(maxLineSpan) }
+            ) { song ->
+                SongListItem(
+                    song = song,
+                    horizontalPadding = 0.dp,
+                    showDivider = song != state.songs.last(),
+                    onClick = { viewModel.play(song) },
+                    onMoreClick = { bounds ->
+                        overlayMenu.show(
+                            OverlayMenu.SongContext(
+                                song = song,
+                                anchorBounds = bounds,
+                                configs = buildSongContextMenuConfigs(
+                                    onDismiss = overlayMenu::dismiss,
+                                    onEdit = { overlayMenu.show(OverlayMenu.SongEdit(song)) }
+                                )
+                            )
+                        )
+                    }
                 )
-            )
-        }
-
-        // 空间音频
-        item {
-            SmallCategoryCard(
-                title = "空间音频",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFE85D75),
-                        Color(0xFFFF6B6B)
-                    )
-                )
-            )
-        }
-
-        // 国语流行
-        item {
-            SmallCategoryCard(
-                title = "国语流行",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFD4729B),
-                        Color(0xFFFF9EC5)
-                    )
-                )
-            )
-        }
-
-        // DJ 混音精选
-        item {
-            SmallCategoryCard(
-                title = "DJ 混音精选",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFB71C1C),
-                        Color(0xFFE53935)
-                    )
-                )
-            )
-        }
-
-        // 月度音乐回忆
-        item {
-            SmallCategoryCard(
-                title = "月度音乐回忆",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFFFB347),
-                        Color(0xFF64B5F6)
-                    )
-                )
-            )
-        }
-
-        // 排行榜
-        item {
-            SmallCategoryCard(
-                title = "排行榜",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF6B7C3D),
-                        Color(0xFF8FA456)
-                    )
-                )
-            )
-        }
-
-        // 爵士乐
-        item {
-            SmallCategoryCard(
-                title = "爵士乐",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF4A9FD8),
-                        Color(0xFF64B5F6)
-                    )
-                )
-            )
-        }
-
-        // 创作与制作
-        item {
-            SmallCategoryCard(
-                title = "创作与制作",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF7C7C3D),
-                        Color(0xFF9E9E5A)
-                    )
-                )
-            )
-        }
-
-        // 嘻哈 / 说唱
-        item {
-            SmallCategoryCard(
-                title = "嘻哈 / 说唱",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF5C6BC0),
-                        Color(0xFF7986CB)
-                    )
-                )
-            )
-        }
-
-        // 古典音乐
-        item {
-            SmallCategoryCard(
-                title = "古典音乐",
-                cover = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF7B1FA2),
-                        Color(0xFF9C27B0)
-                    )
-                )
-            )
+            }
         }
     }
 }
+
+@Composable
+private fun SearchMessage(message: String) {
+    Text(
+        text = message,
+        color = MaterialTheme.rythmeColors.subTitleColor,
+        fontSize = 15.sp,
+        modifier = Modifier.padding(vertical = 32.dp)
+    )
+}
+
+private data class SearchCategory(
+    val title: String,
+    val colors: List<Color>
+)
+
+private fun searchCategories(): List<SearchCategory> = listOf(
+    SearchCategory("农历新年", listOf(Color(0xFF87CEEB), Color(0xFFFFB6C1))),
+    SearchCategory("C-Pop", listOf(Color(0xFFE85D75), Color(0xFFFF8FA3))),
+    SearchCategory("爱", listOf(Color(0xFFE8D5C4), Color(0xFFF5EBE0))),
+    SearchCategory("空间音频", listOf(Color(0xFFE85D75), Color(0xFFFF6B6B))),
+    SearchCategory("国语流行", listOf(Color(0xFFD4729B), Color(0xFFFF9EC5))),
+    SearchCategory("DJ 混音精选", listOf(Color(0xFFB71C1C), Color(0xFFE53935))),
+    SearchCategory("月度音乐回忆", listOf(Color(0xFFFFB347), Color(0xFF64B5F6))),
+    SearchCategory("排行榜", listOf(Color(0xFF6B7C3D), Color(0xFF8FA456))),
+    SearchCategory("爵士乐", listOf(Color(0xFF4A9FD8), Color(0xFF64B5F6))),
+    SearchCategory("创作与制作", listOf(Color(0xFF7C7C3D), Color(0xFF9E9E5A))),
+    SearchCategory("嘻哈 / 说唱", listOf(Color(0xFF5C6BC0), Color(0xFF7986CB))),
+    SearchCategory("古典音乐", listOf(Color(0xFF7B1FA2), Color(0xFF9C27B0)))
+)

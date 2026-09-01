@@ -109,6 +109,7 @@ fun LibraryListItem(
 fun SongListItem(
     song: Song,
     showDivider: Boolean = true,
+    horizontalPadding: Dp = 21.dp,
     onClick: () -> Unit,
     onMoreClick: (anchorBounds: Rect) -> Unit
 ) {
@@ -122,7 +123,7 @@ fun SongListItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(vertical = 4.dp, horizontal = 21.dp),
+                .padding(vertical = 4.dp, horizontal = horizontalPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             CoverItem(
@@ -181,7 +182,7 @@ fun SongListItem(
         // 分割线
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = 80.dp, end = 18.dp),
+                modifier = Modifier.padding(start = horizontalPadding + 59.dp, end = horizontalPadding),
                 thickness = DividerDefaults.Thickness,
                 color = MaterialTheme.rythmeColors.weakColor
             )
