@@ -1,7 +1,10 @@
 package com.aria.rythme.ui.component
 
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -14,11 +17,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.ui.theme.rythmeColors
-import kotlinx.coroutines.delay
 
 internal const val ANIM_DURATION = 300
 
@@ -57,29 +56,35 @@ fun RythmeHeader(
         label = "headerAlpha"
     )
 
-    val titleTranslationY by animateDpAsState(
-        targetValue = if (isSearchActive) 0.dp else 68.dp,
-        animationSpec = tween(durationMillis = ANIM_DURATION),
+    val searchTransitionState = remember {
+        MutableTransitionState(isSearchActive)
+    }.apply {
+        targetState = isSearchActive
+    }
+    val searchTransition = rememberTransition(
+        transitionState = searchTransitionState,
+        label = "headerSearch"
+    )
+
+    val titleTranslationY by searchTransition.animateDp(
+        transitionSpec = { tween(ANIM_DURATION) },
         label = "titleTranslationY"
-    )
+    ) { active -> if (active) 0.dp else 68.dp }
 
-    val titleAlpha by animateFloatAsState(
-        targetValue = if (isSearchActive) 0f else 1f,
-        animationSpec = tween(durationMillis = ANIM_DURATION),
+    val titleAlpha by searchTransition.animateFloat(
+        transitionSpec = { tween(ANIM_DURATION) },
         label = "titleAlpha"
-    )
+    ) { active -> if (active) 0f else 1f }
 
-    val searchBarTranslationY by animateDpAsState(
-        targetValue = if (isSearchActive) 0.dp else searchBarRestY,
-        animationSpec = tween(durationMillis = ANIM_DURATION),
+    val searchBarTranslationY by searchTransition.animateDp(
+        transitionSpec = { tween(ANIM_DURATION) },
         label = "searchBarTranslationY"
-    )
+    ) { active -> if (active) 0.dp else searchBarRestY }
 
-    val topBarHeight by animateDpAsState(
-        targetValue = if (isSearchActive) 68.dp else 172.dp,
-        animationSpec = tween(durationMillis = ANIM_DURATION),
+    val topBarHeight by searchTransition.animateDp(
+        transitionSpec = { tween(ANIM_DURATION) },
         label = "topBarHeight"
-    )
+    ) { active -> if (active) 68.dp else 172.dp }
 
     Box {
         // 渐变背景，固定不变
@@ -122,20 +127,15 @@ fun RythmeHeader(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                val topBarState = LocalTopBarState.current
                 AnimatedHeaderActions(
-                    moreAction = config.moreAction,
                     actions = config.actions,
-                    routeKey = routeKey,
-                    skipAnimation = skipAnimation,
-                    onMoreClick = {
-                        topBarState.getActionHandler(routeKey, config.moreAction?.key ?: "more")?.invoke()
-                    }
+                    skipAnimation = skipAnimation
                 )
             }
 
             // 搜索框区域：激活时立即显示，退出时等动画完成再移除
-            val showSearchContent = rememberSearchAnimating(isSearchActive)
+            val showSearchContent =
+                searchTransitionState.currentState || searchTransitionState.targetState
             if (showSearchContent) {
                 if (searchTitle.isNotEmpty()) {
                     Box(
@@ -170,22 +170,4 @@ fun RythmeHeader(
             }
         }
     }
-}
-
-/**
- * 激活时立即返回 true，退出时延迟 ANIM_DURATION 后才返回 false。
- * 用于保持搜索内容在退出动画期间仍在组合中。
- */
-@Composable
-internal fun rememberSearchAnimating(isSearchActive: Boolean): Boolean {
-    var visible by remember { mutableStateOf(isSearchActive) }
-    LaunchedEffect(isSearchActive) {
-        if (isSearchActive) {
-            visible = true
-        } else {
-            delay(ANIM_DURATION.toLong())
-            visible = false
-        }
-    }
-    return visible
 }

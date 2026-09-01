@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,12 +46,10 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,11 +59,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.R
-import com.aria.rythme.ui.theme.AvatarDefaultBgEnd
-import com.aria.rythme.ui.theme.AvatarDefaultBgStart
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -74,7 +68,6 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
-import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.ui.component.utils.InteractiveHighlight
 import com.kyant.capsule.ContinuousCapsule
@@ -96,50 +89,39 @@ enum class PanelAnchor {
     BottomEnd,
 }
 
-/**
- * 右侧操作按钮区域，动画由 [HeaderActionsAnimState] 统一编排：
- *
- * - 整体进出场（actions 空↔非空）：虚化渐显/渐隐
- * - 更多按钮显示/隐藏：水滴弹性滑入/滑出
- * - 内容变更（actions 非空→非空）：虚化交叉过渡，容器宽度平滑变化
- */
+/** 右侧操作组；完整胶囊同时也是 ActionMenu 的共享元素起点。 */
 @Composable
 fun AnimatedHeaderActions(
-    moreAction: Action.Icon? = null,
     actions: List<Action>,
-    routeKey: NavKey,
     skipAnimation: Boolean = false,
-    onMoreClick: () -> Unit = {},
     backdrop: Backdrop = LocalBackdrop.current,
 ) {
-    val showMoreButton = moreAction != null
     val coroutineScope = rememberCoroutineScope()
-    val animState = remember { HeaderActionsAnimState(coroutineScope) }
-    val distance = with(LocalDensity.current) { 60.dp.toPx() }
-
-    // 初始化（仅首次）
+    val animState = remember { HeaderActionsAnimState() }
     var initialized by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        animState.initialize(actions, showMoreButton, moreAction)
+        animState.initialize(actions)
         initialized = true
     }
 
-    // 输入变化时统一驱动动画
-    LaunchedEffect(actions, showMoreButton) {
-        if (!initialized) return@LaunchedEffect
-        animState.update(actions, showMoreButton, skipAnimation, distance, moreAction)
+    LaunchedEffect(actions.visualKey()) {
+        if (initialized) {
+            animState.update(actions, skipAnimation)
+        }
     }
 
-    // 同步引用（不触发动画）：Tab 切换时 actions/moreAction 引用可能变但内容指纹相同
     SideEffect {
         animState.syncActionRefs(actions)
-        animState.syncMoreAction(moreAction)
     }
 
-    // 未进入可见阶段，不渲染
     if (animState.phase == HeaderActionsAnimState.Phase.Hidden) return
 
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val isActionMenuOverlay = LocalOverlayMenu.current.currentMenu is OverlayMenu.ActionMenu
+    val pressAnim = remember { Animatable(0f) }
+    val actionHighlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
 
     Box(
         modifier = Modifier
@@ -151,161 +133,59 @@ fun AnimatedHeaderActions(
             .thenBlur(animState.overallBlur.value),
         contentAlignment = Alignment.Center
     ) {
-        // ---- 更多按钮（底层，独立定位，用 padding 控制间距） ----
-        if (animState.showMore || showMoreButton) {
-            val pressAnim = remember { Animatable(0f) }
-            val moreHighlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 60.dp)
-                    .size(68.dp)
-                    .thenBlur(animState.moreDroplet.blur),
-                contentAlignment = Alignment.Center
+        with(sharedTransitionScope) {
+            AnimatedVisibility(
+                visible = !isActionMenuOverlay,
+                modifier = Modifier.align(Alignment.CenterEnd)
             ) {
                 Box(
                     modifier = Modifier
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { CircleShape },
-                            shadow = { Shadow.Default.copy(radius = 12.dp, offset = DpOffset(0.dp, 0.dp)) },
-                            effects = {
-                                vibrancy()
-                                blur(2f.dp.toPx())
-                                lens(24f.dp.toPx(), 32f.dp.toPx())
-                            },
-                            layerBlock = {
-                                translationX = animState.moreDroplet.offsetX
-                                val baseScaleX = animState.moreDroplet.scaleX
-                                val baseScaleY = animState.moreDroplet.scaleY
-                                val press = pressAnim.value
-                                val pressScale = 1f + press * 8f.dp.toPx() / size.width
-                                scaleX = baseScaleX * pressScale
-                                scaleY = baseScaleY * pressScale
-                            },
-                            onDrawSurface = {
-                                drawRect(color = containerColor)
-                            }
-                        )
-                        .then(moreHighlight.modifier)
-                        .size(44.dp)
-                        .then(moreHighlight.gestureModifier)
-                        .pointerInput(coroutineScope) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
-                                waitForUpOrCancellation()
-                                coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
-                            }
-                        }
-                        .clickable(
-                            interactionSource = null,
-                            indication = null
-                        ) { onMoreClick() },
+                        .height(68.dp)
+                        .padding(horizontal = 12.dp)
+                        .thenBlur(animState.contentBlur.value),
                     contentAlignment = Alignment.Center
                 ) {
-                    val displayMore = animState.displayMoreAction
-                    Icon(
-                        painter = painterResource(displayMore?.iconRes ?: R.drawable.ic_more),
-                        contentDescription = displayMore?.contentDescription ?: "更多",
-                        tint = MaterialTheme.rythmeColors.textColor,
-                        modifier = Modifier.size(displayMore?.iconSize ?: 22.dp)
-                    )
-                }
-            }
-        }
-
-        // ---- 自适应操作按钮容器（顶层，决定容器宽度） ----
-        if (animState.displayActions.isNotEmpty()) {
-            val sharedTransitionScope = LocalSharedTransitionScope.current
-            val isActionMenuOverlay = LocalOverlayMenu.current.currentMenu is OverlayMenu.ActionMenu
-            val isAvatarOnly = animState.displayActions.all { it is Action.Avatar }
-            val pressAnim = remember { Animatable(0f) }
-            val actionHighlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
-
-            with(sharedTransitionScope) {
-                AnimatedVisibility(
-                    visible = !isActionMenuOverlay,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .height(68.dp)
-                            .padding(horizontal = 12.dp)
-                            .thenBlur(animState.contentBlur.value),
-                        contentAlignment = Alignment.Center
+                            .sharedElement(
+                                sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
+                                animatedVisibilityScope = this@AnimatedVisibility
+                            )
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { ContinuousCapsule },
+                                shadow = {
+                                    Shadow.Default.copy(radius = 12.dp, offset = DpOffset.Zero)
+                                },
+                                effects = {
+                                    vibrancy()
+                                    blur(2.dp.toPx())
+                                    lens(24.dp.toPx(), 32.dp.toPx())
+                                },
+                                layerBlock = {
+                                    val scale = 1f + pressAnim.value * 8.dp.toPx() / size.width
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
+                                onDrawSurface = { drawRect(containerColor) }
+                            )
+                            .then(actionHighlight.modifier)
+                            .height(44.dp)
+                            .animateContentSize(tween(ANIM_DURATION / 2))
+                            .then(actionHighlight.gestureModifier)
+                            .pointerInput(coroutineScope) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
+                                    waitForUpOrCancellation()
+                                    coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
+                                }
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        if (isAvatarOnly) {
-                            // 头像模式：无 backdrop，clip 圆形，无按压放大
-                            Row(
-                                modifier = Modifier
-                                    .sharedElement(
-                                        sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
-                                        animatedVisibilityScope = this@AnimatedVisibility
-                                    )
-                                    .graphicsLayer {
-                                        val bulge = animState.heightBulge.value
-                                        scaleY = 1f + bulge * 6f.dp.toPx() / size.height
-                                    }
-                                    .height(44.dp)
-                                    .animateContentSize(tween(ANIM_DURATION / 2)),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                animState.displayActions.forEach { action ->
-                                    ActionItem(action, routeKey)
-                                }
-                            }
-                        } else {
-                            // 图标模式：backdrop 毛玻璃 + 容器整体按压放大
-                            Row(
-                                modifier = Modifier
-                                    .sharedElement(
-                                        sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
-                                        animatedVisibilityScope = this@AnimatedVisibility
-                                    )
-                                    .drawBackdrop(
-                                        backdrop = backdrop,
-                                        shape = { ContinuousCapsule },
-                                        shadow = { Shadow.Default.copy(radius = 12.dp, offset = DpOffset(0.dp, 0.dp)) },
-                                        effects = {
-                                            vibrancy()
-                                            blur(2f.dp.toPx())
-                                            lens(24f.dp.toPx(), 32f.dp.toPx())
-                                        },
-                                        layerBlock = {
-                                            val press = pressAnim.value
-                                            val pressScale = 1f + press * 8f.dp.toPx() / size.width
-                                            val bulge = animState.heightBulge.value
-                                            val bulgeScaleY = 1f + bulge * 6f.dp.toPx() / size.height
-                                            scaleX = pressScale
-                                            scaleY = pressScale * bulgeScaleY
-                                        },
-                                        onDrawSurface = {
-                                            drawRect(color = containerColor)
-                                        }
-                                    )
-                                    .then(actionHighlight.modifier)
-                                    .height(44.dp)
-                                    .animateContentSize(tween(ANIM_DURATION / 2))
-                                    .then(actionHighlight.gestureModifier)
-                                    .pointerInput(coroutineScope) {
-                                        awaitEachGesture {
-                                            awaitFirstDown(requireUnconsumed = false)
-                                            coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
-                                            waitForUpOrCancellation()
-                                            coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
-                                        }
-                                    },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                animState.displayActions.forEach { action ->
-                                    ActionItem(action, routeKey)
-                                }
-                            }
+                        animState.displayActions.forEach { action ->
+                            ActionItem(action)
                         }
                     }
                 }
@@ -315,55 +195,29 @@ fun AnimatedHeaderActions(
 }
 
 @Composable
-private fun ActionItem(action: Action, routeKey: NavKey) {
-    val topBarState = LocalTopBarState.current
+private fun ActionItem(action: Action) {
+    val clickModifier = if (action.onClick != null) {
+        Modifier.clickable(
+            interactionSource = null,
+            indication = null,
+            onClick = action.onClick
+        )
+    } else {
+        Modifier
+    }
+
     Box(
         modifier = Modifier
             .size(44.dp)
-            .clickable(
-                interactionSource = null,
-                indication = null
-            ) { topBarState.getActionHandler(routeKey, action.key)?.invoke() },
+            .then(clickModifier),
         contentAlignment = Alignment.Center
     ) {
-        when (action) {
-            is Action.Icon -> {
-                Icon(
-                    painter = painterResource(action.iconRes),
-                    contentDescription = action.contentDescription,
-                    tint = MaterialTheme.rythmeColors.textColor,
-                    modifier = Modifier.size(action.iconSize)
-                )
-            }
-            is Action.Avatar -> {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(
-                            verticalGradient(
-                                colors = listOf(AvatarDefaultBgStart, AvatarDefaultBgEnd)
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!action.url.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = action.url,
-                            contentDescription = "avatar",
-                            modifier = Modifier.size(44.dp),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                    Text(
-                        text = if (action.name.isNullOrEmpty()) "R" else action.name.take(2),
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
+        Icon(
+            painter = painterResource(action.iconRes),
+            contentDescription = action.contentDescription,
+            tint = MaterialTheme.rythmeColors.textColor,
+            modifier = Modifier.size(action.iconSize)
+        )
     }
 }
 

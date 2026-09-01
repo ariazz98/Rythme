@@ -36,8 +36,10 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,23 +75,6 @@ fun OverlayMenuHost(
     val menu = state.currentMenu
     val sharedTransitionScope = LocalSharedTransitionScope.current
 
-    // 全屏触摸拦截层：overlay 可见时阻止所有触摸穿透到下层，点击即关闭
-    if (state.isVisible) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            // 消费所有事件，阻止穿透
-                            event.changes.forEach { it.consume() }
-                        }
-                    }
-                }
-        )
-    }
-
     // ActionMenu 始终保持在同一组合位置，避免 when 分支切换导致 AnimatedVisibility 重建
     val actionMenu = menu as? OverlayMenu.ActionMenu
     val cachedConfigs = remember { mutableStateOf(emptyList<MenuConfig>()) }
@@ -118,12 +103,18 @@ fun OverlayMenuHost(
     val songContextVisible = songContextMenu != null
     val songContextData = cachedSongContext.value
 
-    // dismiss 后延迟清除缓存，给退出动画留时间，
-    // 同时避免页面切换后面板残留
+    // 共享元素退出完成后再清缓存，不用固定时长猜测动画生命周期。
     LaunchedEffect(songContextVisible) {
         if (!songContextVisible && cachedSongContext.value != null) {
-            delay(300)
-            cachedSongContext.value = null
+            snapshotFlow { sharedTransitionScope.isTransitionActive }
+                .filter { it }
+                .first()
+            snapshotFlow { sharedTransitionScope.isTransitionActive }
+                .filter { !it }
+                .first()
+            if (state.currentMenu !is OverlayMenu.SongContext) {
+                cachedSongContext.value = null
+            }
         }
     }
 
@@ -149,19 +140,17 @@ fun OverlayMenuHost(
     val songEditVisible = songEditMenu != null
     val songEditData = cachedSongEdit.value
 
-    LaunchedEffect(songEditVisible) {
-        if (!songEditVisible && cachedSongEdit.value != null) {
-            delay(300)
-            cachedSongEdit.value = null
-        }
-    }
-
     if (songEditData != null) {
         key(songEditData.song.id) {
             SongEditOverlay(
                 song = songEditData.song,
                 visible = songEditVisible,
-                onDismiss = { state.dismiss() }
+                onDismiss = { state.dismiss() },
+                onExitFinished = {
+                    if (state.currentMenu !is OverlayMenu.SongEdit) {
+                        cachedSongEdit.value = null
+                    }
+                }
             )
         }
     }
@@ -274,7 +263,9 @@ private fun SongContextMenuOverlay(
         // 计算展开方向和位置
         val safeTop = statusBarPx + marginPx
         val safeBottom = containerHeight - navBarPx - marginPx
-        val expandDown = (containerHeight - anchorBounds.center.y) >= anchorBounds.center.y
+        val spaceAbove = (anchorBounds.top - safeTop).coerceAtLeast(0f)
+        val spaceBelow = (safeBottom - anchorBounds.bottom).coerceAtLeast(0f)
+        val expandDown = spaceBelow >= panelHeightPx || spaceBelow >= spaceAbove
 
         // 垂直定位：向下展开以 icon 顶部为锚，向上展开以 icon 底部为锚，盖住 icon
         val panelTop = run {
@@ -356,7 +347,8 @@ private fun SongContextMenuOverlay(
 private fun SongEditOverlay(
     song: Song,
     visible: Boolean,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onExitFinished: () -> Unit
 ) {
     val density = LocalDensity.current
     val screenHeightPx = with(density) {
@@ -378,6 +370,7 @@ private fun SongEditOverlay(
             dragOffsetY.animateTo(0f, tween(durationMillis = 300))
         } else {
             dragOffsetY.animateTo(sheetHeightPx, tween(durationMillis = 250))
+            onExitFinished()
         }
     }
 

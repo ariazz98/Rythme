@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -15,6 +16,7 @@ import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.Action
 import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
@@ -24,6 +26,7 @@ import com.aria.rythme.ui.component.MainGridPage
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.MenuConfig
 import com.aria.rythme.ui.component.OverlayMenu
+import com.aria.rythme.ui.component.TopBarConfig
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -39,22 +42,38 @@ fun AlbumListScreen(
     val overlayMenuState = LocalOverlayMenu.current
     val topBarState = LocalTopBarState.current
 
-    // 注册 action handler：more 按钮打开菜单
-    DisposableEffect(sortBy, layoutMode) {
-        topBarState.registerActionHandler(RythmeRoute.AlbumList, "more") {
-            overlayMenuState.show(
-                OverlayMenu.ActionMenu(
-                    buildAlbumListMenuConfigs(
-                        currentSort = sortBy,
-                        currentLayout = layoutMode,
-                        onSortSelected = { viewModel.sendIntent(AlbumListIntent.SetSort(it)) },
-                        onLayoutSelected = { viewModel.sendIntent(AlbumListIntent.SetLayout(it)) },
-                        onDismiss = { overlayMenuState.dismiss() }
-                    )
+    val topBarConfig = remember(sortBy, layoutMode, overlayMenuState, viewModel) {
+        TopBarConfig(
+            showBackButton = true,
+            actions = listOf(
+                Action(
+                    actionKey = "more",
+                    iconRes = R.drawable.ic_more,
+                    contentDescription = "更多",
+                    onClick = {
+                        overlayMenuState.show(
+                            OverlayMenu.ActionMenu(
+                                buildAlbumListMenuConfigs(
+                                    currentSort = sortBy,
+                                    currentLayout = layoutMode,
+                                    onSortSelected = {
+                                        viewModel.sendIntent(AlbumListIntent.SetSort(it))
+                                    },
+                                    onLayoutSelected = {
+                                        viewModel.sendIntent(AlbumListIntent.SetLayout(it))
+                                    },
+                                    onDismiss = overlayMenuState::dismiss
+                                )
+                            )
+                        )
+                    }
                 )
             )
-        }
-        onDispose {}
+        )
+    }
+    DisposableEffect(topBarConfig) {
+        topBarState.updateConfig(RythmeRoute.AlbumList, topBarConfig)
+        onDispose { }
     }
 
     when (layoutMode) {

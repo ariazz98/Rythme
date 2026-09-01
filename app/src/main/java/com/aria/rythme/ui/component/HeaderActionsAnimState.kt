@@ -6,112 +6,56 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.aria.rythme.ui.component.utils.DropletSlideAnimation
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/**
- * AnimatedHeaderActions 的动画状态机，统一管理所有动画维度：
- *
- * - 整体进出场：overallBlur + overallAlpha
- * - 内容交叉淡入淡出：contentBlur
- * - 更多按钮水滴动画：moreDroplet
- *
- * 通过 Mutex 防止并发动画冲突。
- * 使用 mutableStateOf 确保 Compose 能观测状态变化并触发重组。
- */
-class HeaderActionsAnimState(scope: CoroutineScope) {
-
+/** TopBar action-group 的小型视觉状态机。 */
+class HeaderActionsAnimState {
     enum class Phase { Hidden, Visible }
 
-    // ---- 动画值 ----
     val overallBlur = Animatable(0f)
     val overallAlpha = Animatable(1f)
     val contentBlur = Animatable(0f)
-    /** 内容切换时的高度膨胀量 [0, 1]，1 = 最大膨胀 */
-    val heightBulge = Animatable(0f)
-    val moreDroplet = DropletSlideAnimation(animationScope = scope)
 
-    // ---- 可观测状态（驱动重组） ----
     var phase by mutableStateOf(Phase.Hidden)
         private set
+
     var displayActions by mutableStateOf<List<Action>>(emptyList())
-        private set
-    var showMore by mutableStateOf(false)
-        private set
-    /** 当前显示的 moreAction（退场动画期间保留旧值，避免图标闪变） */
-    var displayMoreAction by mutableStateOf<Action.Icon?>(null)
         private set
 
     private val mutex = Mutex()
 
-    /** actions 内容指纹 */
-    private fun List<Action>.contentKey(): String = joinToString(",") { action ->
-        when (action) {
-            is Action.Icon -> "I:${action.iconRes}"
-            is Action.Avatar -> "A:${action.url}:${action.name}"
-        }
-    }
-
-    /**
-     * 初始化：首次组合时调用，跳过所有动画直接 snap 到正确状态
-     */
-    suspend fun initialize(actions: List<Action>, showMoreButton: Boolean, moreAction: Action.Icon? = null) = mutex.withLock {
-        if (actions.isNotEmpty()) {
+    suspend fun initialize(actions: List<Action>) = mutex.withLock {
+        displayActions = actions
+        if (actions.isEmpty()) {
+            phase = Phase.Hidden
+        } else {
             overallBlur.snapTo(0f)
             overallAlpha.snapTo(1f)
             contentBlur.snapTo(0f)
-            if (showMoreButton) {
-                moreDroplet.snapToVisible()
-                displayMoreAction = moreAction
-            }
-            // 先设动画值，最后更新 phase 触发重组（确保首帧数据完整）
-            displayActions = actions
-            showMore = showMoreButton
             phase = Phase.Visible
-        } else {
-            phase = Phase.Hidden
         }
     }
 
-    /**
-     * 处理所有输入变化，内部决定执行哪种动画
-     */
     suspend fun update(
         actions: List<Action>,
-        showMoreButton: Boolean,
-        skipAnimation: Boolean,
-        moreSlideDistance: Float,
-        moreAction: Action.Icon? = null,
+        skipAnimation: Boolean
     ) = mutex.withLock {
         val hasContent = actions.isNotEmpty()
-        val actionsKey = actions.contentKey()
-        val displayKey = displayActions.contentKey()
+        val visualChanged = actions.visualKey() != displayActions.visualKey()
 
         when {
-            // 场景 A: 进场（无→有）
             hasContent && phase == Phase.Hidden -> {
-                contentBlur.snapTo(0f)
-                if (showMoreButton) {
-                    moreDroplet.snapToVisible()
-                    displayMoreAction = moreAction
-                }
+                displayActions = actions
+                phase = Phase.Visible
                 if (skipAnimation) {
                     overallBlur.snapTo(0f)
                     overallAlpha.snapTo(1f)
                 } else {
                     overallBlur.snapTo(10f)
                     overallAlpha.snapTo(0f)
-                }
-                // 设置数据并切换 phase，触发重组使 UI 出现
-                displayActions = actions
-                showMore = showMoreButton
-                phase = Phase.Visible
-                // 之后播放进场动画（UI 已挂载）
-                if (!skipAnimation) {
                     coroutineScope {
                         launch { overallBlur.animateTo(0f, spring(dampingRatio = 1f, stiffness = 500f)) }
                         launch { overallAlpha.animateTo(1f, tween(ANIM_DURATION)) }
@@ -119,98 +63,35 @@ class HeaderActionsAnimState(scope: CoroutineScope) {
                 }
             }
 
-            // 场景 B: 退场（有→无）
             !hasContent && phase == Phase.Visible -> {
-                if (skipAnimation) {
-                    overallBlur.snapTo(10f)
-                    overallAlpha.snapTo(0f)
-                } else {
+                if (!skipAnimation) {
                     coroutineScope {
                         launch { overallBlur.animateTo(10f, spring(dampingRatio = 1f, stiffness = 500f)) }
                         launch { overallAlpha.animateTo(0f, tween(ANIM_DURATION)) }
                     }
                 }
                 displayActions = emptyList()
-                showMore = false
                 phase = Phase.Hidden
             }
 
-            // 场景 C: 内容变更（有→有，内容不同）
-            hasContent && phase == Phase.Visible && actionsKey != displayKey -> {
-                // 修复：场景 B（退场）被取消时 overallBlur/overallAlpha 可能卡在中间值，
-                // 需要先恢复到完全可见状态再做内容交叉过渡
+            hasContent && phase == Phase.Visible && visualChanged -> {
                 overallBlur.snapTo(0f)
                 overallAlpha.snapTo(1f)
                 if (skipAnimation) {
                     displayActions = actions
-                    showMore = showMoreButton
-                    if (showMoreButton) {
-                        moreDroplet.snapToVisible()
-                        displayMoreAction = moreAction
-                    }
                 } else {
-                    // 立即换数据（触发 animateContentSize 宽度过渡），
-                    // 同时用一个短暂的模糊脉冲遮盖内容切换瞬间，
-                    // 高度先膨胀再回弹，与宽度变化同步形成有机形变
-                    contentBlur.snapTo(10f)
-                    heightBulge.snapTo(2f)
+                    contentBlur.snapTo(8f)
                     displayActions = actions
-                    coroutineScope {
-                        launch { contentBlur.animateTo(0f, spring(dampingRatio = 1f, stiffness = 500f)) }
-                        launch { heightBulge.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 150f)) }
-                        launch { handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance, moreAction) }
-                    }
+                    contentBlur.animateTo(0f, spring(dampingRatio = 1f, stiffness = 500f))
                 }
-            }
-
-            // 场景 D: 仅更多按钮变更
-            hasContent && phase == Phase.Visible -> {
-                overallBlur.snapTo(0f)
-                overallAlpha.snapTo(1f)
-                handleMoreChange(showMoreButton, skipAnimation, moreSlideDistance, moreAction)
             }
         }
     }
 
-    /**
-     * 同步 lambda 引用（不触发动画）：当 actions 内容指纹未变但引用更新时调用
-     */
+    /** 回调更新不触发视觉过渡。 */
     fun syncActionRefs(actions: List<Action>) {
-        if (actions.contentKey() == displayActions.contentKey()) {
+        if (actions.visualKey() == displayActions.visualKey()) {
             displayActions = actions
         }
     }
-
-    /**
-     * 同步 moreAction 外观（不触发动画）：Tab 切换时 showMore 不变但图标可能不同
-     */
-    fun syncMoreAction(moreAction: Action.Icon?) {
-        if (moreAction != null && showMore) {
-            displayMoreAction = moreAction
-        }
-    }
-
-    private suspend fun handleMoreChange(
-        showMoreButton: Boolean,
-        skipAnimation: Boolean,
-        distance: Float,
-        moreAction: Action.Icon? = null,
-    ) {
-        if (showMoreButton == showMore) return
-
-        if (showMoreButton) {
-            displayMoreAction = moreAction
-            showMore = true
-            if (skipAnimation) moreDroplet.snapToVisible()
-            else moreDroplet.awaitSlideIn(fromLeft = false, distance = distance)
-        } else {
-            // 退场动画期间保留 displayMoreAction，动画结束后再清除
-            if (!skipAnimation) moreDroplet.awaitSlideOut(toLeft = false, distance = distance)
-            showMore = false
-            displayMoreAction = null
-        }
-    }
 }
-
-/** 内容交叉淡入淡出单程时长，与 animateContentSize 同步 */
-private const val CONTENT_CROSSFADE = 150

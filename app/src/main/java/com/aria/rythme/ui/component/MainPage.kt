@@ -1,7 +1,10 @@
 package com.aria.rythme.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -154,8 +157,11 @@ fun MainListPage(
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     if (!isTopPage) {
-                        val hidePlaceholder = rememberSearchAnimating(isSearchActive)
-                        if (!hidePlaceholder) {
+                        AnimatedVisibility(
+                            visible = !isSearchActive,
+                            enter = fadeIn(tween(ANIM_DURATION)),
+                            exit = fadeOut(tween(ANIM_DURATION))
+                        ) {
                             Column(
                                 modifier = Modifier
                                     .padding(
@@ -344,8 +350,11 @@ fun MainGridPage(
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     if (!isTopPage) {
-                        val hidePlaceholder = rememberSearchAnimating(isSearchActive)
-                        if (!hidePlaceholder) {
+                        AnimatedVisibility(
+                            visible = !isSearchActive,
+                            enter = fadeIn(tween(ANIM_DURATION)),
+                            exit = fadeOut(tween(ANIM_DURATION))
+                        ) {
                             Column {
                                 if (!title.isNullOrEmpty()) {
                                     // 标题：跟随列表滚动，渐隐

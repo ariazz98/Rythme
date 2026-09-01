@@ -56,7 +56,7 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.android.awaitFrame
 
 /**
  * 搜索占位符 — 放在 content 列表中，外观类似搜索框但不可输入，点击触发搜索激活
@@ -210,7 +210,7 @@ fun HeaderSearchBar(
 
     LaunchedEffect(active) {
         if (active) {
-            delay(150)
+            awaitFrame()
             focusRequester.requestFocus()
         } else {
             focusManager.clearFocus()

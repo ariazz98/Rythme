@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,8 +37,10 @@ import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.music.data.model.Playlist
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.Action
 import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.TopBarConfig
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousRoundedRectangle
 import org.koin.androidx.compose.koinViewModel
@@ -52,8 +55,23 @@ fun PlayListScreen(
     val showCreateDialog = state.value.showCreateDialog
 
     val topBarState = LocalTopBarState.current
-    topBarState.registerActionHandler(RythmeRoute.Playlist, "more") {
-        viewModel.sendIntent(PlayListIntent.ShowCreateDialog)
+    val createDescription = stringResource(R.string.create_playlist)
+    val topBarConfig = remember(viewModel, createDescription) {
+        TopBarConfig(
+            actions = listOf(
+                Action(
+                    actionKey = "add",
+                    iconRes = R.drawable.ic_add,
+                    iconSize = 18.dp,
+                    contentDescription = createDescription,
+                    onClick = { viewModel.sendIntent(PlayListIntent.ShowCreateDialog) }
+                )
+            )
+        )
+    }
+    DisposableEffect(topBarConfig) {
+        topBarState.updateConfig(RythmeRoute.Playlist, topBarConfig)
+        onDispose { }
     }
 
     MainListPage(
