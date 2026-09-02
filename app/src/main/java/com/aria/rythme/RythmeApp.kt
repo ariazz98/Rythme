@@ -51,10 +51,9 @@ import com.aria.rythme.feature.albumdetail.presentation.AlbumDetailScreen
 import com.aria.rythme.feature.albumlist.presentation.AlbumListScreen
 import com.aria.rythme.feature.artistdetail.presentation.ArtistDetailScreen
 import com.aria.rythme.feature.artistlist.presentation.ArtistListScreen
-import com.aria.rythme.feature.composerdetail.presentation.ComposerDetailScreen
-import com.aria.rythme.feature.composerlist.presentation.ComposerListScreen
-import com.aria.rythme.feature.genredetail.presentation.GenreDetailScreen
-import com.aria.rythme.feature.genrelist.presentation.GenreListScreen
+import com.aria.rythme.feature.library.presentation.LibraryFacet
+import com.aria.rythme.feature.library.presentation.LibraryFacetDetailScreen
+import com.aria.rythme.feature.library.presentation.LibraryFacetListScreen
 import com.aria.rythme.feature.home.presentation.HomeScreen
 import com.aria.rythme.feature.library.presentation.LibraryScreen
 import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
@@ -329,39 +328,41 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                                 )
                             }
                             entry<RythmeRoute.GenreList> {
-                                GenreListScreen(
-                                    onGenreClick = { genre ->
+                                LibraryFacetListScreen(
+                                    facet = LibraryFacet.GENRE,
+                                    onItemClick = { genre ->
                                         navigator.navigate(RythmeRoute.GenreDetail(genre))
                                     }
                                 )
                             }
                             entry<RythmeRoute.GenreDetail> { key ->
-                                GenreDetailScreen(
-                                    genreName = key.genre,
+                                LibraryFacetDetailScreen(
+                                    facet = LibraryFacet.GENRE,
+                                    value = key.genre,
                                     onAlbumClick = { album ->
                                         navigator.navigate(
                                             RythmeRoute.AlbumDetail(album.id.toString(), filterGenre = key.genre)
                                         )
-                                    },
-                                    viewModel = koinViewModel(key = key.genre) { parametersOf(key.genre) }
+                                    }
                                 )
                             }
                             entry<RythmeRoute.ComposerList> {
-                                ComposerListScreen(
-                                    onComposerClick = { composer ->
+                                LibraryFacetListScreen(
+                                    facet = LibraryFacet.COMPOSER,
+                                    onItemClick = { composer ->
                                         navigator.navigate(RythmeRoute.ComposerDetail(composer))
                                     }
                                 )
                             }
                             entry<RythmeRoute.ComposerDetail> { key ->
-                                ComposerDetailScreen(
-                                    composerName = key.composer,
+                                LibraryFacetDetailScreen(
+                                    facet = LibraryFacet.COMPOSER,
+                                    value = key.composer,
                                     onAlbumClick = { album ->
                                         navigator.navigate(
                                             RythmeRoute.AlbumDetail(album.id.toString(), filterComposer = key.composer)
                                         )
-                                    },
-                                    viewModel = koinViewModel(key = key.composer) { parametersOf(key.composer) }
+                                    }
                                 )
                             }
                         }

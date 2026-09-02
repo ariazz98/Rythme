@@ -21,7 +21,7 @@ Config: compile/target SDK 36, min SDK 33, Java 11, Kotlin 2.3.10, AGP 9.0.1. Ve
 Single-module app under `app/src/main/java/com/aria/rythme/`:
 
 ```
-feature/          # One subpackage per screen (home, player, library, search, playlist, songlist, navigationbar)
+feature/          # One subpackage per cohesive product area; related list/detail routes may share an implementation
 core/
   mvi/            # Legacy MVI support; reserve for genuinely complex state machines
   music/          # Domain models, Room DB, MediaStore scanner, PlaybackController, MusicRepository
@@ -40,6 +40,8 @@ Choose the smallest structure that fits the feature:
 - Pure presentation/navigation page: a composable with explicit callbacks; no ViewModel required.
 - Ordinary data page: a ViewModel exposing `StateFlow<UiState>` and normal methods.
 - Genuine state machine (player, scanner, complex editor): an explicit reducer/state machine is allowed.
+- Route variants with the same layout and behavior may share one screen/ViewModel keyed by a small domain enum. Keep
+  genuinely different behavior explicit instead of forcing it into a generic page.
 
 `core/mvi/` is legacy support while existing complex features are migrated. New features must not add empty
 Intent/Action/Effect types or route simple clicks through a reducer solely for consistency.

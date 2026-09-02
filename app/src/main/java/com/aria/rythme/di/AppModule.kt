@@ -25,10 +25,8 @@ import com.aria.rythme.feature.albumdetail.presentation.AlbumDetailViewModel
 import com.aria.rythme.feature.albumlist.presentation.AlbumListViewModel
 import com.aria.rythme.feature.artistdetail.presentation.ArtistDetailViewModel
 import com.aria.rythme.feature.artistlist.presentation.ArtistListViewModel
-import com.aria.rythme.feature.composerdetail.presentation.ComposerDetailViewModel
-import com.aria.rythme.feature.composerlist.presentation.ComposerListViewModel
-import com.aria.rythme.feature.genredetail.presentation.GenreDetailViewModel
-import com.aria.rythme.feature.genrelist.presentation.GenreListViewModel
+import com.aria.rythme.feature.library.presentation.LibraryFacetDetailViewModel
+import com.aria.rythme.feature.library.presentation.LibraryFacetListViewModel
 import com.aria.rythme.feature.songlist.presentation.SongListViewModel
 import com.aria.rythme.feature.search.presentation.SearchViewModel
 import org.koin.android.ext.koin.androidContext
@@ -121,36 +119,19 @@ val artistListModule = module {
     }
 }
 
-val genreDetailModule = module {
+val libraryFacetModule = module {
     viewModel { params ->
-        GenreDetailViewModel(
-            genreName = params[0],
+        LibraryFacetListViewModel(
+            facet = params[0],
             musicRepository = get()
         )
     }
-}
-
-val genreListModule = module {
-    viewModel {
-        GenreListViewModel(
-            musicRepository = get()
-        )
-    }
-}
-
-val composerDetailModule = module {
     viewModel { params ->
-        ComposerDetailViewModel(
-            composerName = params[0],
-            musicRepository = get()
-        )
-    }
-}
-
-val composerListModule = module {
-    viewModel {
-        ComposerListViewModel(
-            musicRepository = get()
+        LibraryFacetDetailViewModel(
+            facet = params[0],
+            value = params[1],
+            musicRepository = get(),
+            playbackController = get()
         )
     }
 }
@@ -198,10 +179,7 @@ val appModules = listOf(
     albumListModule,
     artistDetailModule,
     artistListModule,
-    genreDetailModule,
-    genreListModule,
-    composerDetailModule,
-    composerListModule,
+    libraryFacetModule,
     songListModule,
     searchModule,
     playListModule,
