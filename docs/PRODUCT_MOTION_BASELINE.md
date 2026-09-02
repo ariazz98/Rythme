@@ -16,7 +16,9 @@ Online lyrics are optional; the app does not require an account.
 - App Chrome, content navigation, Player, and Menu are separate layers.
 - Player is an overlay, not a route, so the scaffold and per-tab stacks remain alive.
 - Significant shared motion is owned by the layer that provides visual continuity, not by business ViewModels.
-- A visible control must have implemented behavior.
+- Existing placeholder UI records planned product intent. Preserve it and implement its behavior; do not remove or hide it
+  without an explicit product decision.
+- New visible controls must have implemented behavior.
 
 ## Navigation invariants
 

@@ -93,7 +93,10 @@ Image loading: Coil 3 with OkHttp backend. Album art colors extracted via Palett
 - **No Hilt** — Koin is the DI framework.
 - **No Retrofit** — Media data comes from MediaStore (local files only).
 - **Motion reference:** Significant motion must match an observed Apple Music behavior or an explicitly approved Rythme behavior.
-- **No fake controls:** Do not display controls whose behavior is not implemented.
+- **Preserve product intent:** Existing placeholder UI represents planned product behavior. Do not remove, hide, or
+  downgrade it merely because its behavior is unfinished. Prefer implementing the behavior; if that is outside the current
+  scope, preserve the UI and report the gap. Removing an existing product surface requires explicit user approval.
+- **No new fake controls:** New visible controls must have implemented behavior.
 
 ## 协作约定
 
