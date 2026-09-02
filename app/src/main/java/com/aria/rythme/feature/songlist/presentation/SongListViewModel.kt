@@ -1,12 +1,13 @@
 package com.aria.rythme.feature.songlist.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.MusicRepository
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -18,62 +19,34 @@ import kotlinx.coroutines.launch
 class SongListViewModel(
     private val musicRepository: MusicRepository,
     private val playbackController: PlaybackController
-) : BaseViewModel<SongListIntent, SongListState, SongListAction, SongListEffect>() {
+) : ViewModel() {
 
-    init {
-        observeSongs()
+    val songs: StateFlow<List<Song>> = musicRepository.getAllSongs()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    fun playAll() {
+        playQueue(songs.value)
     }
 
-    override fun createInitialState(): SongListState = SongListState()
-
-    override fun handleIntent(intent: SongListIntent) {
-        when (intent) {
-            is SongListIntent.PlayAll -> playAll()
-            is SongListIntent.ShufflePlay -> shufflePlay()
-            is SongListIntent.PlaySong -> playSong(intent.song)
-            is SongListIntent.ShowSongOptions -> { /* TODO */ }
-        }
+    fun shufflePlay() {
+        playQueue(songs.value.shuffled())
     }
 
-    override fun reduce(action: SongListAction): SongListState {
-        return when (action) {
-            is SongListAction.SongsLoaded -> currentState.copy(
-                songs = action.songs,
-                isLoading = false
-            )
-        }
-    }
-
-    private fun observeSongs() {
-        musicRepository.getAllSongs()
-            .onEach { songs ->
-                reduceAndUpdate(SongListAction.SongsLoaded(songs))
-            }
-            .launchIn(viewModelScope)
-    }
-
-    private fun playAll() {
+    fun playSong(song: Song) {
         viewModelScope.launch {
-            val songs = currentState.songs
-            if (songs.isNotEmpty()) {
-                playbackController.play(songs.first(), songs)
-            }
+            playbackController.play(song, songs.value)
         }
     }
 
-    private fun shufflePlay() {
-        viewModelScope.launch {
-            val songs = currentState.songs
-            if (songs.isNotEmpty()) {
-                val shuffled = songs.shuffled()
-                playbackController.play(shuffled.first(), shuffled)
-            }
-        }
-    }
+    private fun playQueue(queue: List<Song>) {
+        if (queue.isEmpty()) return
 
-    private fun playSong(song: Song) {
         viewModelScope.launch {
-            playbackController.play(song, currentState.songs)
+            playbackController.play(queue.first(), queue)
         }
     }
 }

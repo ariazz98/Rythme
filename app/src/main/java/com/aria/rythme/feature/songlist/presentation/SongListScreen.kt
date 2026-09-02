@@ -8,8 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
@@ -28,8 +28,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SongListScreen(
     viewModel: SongListViewModel = koinViewModel()
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val songs = state.value.songs
+    val songs = viewModel.songs.collectAsStateWithLifecycle().value
     val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
@@ -43,8 +42,8 @@ fun SongListScreen(
             Box(modifier = Modifier.fillMaxWidth().padding(start = 21.dp, end = 21.dp, top = 8.dp, bottom = 24.dp)) {
 
                 CommonOperateButton(
-                    onPlayClick = { viewModel.sendIntent(SongListIntent.PlayAll) },
-                    onRandomPlayClick = { viewModel.sendIntent(SongListIntent.ShufflePlay) }
+                    onPlayClick = viewModel::playAll,
+                    onRandomPlayClick = viewModel::shufflePlay
                 )
 
             }
@@ -54,7 +53,7 @@ fun SongListScreen(
             SongListItem(
                 song = song,
                 showDivider = index != songs.size - 1,
-                onClick = { viewModel.sendIntent(SongListIntent.PlaySong(song)) },
+                onClick = { viewModel.playSong(song) },
                 onMoreClick = { bounds ->
                     overlayMenu.show(
                         OverlayMenu.SongContext(
