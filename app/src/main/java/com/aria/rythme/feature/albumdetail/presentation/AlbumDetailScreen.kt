@@ -30,13 +30,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.LocalSharedAlbumId
 import com.aria.rythme.LocalContentSharedTransitionScope
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
@@ -55,9 +55,9 @@ fun AlbumDetailScreen(
     albumId: String,
     viewModel: AlbumDetailViewModel = koinViewModel()
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val album = state.value.album
-    val songs = state.value.songs
+    val state = viewModel.state.collectAsStateWithLifecycle().value
+    val album = state.album
+    val songs = state.songs
     val routeKey = RythmeRoute.AlbumDetail(albumId)
     val context = LocalContext.current
     val sharedTransitionScope = LocalContentSharedTransitionScope.current
@@ -145,8 +145,8 @@ fun AlbumDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 CommonOperateButton(
-                    onPlayClick = { },
-                    onRandomPlayClick = { }
+                    onPlayClick = { viewModel.playAll() },
+                    onRandomPlayClick = { viewModel.playAll(shuffle = true) }
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -163,7 +163,7 @@ fun AlbumDetailScreen(
                 song = song,
                 album = album,
                 trackNumberWidth = trackNumberWidth,
-                onClick = { viewModel.sendIntent(AlbumDetailIntent.ClickSong(song)) },
+                onClick = { viewModel.play(song) },
                 onMoreClick = { bounds ->
                     overlayMenu.show(
                         OverlayMenu.SongContext(
