@@ -175,10 +175,13 @@ class MusicRepository(
     /**
      * 保存用户对歌曲的编辑
      *
-     * 计算与原始数据的差异，仅将用户修改的字段存入覆盖层。
+     * 重新读取 MediaStore 索引中的原始记录并计算差异，仅将用户修改的字段存入覆盖层。
+     * 这样再次编辑已有覆盖的歌曲时，不会因为 UI 传入的是合并结果而丢失旧覆盖字段。
      * 保存后重建聚合表，使 Artist/Album 反映最新数据。
      */
-    suspend fun updateSong(original: Song, edited: Song) {
+    suspend fun updateSong(edited: Song) {
+        val original = songDao.getSongById(edited.id)?.toSong()
+            ?: throw IllegalArgumentException("歌曲已不在资料库中")
         val override = SongOverrideEntity(
             songId = original.id,
             title = edited.title.takeIf { it != original.title },

@@ -47,6 +47,7 @@ import com.aria.rythme.core.navigation.NavigationOperation
 import com.aria.rythme.core.navigation.Navigator
 import com.aria.rythme.core.navigation.rememberNavigationState
 import com.aria.rythme.core.navigation.toEntries
+import com.aria.rythme.core.music.data.repository.MusicRepository
 import com.aria.rythme.feature.albumdetail.presentation.AlbumDetailScreen
 import com.aria.rythme.feature.albumlist.presentation.AlbumListScreen
 import com.aria.rythme.feature.artistdetail.presentation.ArtistDetailScreen
@@ -79,6 +80,7 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.core.parameter.parametersOf
 
@@ -91,6 +93,7 @@ val LocalSharedAlbumId = compositionLocalOf<String?> { null }
 
 @Composable
 fun RythmeApp() {
+    val musicRepository = koinInject<MusicRepository>()
     val navigationState = rememberNavigationState(
         startRoute = RythmeRoute.Home,
         topLevelRoutes = ALL_TOP_LEVEL_ROUTES
@@ -147,7 +150,10 @@ fun RythmeApp() {
                     overlayMenuState.dismiss()
                 }
                 PlayerScreen(onBack = { playerVisible = false })
-                OverlayMenuHost(state = overlayMenuState)
+                OverlayMenuHost(
+                    state = overlayMenuState,
+                    onSaveSong = musicRepository::updateSong
+                )
             }
         }
     }

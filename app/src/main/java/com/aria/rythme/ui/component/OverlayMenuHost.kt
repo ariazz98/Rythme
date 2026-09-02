@@ -70,7 +70,8 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun OverlayMenuHost(
-    state: OverlayMenuState = LocalOverlayMenu.current
+    state: OverlayMenuState = LocalOverlayMenu.current,
+    onSaveSong: suspend (Song) -> Unit
 ) {
     val menu = state.currentMenu
     val sharedTransitionScope = LocalSharedTransitionScope.current
@@ -145,6 +146,7 @@ fun OverlayMenuHost(
             SongEditOverlay(
                 song = songEditData.song,
                 visible = songEditVisible,
+                onSave = onSaveSong,
                 onDismiss = { state.dismiss() },
                 onExitFinished = {
                     if (state.currentMenu !is OverlayMenu.SongEdit) {
@@ -347,6 +349,7 @@ private fun SongContextMenuOverlay(
 private fun SongEditOverlay(
     song: Song,
     visible: Boolean,
+    onSave: suspend (Song) -> Unit,
     onDismiss: () -> Unit,
     onExitFinished: () -> Unit
 ) {
@@ -439,6 +442,7 @@ private fun SongEditOverlay(
             SongEditorContent(
                 song = song,
                 scrollState = scrollState,
+                onSave = onSave,
                 onDismiss = onDismiss
             )
         }
