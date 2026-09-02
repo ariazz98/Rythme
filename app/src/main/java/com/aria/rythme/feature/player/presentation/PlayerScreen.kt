@@ -1,5 +1,6 @@
 package com.aria.rythme.feature.player.presentation
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -65,13 +66,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.utils.defaultGradientBrush
 import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
 import com.aria.rythme.ui.component.LocalOverlayMenu
@@ -85,6 +86,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.roundToInt
@@ -106,7 +108,8 @@ fun PlayerScreen(
     onBack: () -> Unit,
     viewModel: PlayerViewModel = koinViewModel()
 ) {
-    val state by viewModel.state.collectAsUiState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
     val width = LocalWindowInfo.current.containerDpSize.width
@@ -125,6 +128,12 @@ fun PlayerScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     val overlayMenu = LocalOverlayMenu.current
     val hasSyncedLyrics = !state.lyricsData?.lines.isNullOrEmpty()
+
+    LaunchedEffect(viewModel, context) {
+        viewModel.messages.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     BackHandler(
         enabled = playerVisible && activePanel != PlayerPanel.NONE && !overlayMenu.isVisible
@@ -245,7 +254,6 @@ fun PlayerScreen(
                 ) {
                     val coverUri = state.currentSong?.coverUri
                     if (coverUri != null) {
-                        val context = LocalContext.current
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(coverUri)
@@ -354,7 +362,7 @@ fun PlayerScreen(
                                 progress = state.progress,
                                 currentPosition = state.currentPosition,
                                 duration = state.duration,
-                                onSeek = { viewModel.sendIntent(PlayerIntent.SeekTo((it * state.duration).toLong())) }
+                                onSeek = { viewModel.seekTo((it * state.duration).toLong()) }
                             )
 
                             Spacer(modifier = Modifier.height(28.dp))
@@ -369,7 +377,7 @@ fun PlayerScreen(
                                     height = 21.dp,
                                     tint = if (state.canPlayPrevious) Color.White else Color(0x33FFFFFF),
                                     onClick = {
-                                        viewModel.sendIntent(PlayerIntent.Previous)
+                                        viewModel.previous()
                                     }
                                 )
 
@@ -379,9 +387,9 @@ fun PlayerScreen(
                                     tint = Color.White,
                                     onClick = {
                                         if (state.currentSong == null) {
-                                            viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                                            viewModel.loadAndPlayRandom()
                                         } else {
-                                            viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                                            viewModel.togglePlayPause()
                                         }
                                     }
                                 )
@@ -391,7 +399,7 @@ fun PlayerScreen(
                                     height = 21.dp,
                                     tint = if (state.canPlayNext) Color.White else Color(0x33FFFFFF),
                                     onClick = {
-                                        viewModel.sendIntent(PlayerIntent.Next)
+                                        viewModel.next()
                                     }
                                 )
 
@@ -401,7 +409,7 @@ fun PlayerScreen(
 
                             VoiceItem(
                                 progress = state.volume / 100f,
-                                onSeek = { viewModel.sendIntent(PlayerIntent.SetVolume((it * 100).toInt())) }
+                                onSeek = { viewModel.setVolume((it * 100).toInt()) }
                             )
 
                             Spacer(modifier = Modifier.height(24.dp))
@@ -528,7 +536,7 @@ fun PlayerScreen(
                                         activePanel = PlayerPanel.NONE
                                     },
                                     onSeekToLine = { index ->
-                                        viewModel.sendIntent(PlayerIntent.SeekToLyricLine(index))
+                                        viewModel.seekToLyricLine(index)
                                     },
                                     onControlsVisibleChange = { visible ->
                                         controlsVisible = visible
@@ -541,7 +549,12 @@ fun PlayerScreen(
                                     playerVisible = playerVisible,
                                     scope = scope,
                                     animatedContentScope = this@AnimatedContent,
-                                    viewModel = viewModel,
+                                    onClearHistory = viewModel::clearHistory,
+                                    onSelectQueueEntry = viewModel::selectQueueEntry,
+                                    onReorderQueue = viewModel::reorderQueue,
+                                    onToggleShuffle = viewModel::toggleShuffleMode,
+                                    onToggleRepeat = viewModel::toggleRepeatMode,
+                                    onToggleInfinitePlay = viewModel::toggleInfinitePlay,
                                     innerPadding = innerPadding,
                                     stickyBackdrop = stickyBackdrop,
                                     screenDragOffsetY = dragOffsetYState,

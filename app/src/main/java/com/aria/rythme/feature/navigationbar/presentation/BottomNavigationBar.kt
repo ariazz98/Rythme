@@ -25,12 +25,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
-import com.aria.rythme.feature.player.presentation.PlayerIntent
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
 import com.aria.rythme.ui.component.CompactBottomTab
 import com.aria.rythme.ui.component.LiquidBottomTabs
@@ -50,7 +49,7 @@ fun BottomNavigationBar(
     onClickPlayer: () -> Unit,
     viewModel: PlayerViewModel = koinViewModel()
 ) {
-    val playerState by viewModel.state.collectAsUiState()
+    val playerState by viewModel.state.collectAsStateWithLifecycle()
     val bottomBarState = LocalBottomBarState.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
@@ -136,12 +135,12 @@ fun BottomNavigationBar(
                                 onClick = onClickPlayer,
                                 onPlayPauseClick = {
                                     if (playerState.currentSong == null) {
-                                        viewModel.sendIntent(PlayerIntent.LoadAndPlayRandom)
+                                        viewModel.loadAndPlayRandom()
                                     } else {
-                                        viewModel.sendIntent(PlayerIntent.TogglePlayPause)
+                                        viewModel.togglePlayPause()
                                     }
                                 },
-                                onNextClick = { viewModel.sendIntent(PlayerIntent.Next) }
+                                onNextClick = viewModel::next
                             )
                         }
                     }

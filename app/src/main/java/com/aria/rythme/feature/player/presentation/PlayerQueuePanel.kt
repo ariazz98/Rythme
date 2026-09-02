@@ -84,7 +84,12 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
     playerVisible: Boolean,
     scope: CoroutineScope,
     animatedContentScope: AnimatedContentScope,
-    viewModel: PlayerViewModel,
+    onClearHistory: () -> Unit,
+    onSelectQueueEntry: (String) -> Unit,
+    onReorderQueue: (fromEntryId: String, toEntryId: String) -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleInfinitePlay: () -> Unit,
     innerPadding: PaddingValues,
     stickyBackdrop: Backdrop,
     screenDragOffsetY: MutableFloatState,
@@ -403,9 +408,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 listState = historyListState,
                 stickyBackdrop = stickyBackdrop,
                 nestedScrollConnection = historyNestedScrollConnection,
-                onClear = {
-                    viewModel.sendIntent(PlayerIntent.ClearHistory)
-                },
+                onClear = onClearHistory,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
@@ -470,7 +473,9 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
 
                 ActionButtonsRow(
                     state = state,
-                    viewModel = viewModel
+                    onToggleShuffle = onToggleShuffle,
+                    onToggleRepeat = onToggleRepeat,
+                    onToggleInfinitePlay = onToggleInfinitePlay
                 )
             }
 
@@ -542,9 +547,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                         ) {
                             PlayListItem(
                                 entry.song,
-                                onClick = {
-                                    viewModel.sendIntent(PlayerIntent.SelectQueueEntry(entry.id))
-                                },
+                                onClick = { onSelectQueueEntry(entry.id) },
                                 dragModifier = Modifier.pointerInput(Unit) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = {
@@ -568,11 +571,9 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                                                 if ((dragged < itemLocalIndex && draggedCenter > itemCenter) ||
                                                     (dragged > itemLocalIndex && draggedCenter < itemCenter)
                                                 ) {
-                                                    viewModel.sendIntent(
-                                                        PlayerIntent.ReorderQueue(
-                                                            fromEntryId = upcomingOrdered[dragged].id,
-                                                            toEntryId = upcomingOrdered[itemLocalIndex].id
-                                                        )
+                                                    onReorderQueue(
+                                                        upcomingOrdered[dragged].id,
+                                                        upcomingOrdered[itemLocalIndex].id
                                                     )
                                                     draggedIndex = itemLocalIndex
                                                     val sizeDiff = item.size - draggedItem.size
@@ -668,9 +669,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                                 ) {
                                     PlayListItem(
                                         entry.song,
-                                        onClick = {
-                                            viewModel.sendIntent(PlayerIntent.SelectQueueEntry(entry.id))
-                                        },
+                                        onClick = { onSelectQueueEntry(entry.id) },
                                         dragModifier = Modifier.pointerInput(Unit) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = {
@@ -695,11 +694,9 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                                                         if ((dragLocalIdx < itemExtIdx && draggedCenter > itemCenter) ||
                                                             (dragLocalIdx > itemExtIdx && draggedCenter < itemCenter)
                                                         ) {
-                                                            viewModel.sendIntent(
-                                                                PlayerIntent.ReorderQueue(
-                                                                    fromEntryId = autoplayEntries[dragLocalIdx].id,
-                                                                    toEntryId = autoplayEntries[itemExtIdx].id
-                                                                )
+                                                            onReorderQueue(
+                                                                autoplayEntries[dragLocalIdx].id,
+                                                                autoplayEntries[itemExtIdx].id
                                                             )
                                                             draggedIndex = itemExtIdx + upcomingOrdered.size + 1
                                                             val sizeDiff = item.size - draggedItem.size
@@ -740,7 +737,9 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
 @Composable
 private fun ActionButtonsRow(
     state: PlayerState,
-    viewModel: PlayerViewModel
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleInfinitePlay: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -756,7 +755,7 @@ private fun ActionButtonsRow(
             iconSize = 20.dp,
             enabled = shuffleEnabled,
             active = state.isShuffleEnabled
-        ) { viewModel.sendIntent(PlayerIntent.ToggleShuffleMode) }
+        ) { onToggleShuffle() }
 
         // Repeat
         val repeatEnabled = state.queue.entries.isNotEmpty() && !state.isPlayingInfiniteExtension
@@ -767,7 +766,7 @@ private fun ActionButtonsRow(
             iconSize = 18.dp,
             enabled = repeatEnabled,
             active = repeatActive
-        ) { viewModel.sendIntent(PlayerIntent.ToggleRepeatMode) }
+        ) { onToggleRepeat() }
 
         // Infinite
         val infiniteEnabled = state.queue.entries.isNotEmpty()
@@ -776,7 +775,7 @@ private fun ActionButtonsRow(
             iconSize = 23.dp,
             enabled = infiniteEnabled,
             active = state.isInfinitePlayEnabled
-        ) { viewModel.sendIntent(PlayerIntent.ToggleInfinitePlay) }
+        ) { onToggleInfinitePlay() }
 
     }
 

@@ -1,348 +1,199 @@
 package com.aria.rythme.feature.player.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
-import com.aria.rythme.core.utils.RythmeLogger
 import com.aria.rythme.core.music.controller.PlaybackController
+import com.aria.rythme.core.music.data.model.LyricLine
+import com.aria.rythme.core.music.data.model.LyricsData
 import com.aria.rythme.core.music.data.model.LyricsStatus
+import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.LyricsRepository
 import com.aria.rythme.core.music.data.repository.MusicRepository
+import com.aria.rythme.core.utils.RythmeLogger
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 播放器 ViewModel
- *
- * 管理播放器页面的 UI 状态和用户交互。
- * 所有数据操作已下沉到 MusicRepository，ViewModel 只负责 UI 状态管理。
- *
- * ## 架构分层
- * - ViewModel：UI 状态管理、用户交互处理
- * - Repository：数据加载、刷新、MediaStore 监听（数据层闭环）
- * - PlaybackController：播放控制
- *
- * @param playbackController 播放控制器
- * @param musicRepository 音乐数据仓库
+ * Adapts playback-domain state for Player UI and exposes only operations the UI actually uses.
+ * PlaybackController remains the owner of playback and queue behavior.
  */
 class PlayerViewModel(
     private val playbackController: PlaybackController,
     private val musicRepository: MusicRepository,
     private val lyricsRepository: LyricsRepository
-) : BaseViewModel<PlayerIntent, PlayerState, PlayerAction, PlayerEffect>() {
+) : ViewModel() {
 
-    /** 进度更新任务 */
+    private val _state = MutableStateFlow(PlayerState())
+    val state: StateFlow<PlayerState> = _state.asStateFlow()
+
+    private val _messages = Channel<String>(Channel.BUFFERED)
+    val messages = _messages.receiveAsFlow()
+
+    private val currentState: PlayerState
+        get() = _state.value
+
     private var progressUpdateJob: Job? = null
-
-    /** 歌词加载任务 */
     private var lyricsLoadJob: Job? = null
-
-    /** 上一首加载过歌词的歌曲 ID */
     private var lastLyricsSongId: Long? = null
 
     init {
         observePlaybackState()
     }
 
-    /**
-     * 创建初始状态
-     */
-    override fun createInitialState(): PlayerState = PlayerState()
-
-    /**
-     * 处理用户意图
-     */
-    override fun handleIntent(intent: PlayerIntent) {
-        when (intent) {
-            is PlayerIntent.PlaySong -> playSong(intent.song)
-            is PlayerIntent.TogglePlayPause -> togglePlayPause()
-            is PlayerIntent.Play -> play()
-            is PlayerIntent.Pause -> pause()
-            is PlayerIntent.Next -> next()
-            is PlayerIntent.Previous -> previous()
-            is PlayerIntent.SeekTo -> seekTo(intent.position)
-            is PlayerIntent.FastForward -> fastForward()
-            is PlayerIntent.Rewind -> rewind()
-            is PlayerIntent.ToggleRepeatMode -> toggleRepeatMode()
-            is PlayerIntent.ToggleShuffleMode -> toggleShuffleMode()
-            is PlayerIntent.LoadAndPlayRandom -> loadAndPlayRandom()
-            is PlayerIntent.SelectQueueEntry -> selectQueueEntry(intent.entryId)
-            is PlayerIntent.SetVolume -> setVolume(intent.percentage)
-            is PlayerIntent.ReorderQueue -> reorderQueue(intent.fromEntryId, intent.toEntryId)
-            is PlayerIntent.ToggleInfinitePlay -> toggleInfinitePlay()
-            is PlayerIntent.ClearHistory -> playbackController.clearHistory()
-            is PlayerIntent.SeekToLyricLine -> seekToLyricLine(intent.index)
-            is PlayerIntent.RefreshLyrics -> refreshLyrics()
-        }
-    }
-
-    /**
-     * 状态归约
-     */
-    override fun reduce(action: PlayerAction): PlayerState {
-        return when (action) {
-            is PlayerAction.UpdatePlayState -> currentState.copy(isPlaying = action.isPlaying)
-            is PlayerAction.UpdateProgress -> currentState.copy(
-                currentPosition = action.position,
-                duration = action.duration
-            )
-            is PlayerAction.UpdateQueue -> currentState.copy(queue = action.queue)
-            is PlayerAction.UpdateRepeatMode -> currentState.copy(repeatMode = action.mode)
-            is PlayerAction.UpdateShuffleMode -> currentState.copy(isShuffleEnabled = action.enabled)
-            is PlayerAction.UpdateThemeColor -> currentState.copy(themeColor = action.color)
-            is PlayerAction.UpdateVolume -> currentState.copy(volume = action.volume)
-            is PlayerAction.UpdatePlayHistory -> currentState.copy(playHistory = action.history)
-            is PlayerAction.UpdateInfinitePlayMode -> currentState.copy(isInfinitePlayEnabled = action.enabled)
-            is PlayerAction.UpdateLyrics -> currentState.copy(
-                lyricsData = action.data,
-                lyricsStatus = action.status,
-                currentLyricIndex = -1
-            )
-            is PlayerAction.UpdateCurrentLyricIndex -> currentState.copy(currentLyricIndex = action.index)
-        }
-    }
-
-    /**
-     * 播放歌曲
-     */
-    private fun playSong(song: com.aria.rythme.core.music.data.model.Song) {
+    fun togglePlayPause() {
         viewModelScope.launch {
-            playbackController.play(song, currentState.queue.entries.map { it.song })
-        }
-    }
-
-    /**
-     * 切换播放/暂停
-     * 
-     * 如果播放器还没有加载内容，先加载当前歌曲再播放
-     */
-    private fun togglePlayPause() {
-        viewModelScope.launch {
-            // 如果有当前歌曲且不在播放状态，先加载再播放
             val currentSong = currentState.currentSong
-            if (currentSong != null && !currentState.isPlaying) {
-                // 检查是否需要加载歌曲到播放器
-                if (playbackController.queue.value.currentEntry == null) {
-                    playbackController.play(
-                        currentSong,
-                        currentState.queue.entries.map { it.song }
-                    )
-                } else {
-                    playbackController.togglePlayPause()
-                }
+            if (
+                currentSong != null &&
+                !currentState.isPlaying &&
+                playbackController.queue.value.currentEntry == null
+            ) {
+                playbackController.play(
+                    currentSong,
+                    currentState.queue.entries.map { it.song }
+                )
             } else {
                 playbackController.togglePlayPause()
             }
         }
     }
 
-    /**
-     * 播放
-     */
-    private fun play() {
-        playbackController.play()
-    }
-
-    /**
-     * 暂停
-     */
-    private fun pause() {
-        playbackController.pause()
-    }
-
-    /**
-     * 下一首
-     */
-    private fun next() {
+    fun next() {
         playbackController.next()
     }
 
-    /**
-     * 上一首
-     */
-    private fun previous() {
+    fun previous() {
         playbackController.previous()
     }
 
-    /**
-     * 跳转到指定位置
-     */
-    private fun seekTo(position: Long) {
+    fun seekTo(position: Long) {
         playbackController.seekTo(position)
-        // 立即更新状态，避免暂停时进度不刷新
-        reduceAndUpdate(PlayerAction.UpdateProgress(position, currentState.duration))
+        updateState { it.copy(currentPosition = position) }
     }
 
-    /**
-     * 快进
-     */
-    private fun fastForward() {
-        playbackController.fastForward()
-    }
-
-    /**
-     * 快退
-     */
-    private fun rewind() {
-        playbackController.rewind()
-    }
-
-    /**
-     * 切换循环模式
-     */
-    private fun toggleRepeatMode() {
+    fun toggleRepeatMode() {
         playbackController.toggleRepeatMode()
-        reduceAndUpdate(PlayerAction.UpdateRepeatMode(playbackController.repeatMode.value))
+        updateState { it.copy(repeatMode = playbackController.repeatMode.value) }
     }
 
-    /**
-     * 切换随机播放
-     */
-    private fun toggleShuffleMode() {
+    fun toggleShuffleMode() {
         playbackController.toggleShuffleMode()
     }
 
-    /**
-     * 随机播放一首歌曲
-     *
-     * 从数据库读取全部歌曲并随机播放。MusicIndexer 已由 MainActivity 初始化。
-     */
-    private fun loadAndPlayRandom() {
+    fun loadAndPlayRandom() {
         RythmeLogger.d(TAG, "随机播放")
         viewModelScope.launch {
             try {
                 val songs = musicRepository.getAllSongsOnce()
-                if (songs.isNotEmpty()) {
-                    val randomSong = songs.random()
-                    RythmeLogger.d(TAG, "随机播放: ${randomSong.title}")
-                    playbackController.play(randomSong, songs)
-                } else {
-                    sendEffect(PlayerEffect.ShowMessage("没有找到可播放的歌曲"))
+                if (songs.isEmpty()) {
+                    sendMessage("没有找到可播放的歌曲")
+                    return@launch
                 }
+
+                val randomSong = songs.random()
+                RythmeLogger.d(TAG, "随机播放: ${randomSong.title}")
+                playbackController.play(randomSong, songs)
             } catch (e: Exception) {
                 RythmeLogger.e(TAG, "加载失败", e)
-                sendEffect(PlayerEffect.ShowError("加载失败: ${e.message}"))
+                sendMessage("加载失败: ${e.message}")
             }
         }
     }
 
-    /**
-     * 从播放列表选择歌曲
-     */
-    private fun selectQueueEntry(entryId: String) {
+    fun selectQueueEntry(entryId: String) {
         viewModelScope.launch {
             playbackController.playQueueEntry(entryId)
         }
     }
 
-    /**
-     * 拖拽重排播放列表
-     */
-    private fun reorderQueue(fromEntryId: String, toEntryId: String) {
+    fun setVolume(percentage: Int) {
+        playbackController.setVolumePercentage(percentage)
+    }
+
+    fun reorderQueue(fromEntryId: String, toEntryId: String) {
         viewModelScope.launch {
             playbackController.moveQueueEntry(fromEntryId, toEntryId)
         }
     }
 
-    /**
-     * 切换无限播放
-     */
-    private fun toggleInfinitePlay() {
+    fun toggleInfinitePlay() {
         viewModelScope.launch {
             try {
                 val allSongs = musicRepository.getAllSongsOnce()
                 playbackController.toggleInfinitePlay(allSongs)
             } catch (e: Exception) {
                 RythmeLogger.e(TAG, "切换无限播放失败", e)
-                sendEffect(PlayerEffect.ShowError("操作失败: ${e.message}"))
+                sendMessage("操作失败: ${e.message}")
             }
         }
     }
 
-    /**
-     * 设置音量
-     */
-    private fun setVolume(percentage: Int) {
-        playbackController.setVolumePercentage(percentage)
+    fun clearHistory() {
+        playbackController.clearHistory()
     }
 
-    /**
-     * 监听播放状态
-     * 
-     * 注意：每个 Flow 需要独立启动，不能包裹在同一个 launch 块中
-     */
+    fun seekToLyricLine(index: Int) {
+        val lines = currentState.lyricsData?.lines ?: return
+        if (index !in lines.indices) return
+
+        val timeMs = lines[index].startTimeMs
+        playbackController.seekTo(timeMs)
+        updateState {
+            it.copy(currentPosition = timeMs, currentLyricIndex = index)
+        }
+    }
+
     private fun observePlaybackState() {
-        // 监听播放状态（独立启动）
         playbackController.isPlaying
             .onEach { isPlaying ->
-                reduceAndUpdate(PlayerAction.UpdatePlayState(isPlaying))
-                // 根据播放状态启停进度更新
-                if (isPlaying) {
-                    startProgressUpdate()
-                } else {
-                    stopProgressUpdate()
-                }
+                updateState { it.copy(isPlaying = isPlaying) }
+                if (isPlaying) startProgressUpdate() else stopProgressUpdate()
             }
             .launchIn(viewModelScope)
 
-        // 队列、当前条目和自动播放边界由一个快照原子更新。
         playbackController.queue
             .onEach { queue ->
-                reduceAndUpdate(PlayerAction.UpdateQueue(queue))
+                updateState { it.copy(queue = queue) }
                 val song = queue.currentEntry?.song
                 if (song == null) {
-                    reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.IDLE))
+                    updateLyrics(null, LyricsStatus.IDLE)
                     lastLyricsSongId = null
                 } else if (song.id != lastLyricsSongId) {
                     loadLyrics(song)
                 }
             }
             .launchIn(viewModelScope)
-        
-        // 监听音量变化（独立启动）
+
         playbackController.volume
-            .onEach { volume ->
-                reduceAndUpdate(PlayerAction.UpdateVolume(volume))
-            }
+            .onEach { volume -> updateState { it.copy(volume = volume) } }
             .launchIn(viewModelScope)
-        
-        // 监听播放历史（独立启动）
+
         playbackController.playHistory
-            .onEach { history ->
-                reduceAndUpdate(PlayerAction.UpdatePlayHistory(history))
-            }
+            .onEach { history -> updateState { it.copy(playHistory = history) } }
             .launchIn(viewModelScope)
 
-        // 监听随机播放状态（独立启动）
         playbackController.shuffleMode
-            .onEach { enabled ->
-                reduceAndUpdate(PlayerAction.UpdateShuffleMode(enabled))
-            }
+            .onEach { enabled -> updateState { it.copy(isShuffleEnabled = enabled) } }
             .launchIn(viewModelScope)
 
-        // 监听循环模式（独立启动）
         playbackController.repeatMode
-            .onEach { repeatMode ->
-                reduceAndUpdate(PlayerAction.UpdateRepeatMode(repeatMode))
-            }
+            .onEach { repeatMode -> updateState { it.copy(repeatMode = repeatMode) } }
             .launchIn(viewModelScope)
 
-        // 监听无限播放状态（独立启动）
         playbackController.isInfinitePlayEnabled
-            .onEach { enabled ->
-                reduceAndUpdate(PlayerAction.UpdateInfinitePlayMode(enabled))
-            }
+            .onEach { enabled -> updateState { it.copy(isInfinitePlayEnabled = enabled) } }
             .launchIn(viewModelScope)
-
     }
 
-    /**
-     * 开始进度更新
-     * 
-     * 仅在播放时启动，避免无谓的 CPU 消耗
-     */
     private fun startProgressUpdate() {
         if (progressUpdateJob?.isActive == true) return
 
@@ -350,94 +201,64 @@ class PlayerViewModel(
             while (true) {
                 val position = playbackController.getCurrentPosition()
                 val duration = playbackController.getDuration()
-                reduceAndUpdate(PlayerAction.UpdateProgress(position, duration))
-                // 计算当前歌词行
+                updateState { it.copy(currentPosition = position, duration = duration) }
                 updateCurrentLyricIndex(position)
                 delay(PROGRESS_UPDATE_INTERVAL)
             }
         }
     }
-    
-    /**
-     * 停止进度更新
-     */
+
     private fun stopProgressUpdate() {
         progressUpdateJob?.cancel()
         progressUpdateJob = null
     }
 
-    /**
-     * 加载歌词
-     */
-    private fun loadLyrics(song: com.aria.rythme.core.music.data.model.Song) {
+    private fun loadLyrics(song: Song) {
         lyricsLoadJob?.cancel()
         lastLyricsSongId = song.id
-        reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.LOADING))
+        updateLyrics(null, LyricsStatus.LOADING)
 
         lyricsLoadJob = viewModelScope.launch {
             try {
                 val data = lyricsRepository.getLyrics(song)
-                // 确保歌曲未切换
                 if (currentState.currentSong?.id == song.id) {
-                    if (data != null) {
-                        reduceAndUpdate(PlayerAction.UpdateLyrics(data, LyricsStatus.LOADED))
-                    } else {
-                        reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.NOT_FOUND))
-                    }
+                    updateLyrics(
+                        data = data,
+                        status = if (data == null) LyricsStatus.NOT_FOUND else LyricsStatus.LOADED
+                    )
                 }
             } catch (e: Exception) {
                 RythmeLogger.e(TAG, "歌词加载失败", e)
                 if (currentState.currentSong?.id == song.id) {
-                    reduceAndUpdate(PlayerAction.UpdateLyrics(null, LyricsStatus.ERROR))
+                    updateLyrics(null, LyricsStatus.ERROR)
                 }
             }
         }
     }
 
-    /**
-     * 刷新歌词（强制重新获取）
-     */
-    private fun refreshLyrics() {
-        currentState.currentSong?.let { loadLyrics(it) }
-    }
-
-    /**
-     * 点击歌词行跳转播放
-     */
-    private fun seekToLyricLine(index: Int) {
-        val lines = currentState.lyricsData?.lines ?: return
-        if (index in lines.indices) {
-            val timeMs = lines[index].startTimeMs
-            playbackController.seekTo(timeMs)
-            reduceAndUpdate(PlayerAction.UpdateProgress(timeMs, currentState.duration))
-            reduceAndUpdate(PlayerAction.UpdateCurrentLyricIndex(index))
+    private fun updateLyrics(data: LyricsData?, status: LyricsStatus) {
+        updateState {
+            it.copy(
+                lyricsData = data,
+                lyricsStatus = status,
+                currentLyricIndex = -1
+            )
         }
     }
 
-    /**
-     * 二分查找当前歌词行
-     *
-     * 仅当 index 变化时 dispatch Action，避免无谓的状态更新。
-     */
     private fun updateCurrentLyricIndex(positionMs: Long) {
         val lines = currentState.lyricsData?.lines ?: return
         if (lines.isEmpty()) return
 
         val newIndex = findCurrentLineIndex(lines, positionMs)
         if (newIndex != currentState.currentLyricIndex) {
-            reduceAndUpdate(PlayerAction.UpdateCurrentLyricIndex(newIndex))
+            updateState { it.copy(currentLyricIndex = newIndex) }
         }
     }
 
-    /**
-     * 二分查找：找到最后一个 startTimeMs <= positionMs 的行
-     */
-    private fun findCurrentLineIndex(
-        lines: List<com.aria.rythme.core.music.data.model.LyricLine>,
-        positionMs: Long
-    ): Int {
+    private fun findCurrentLineIndex(lines: List<LyricLine>, positionMs: Long): Int {
         var low = 0
-        var high = lines.size - 1
+        var high = lines.lastIndex
         var result = -1
 
         while (low <= high) {
@@ -452,14 +273,22 @@ class PlayerViewModel(
         return result
     }
 
+    private inline fun updateState(transform: (PlayerState) -> PlayerState) {
+        _state.update(transform)
+    }
+
+    private fun sendMessage(message: String) {
+        _messages.trySend(message)
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdate()
         lyricsLoadJob?.cancel()
     }
 
-    companion object {
-        private const val TAG = "PlayerViewModel"
-        private const val PROGRESS_UPDATE_INTERVAL = 200L
+    private companion object {
+        const val TAG = "PlayerViewModel"
+        const val PROGRESS_UPDATE_INTERVAL = 200L
     }
 }
