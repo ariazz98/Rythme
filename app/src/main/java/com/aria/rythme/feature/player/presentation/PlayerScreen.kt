@@ -2,7 +2,6 @@ package com.aria.rythme.feature.player.presentation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -21,7 +20,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -55,7 +53,6 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -64,9 +61,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -78,10 +72,8 @@ import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.collectAsUiState
-import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.utils.defaultGradientBrush
 import com.aria.rythme.core.utils.rememberScreenCornerRadiusDp
-import com.aria.rythme.ui.component.CoverItem
 import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.NextIcon
 import com.aria.rythme.ui.component.PlayPauseIcon
@@ -92,7 +84,6 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -118,8 +109,6 @@ fun PlayerScreen(
     val state by viewModel.state.collectAsUiState()
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
-    val sharedIdentity = state.currentQueueEntryIdentity
-
     val width = LocalWindowInfo.current.containerDpSize.width
     val density = LocalDensity.current
     val screenHeightPx = with(density) {
@@ -135,6 +124,7 @@ fun PlayerScreen(
     var activePanel by remember { mutableStateOf(PlayerPanel.NONE) }
     var controlsVisible by remember { mutableStateOf(true) }
     val overlayMenu = LocalOverlayMenu.current
+    val hasSyncedLyrics = !state.lyricsData?.lines.isNullOrEmpty()
 
     BackHandler(
         enabled = playerVisible && activePanel != PlayerPanel.NONE && !overlayMenu.isVisible
@@ -146,12 +136,24 @@ fun PlayerScreen(
     LaunchedEffect(playerVisible) {
         if (playerVisible) {
             dragOffsetY = 0f
+            controlsVisible = true
+        }
+    }
+
+    LaunchedEffect(hasSyncedLyrics) {
+        if (!hasSyncedLyrics) {
+            controlsVisible = true
         }
     }
 
     // 歌词模式下播放中 5s 无操作自动隐藏操作区
-    LaunchedEffect(state.isPlaying, activePanel, controlsVisible) {
-        if (state.isPlaying && activePanel == PlayerPanel.LYRICS && controlsVisible) {
+    LaunchedEffect(state.isPlaying, activePanel, controlsVisible, hasSyncedLyrics) {
+        if (
+            state.isPlaying &&
+            activePanel == PlayerPanel.LYRICS &&
+            controlsVisible &&
+            hasSyncedLyrics
+        ) {
             delay(5000L)
             controlsVisible = false
         }
@@ -489,128 +491,27 @@ fun PlayerScreen(
                     ) { targetPanel ->
                         when (targetPanel) {
                             PlayerPanel.NONE -> {
-                                Column(
-                                    modifier = Modifier.fillMaxSize().padding(innerPadding)
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth().weight(1f),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CoverItem(
-                                            modifier = Modifier
-                                                .sharedElementWithCallerManagedVisibility(
-                                                    sharedContentState = rememberSharedContentState(
-                                                        key = "playerArtworkOverlay_$sharedIdentity"
-                                                    ),
-                                                    visible = playerVisible
-                                                )
-                                                .sharedBounds(
-                                                    sharedContentState = rememberSharedContentState(
-                                                        key = "playerArtworkInternal_$sharedIdentity"
-                                                    ),
-                                                    animatedVisibilityScope = this@AnimatedContent,
-                                                    resizeMode = ResizeMode.RemeasureToBounds
-                                                ),
-                                            size = animateCoverSize,
-                                            corner = 9.dp,
-                                            song = state.currentSong,
-                                            defaultBgColor = Color(0xFF606063),
-                                            defaultIconColor = Color(0xFF737376)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .sharedElementWithCallerManagedVisibility(
-                                                sharedContentState = rememberSharedContentState(
-                                                    key = "playerInfoOverlay_$sharedIdentity"
-                                                ),
-                                                visible = playerVisible
-                                            )
-                                            .sharedBounds(
-                                                sharedContentState = rememberSharedContentState(
-                                                    key = "playerInfoInternal_$sharedIdentity"
-                                                ),
-                                                animatedVisibilityScope = this@AnimatedContent,
-                                                resizeMode = ResizeMode.RemeasureToBounds
-                                            ),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(
-                                                text = state.currentSong?.title ?: stringResource(R.string.not_play),
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                maxLines = 1,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .graphicsLayer {
-                                                        compositingStrategy = CompositingStrategy.Offscreen
-                                                    }
-                                                    .drawWithContent {
-                                                        drawContent()
-                                                        drawRect(
-                                                            brush = Brush.horizontalGradient(
-                                                                0f to Color.Transparent,
-                                                                1f to Color.Black,
-                                                                startX = 0f,
-                                                                endX = 8.dp.toPx()
-                                                            ),
-                                                            blendMode = BlendMode.DstIn
-                                                        )
-                                                        drawRect(
-                                                            brush = Brush.horizontalGradient(
-                                                                0.9f to Color.Black,
-                                                                1f to Color.Transparent
-                                                            ),
-                                                            blendMode = BlendMode.DstIn
-                                                        )
-                                                    }
-                                                    .customMarquee()
-                                                    .padding(start = 32.dp)
-                                            )
-                                            if (!state.currentSong?.artist.isNullOrEmpty()) {
-                                                Text(
-                                                    text = state.currentSong!!.artist,
-                                                    fontSize = 18.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = Color(0x80FFFFFF),
-                                                    maxLines = 1,
-                                                    modifier = Modifier.padding(start = 32.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.width(32.dp))
-                                    }
-
-                                    Spacer(modifier = Modifier.height(32.dp))
-                                }
+                                NowPlayingPanel(
+                                    state = state,
+                                    playerVisible = playerVisible,
+                                    animatedContentScope = this@AnimatedContent,
+                                    innerPadding = innerPadding,
+                                    coverSize = animateCoverSize
+                                )
                             }
                             PlayerPanel.LYRICS -> {
-                                // controls 收起时 bottom padding 随动画归零，歌词全屏
-                                val lyricsBottomPadding = innerPadding.calculateBottomPadding() * (1f - controlsSlide)
-                                Column(
-                                    modifier = Modifier.fillMaxSize()
-                                        .padding(top = innerPadding.calculateTopPadding() + 20.dp, bottom = lyricsBottomPadding)
-                                ) {
-                                    // 紧凑头部：封面 + 标题横排，支持拖动关闭 Screen
-                                    CompactNowPlayingHeader(
-                                        state = state,
-                                        playerVisible = playerVisible,
-                                        animatedContentScope = this@AnimatedContent,
-                                        onCoverClick = {
-                                            activePanel = PlayerPanel.NONE
-                                        },
-                                        dragState = rememberDraggableState { delta ->
+                                LyricsPanel(
+                                    state = state,
+                                    playerVisible = playerVisible,
+                                    animatedContentScope = this@AnimatedContent,
+                                    innerPadding = innerPadding,
+                                    controlsSlide = controlsSlide,
+                                    controlsVisible = controlsVisible,
+                                    modifier = Modifier.draggable(
+                                        state = rememberDraggableState { delta ->
                                             dragOffsetY = (dragOffsetY + delta).coerceAtLeast(0f)
                                         },
+                                        orientation = Orientation.Vertical,
                                         onDragStopped = { velocity ->
                                             if (dragOffsetY > dismissThreshold || velocity > velocityThreshold) {
                                                 onBack()
@@ -622,24 +523,17 @@ fun PlayerScreen(
                                                 }
                                             }
                                         }
-                                    )
-
-                                    // 歌词视图
-                                    com.aria.rythme.ui.component.LyricsView(
-                                        lyricsData = state.lyricsData,
-                                        lyricsStatus = state.lyricsStatus,
-                                        currentLyricIndex = state.currentLyricIndex,
-                                        onSeekToLine = { index ->
-                                            viewModel.sendIntent(PlayerIntent.SeekToLyricLine(index))
-                                        },
-                                        isFullScreen = !controlsVisible,
-                                        onToggleControls = { controlsVisible = true },
-                                        onUserScrolling = { scrollingDown ->
-                                            controlsVisible = !scrollingDown
-                                        },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
+                                    ),
+                                    onBackToNowPlaying = {
+                                        activePanel = PlayerPanel.NONE
+                                    },
+                                    onSeekToLine = { index ->
+                                        viewModel.sendIntent(PlayerIntent.SeekToLyricLine(index))
+                                    },
+                                    onControlsVisibleChange = { visible ->
+                                        controlsVisible = visible
+                                    }
+                                )
                             }
                             PlayerPanel.QUEUE -> {
                                 QueueHistoryPanel(
@@ -671,99 +565,3 @@ fun PlayerScreen(
         }
     }
 }
-
-/**
- * 紧凑头部：封面 + 标题横排（歌词面板用）
- */
-@Composable
-internal fun SharedTransitionScope.CompactNowPlayingHeader(
-    state: PlayerState,
-    playerVisible: Boolean,
-    animatedContentScope: AnimatedContentScope,
-    onCoverClick: () -> Unit,
-    dragState: DraggableState? = null,
-    onDragStopped: (suspend CoroutineScope.(Float) -> Unit)? = null
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (dragState != null) Modifier.draggable(
-                    state = dragState,
-                    orientation = Orientation.Vertical,
-                    onDragStopped = onDragStopped ?: {}
-                ) else Modifier
-            )
-            .padding(horizontal = 32.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CoverItem(
-            modifier = Modifier
-                .sharedElementWithCallerManagedVisibility(
-                    sharedContentState = rememberSharedContentState(
-                        key = "playerArtworkOverlay_${state.currentQueueEntryIdentity}"
-                    ),
-                    visible = playerVisible
-                )
-                .sharedBounds(
-                    sharedContentState = rememberSharedContentState(
-                        key = "playerArtworkInternal_${state.currentQueueEntryIdentity}"
-                    ),
-                    animatedVisibilityScope = animatedContentScope,
-                    resizeMode = ResizeMode.RemeasureToBounds
-                )
-                .clickable(interactionSource = null, indication = null) {
-                    onCoverClick()
-                },
-            size = 70.dp,
-            corner = 12.dp,
-            song = state.currentSong,
-            defaultBgColor = Color(0xFF606063),
-            defaultIconColor = Color(0xFF737376)
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .sharedElementWithCallerManagedVisibility(
-                    sharedContentState = rememberSharedContentState(
-                        key = "playerInfoOverlay_${state.currentQueueEntryIdentity}"
-                    ),
-                    visible = playerVisible
-                )
-                .sharedBounds(
-                    sharedContentState = rememberSharedContentState(
-                        key = "playerInfoInternal_${state.currentQueueEntryIdentity}"
-                    ),
-                    animatedVisibilityScope = animatedContentScope,
-                    resizeMode = ResizeMode.RemeasureToBounds
-                ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = state.currentSong?.title ?: stringResource(R.string.not_play),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1
-                )
-                if (!state.currentSong?.artist.isNullOrEmpty()) {
-                    Text(
-                        text = state.currentSong?.artist.orEmpty(),
-                        fontSize = 14.sp,
-                        color = Color(0x80FFFFFF),
-                        maxLines = 1
-                    )
-                }
-            }
-
-        }
-    }
-}
-
-/**
- * 播放列表面板（折叠头部 + 双列表方案）
- */
