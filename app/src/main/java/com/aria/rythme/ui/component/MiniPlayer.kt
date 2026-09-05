@@ -21,6 +21,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
@@ -80,6 +83,7 @@ fun MiniPlayer(
     onClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
+    expansionFraction: Float = 1f,
 ) {
     val backdrop = LocalBackdrop.current
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
@@ -217,14 +221,30 @@ fun MiniPlayer(
             onClick = onPlayPauseClick
         )
 
-        Spacer(modifier = Modifier.width(21.dp))
-
-        NextIcon(
-            enable = canPlayNext,
-            height = 15.dp,
-            tint = if (canPlayNext) MaterialTheme.rythmeColors.textColor else MaterialTheme.rythmeColors.miniNextWeak,
-            onClick = onNextClick
-        )
+        // 下一首随收起进度淡出并让出实际宽度，完全收起后不保留节点或点击区域。
+        if (expansionFraction > 0f) {
+            Row(
+                modifier = Modifier
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                        layout(
+                            (placeable.width * expansionFraction).roundToInt(),
+                            placeable.height
+                        ) { placeable.placeRelative(0, 0) }
+                    }
+                    .clipToBounds()
+                    .graphicsLayer { alpha = expansionFraction },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.width(21.dp))
+                NextIcon(
+                    enable = canPlayNext && expansionFraction > 0.95f,
+                    height = 15.dp,
+                    tint = if (canPlayNext) MaterialTheme.rythmeColors.textColor else MaterialTheme.rythmeColors.miniNextWeak,
+                    onClick = onNextClick
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(21.dp))
     }
 }

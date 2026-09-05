@@ -3,6 +3,7 @@ package com.aria.rythme.feature.navigationbar.presentation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,10 @@ class BottomBarState internal constructor(
     initialPrimaryTabIndex: Int = 0
 ) {
     var isExpanded by mutableStateOf(true)
+        private set
+
+    /** 仅表示本次向下滚动距离，不绑定页面绝对位置；到阈值时保持 1，避免收起首帧跳变。 */
+    var collapsePreparationProgress by mutableFloatStateOf(0f)
         private set
 
     var lastPrimaryTabIndex by mutableIntStateOf(initialPrimaryTabIndex.coerceIn(PRIMARY_TAB_INDICES))
@@ -70,6 +75,13 @@ class BottomBarState internal constructor(
         }
 
         accumulatedScrollPx += abs(dragDeltaY)
+        if (isExpanded) {
+            collapsePreparationProgress = if (direction == SCROLLING_DOWN) {
+                (accumulatedScrollPx / scrollThresholdPx).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+        }
         if (accumulatedScrollPx < scrollThresholdPx) return
 
         if (direction == SCROLLING_DOWN) collapse() else expand()
@@ -78,6 +90,7 @@ class BottomBarState internal constructor(
 
     private fun expand() {
         isExpanded = true
+        collapsePreparationProgress = 0f
     }
 
     private fun collapse() {

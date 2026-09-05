@@ -2,6 +2,7 @@ package com.aria.rythme.feature.navigationbar.presentation
 
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -16,24 +17,27 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.LocalPlayerVisible
 import com.aria.rythme.LocalSharedTransitionScope
-import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.feature.player.presentation.PlayerViewModel
-import com.aria.rythme.ui.component.CompactBottomTab
 import com.aria.rythme.ui.component.LiquidBottomTabs
 import com.aria.rythme.ui.component.MiniPlayer
+import com.aria.rythme.ui.component.utils.MINI_MOTION_STIFFNESS
+import com.aria.rythme.ui.component.utils.TAB_MOTION_STIFFNESS
+import com.aria.rythme.ui.component.utils.capsuleWidthDamping
+import com.aria.rythme.ui.component.utils.miniPlayerPositionAnimationSpec
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -57,9 +61,28 @@ fun BottomNavigationBar(
         targetValue = if (bottomBarState.isExpanded) 1f else 0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = 700f
+            stiffness = MINI_MOTION_STIFFNESS
         ),
         label = "bottomBarExpansion"
+    )
+    val miniPositionFraction by animateFloatAsState(
+        targetValue = if (bottomBarState.isExpanded) 1f else 0f,
+        animationSpec = miniPlayerPositionAnimationSpec(bottomBarState.isExpanded),
+        label = "miniPlayerPosition"
+    )
+    // Tab 基础过渡用时约为最初的 70%，宽度回弹独立处理。
+    val tabExpandFraction by animateFloatAsState(
+        targetValue = if (bottomBarState.isExpanded) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = TAB_MOTION_STIFFNESS
+        ),
+        label = "bottomTabExpansion"
+    )
+    val preparationProgress by animateFloatAsState(
+        targetValue = bottomBarState.collapsePreparationProgress,
+        animationSpec = spring(dampingRatio = 1f, stiffness = 1000f),
+        label = "bottomBarCollapsePreparation"
     )
 
     val selectTab: (Int) -> Unit = { index ->
@@ -78,39 +101,54 @@ fun BottomNavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(lerp(50.dp, 122.dp, expandFraction))
+                .graphicsLayer {
+                    // 折叠完成仍保留缩放及两侧留白；只有重新展开才恢复正常比例。
+                    val scale = 1f - 0.05f * preparationProgress
+                    scaleX = scale
+                    scaleY = scale
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                }
         ) {
             val compactMiniWidth = (maxWidth - 116.dp).coerceAtLeast(120.dp)
-            val miniPlayerWidth = lerp(compactMiniWidth, maxWidth, expandFraction)
-            val miniPlayerOffsetX = lerp(58.dp, 0.dp, expandFraction)
-            val compactAlpha = 1f - expandFraction
-
-            CompactBottomTab(
-                item = TOP_LEVEL_DESTINATIONS.values.elementAt(bottomBarState.lastPrimaryTabIndex),
-                selected = selectedTabIndex() == bottomBarState.lastPrimaryTabIndex,
-                onClick = { selectTab(bottomBarState.lastPrimaryTabIndex) },
-                modifier = Modifier.graphicsLayer {
-                    alpha = compactAlpha
-                }
+            val targetMiniWidth = if (bottomBarState.isExpanded) maxWidth else compactMiniWidth
+            // 宽度独立回弹；不把过冲进度传给高度、位置或下一首按钮。
+            val miniPlayerWidth by animateDpAsState(
+                targetValue = targetMiniWidth,
+                animationSpec = spring(
+                    dampingRatio = capsuleWidthDamping(
+                        targetMiniWidth.value,
+                        (maxWidth - compactMiniWidth).value
+                    ),
+                    stiffness = MINI_MOTION_STIFFNESS
+                ),
+                label = "miniPlayerWidthRebound"
             )
-
-            CompactBottomTab(
-                item = TOP_LEVEL_DESTINATIONS[RythmeRoute.Search]!!,
-                selected = selectedTabIndex() == SEARCH_TAB_INDEX,
-                onClick = { selectTab(SEARCH_TAB_INDEX) },
+            val tabHeight = lerp(50.dp, 64.dp, tabExpandFraction)
+            val barHeight = lerp(50.dp, 122.dp, expandFraction)
+            // 收起开始时 Search 独立成胶囊；两枚图标连续移动到左右圆形。
+            LiquidBottomTabs(
+                selectedTabIndex = selectedTabIndex,
+                onTabSelected = selectTab,
+                expansionFraction = tabExpandFraction,
+                targetExpanded = bottomBarState.isExpanded,
+                lastPrimaryTabIndex = bottomBarState.lastPrimaryTabIndex,
                 modifier = Modifier
-                    .offset(x = maxWidth - 50.dp)
-                    .graphicsLayer {
-                        alpha = compactAlpha
-                    }
+                    // 两套动画速度不同，仍让 Tab 底边保持在 BottomBar 底部。
+                    .offset(y = barHeight - tabHeight)
+                    .fillMaxWidth()
             )
 
             Box(
                 modifier = Modifier
-                    .offset(x = miniPlayerOffsetX)
-                    .width(miniPlayerWidth)
-                    .height(50.dp)
+                    .fillMaxWidth()
+                    // 抵消父容器位移，纵向只跟随独立时间曲线；宽度继续独立回弹。
+                    .offset(y = 72.dp * (expandFraction - miniPositionFraction))
+                    .height(50.dp),
+                contentAlignment = Alignment.Center
             ) {
                 androidx.compose.animation.AnimatedVisibility(
+                    // 允许展开时短暂超出目标宽度，并始终以同一个中心向两侧形变。
+                    modifier = Modifier.requiredWidth(miniPlayerWidth).height(50.dp),
                     visible = !playerVisible,
                     enter = fadeIn(),
                     exit = fadeOut()
@@ -140,30 +178,14 @@ fun BottomNavigationBar(
                                         viewModel.togglePlayPause()
                                     }
                                 },
-                                onNextClick = viewModel::next
+                                onNextClick = viewModel::next,
+                                expansionFraction = expandFraction
                             )
                         }
                     }
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .offset(y = 58.dp)
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .graphicsLayer {
-                        alpha = expandFraction
-                    }
-            ) {
-                LiquidBottomTabs(
-                    selectedTabIndex = selectedTabIndex,
-                    onTabSelected = selectTab,
-                    enabled = expandFraction > 0.9f
-                )
-            }
         }
     }
 }
-
-private const val SEARCH_TAB_INDEX = 3
