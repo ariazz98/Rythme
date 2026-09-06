@@ -97,15 +97,13 @@ Rythme follows a single-module architecture with clear layer separation:
 ```
 app/src/main/java/com/aria/rythme/
 ├── core/
-│   ├── mvi/            # BaseViewModel, marker interfaces
 │   ├── music/          # Domain models, Room DB, MediaStore, PlaybackController
 │   ├── navigation/     # NavigationState and UI-owned Navigator
 │   └── extensions/     # Compose helpers
 ├── feature/            # One package per screen (home, player, library, search, ...)
 │   └── {name}/
 │       ├── {Name}Screen.kt      # Compose UI + explicit navigation callbacks
-│       ├── {Name}ViewModel.kt   # Optional StateFlow + operations
-│       └── {Name}Contract.kt    # Optional, only for a real state machine
+│       └── {Name}ViewModel.kt   # Optional StateFlow + operations
 ├── ui/
 │   ├── component/      # Shared composables (MiniPlayer, BottomTabs, ...)
 │   └── theme/          # Colors, typography, theming
@@ -274,15 +272,13 @@ Rythme 采用单模块架构，层次分明：
 ```
 app/src/main/java/com/aria/rythme/
 ├── core/
-│   ├── mvi/            # BaseViewModel、标记接口
 │   ├── music/          # 领域模型、Room 数据库、MediaStore、PlaybackController
 │   ├── navigation/     # NavigationState、由 UI 持有的 Navigator
 │   └── extensions/     # Compose 扩展函数
 ├── feature/            # 每个页面一个包（home、player、library、search……）
 │   └── {name}/
 │       ├── {Name}Screen.kt      # Compose UI + 明确的导航回调
-│       ├── {Name}ViewModel.kt   # 可选的 StateFlow + 操作
-│       └── {Name}Contract.kt    # 可选，仅用于真正的状态机
+│       └── {Name}ViewModel.kt   # 可选的 StateFlow + 操作
 ├── ui/
 │   ├── component/      # 共享组件（MiniPlayer、BottomTabs……）
 │   └── theme/          # 颜色、字体、主题

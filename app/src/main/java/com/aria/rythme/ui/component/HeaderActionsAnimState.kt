@@ -44,7 +44,7 @@ class HeaderActionsAnimState {
         skipAnimation: Boolean
     ) = mutex.withLock {
         val hasContent = actions.isNotEmpty()
-        val visualChanged = actions.visualKey() != displayActions.visualKey()
+        val visualChanged = actions.contentKey() != displayActions.contentKey()
 
         when {
             hasContent && phase == Phase.Hidden -> {
@@ -90,7 +90,7 @@ class HeaderActionsAnimState {
 
     /** 回调更新不触发视觉过渡。 */
     fun syncActionRefs(actions: List<Action>) {
-        if (actions.visualKey() == displayActions.visualKey()) {
+        if (actions.contentKey() == displayActions.contentKey()) {
             displayActions = actions
         }
     }

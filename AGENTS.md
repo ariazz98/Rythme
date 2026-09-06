@@ -23,7 +23,6 @@ Single-module app under `app/src/main/java/com/aria/rythme/`:
 ```
 feature/          # One subpackage per cohesive product area; related list/detail routes may share an implementation
 core/
-  mvi/            # Legacy MVI support; reserve for genuinely complex state machines
   music/          # Domain models, Room DB, MediaStore scanner, PlaybackController, MusicRepository
   navigation/     # Per-tab NavigationState and UI-owned Navigator
   extensions/     # Compose extension functions
@@ -38,13 +37,13 @@ di/               # Koin modules
 Choose the smallest structure that fits the feature:
 
 - Pure presentation/navigation page: a composable with explicit callbacks; no ViewModel required.
-- Ordinary data page: a ViewModel exposing `StateFlow<UiState>` and normal methods.
+- Ordinary data page: a ViewModel exposing `StateFlow<PageState>` and normal methods.
 - Genuine state machine (player, scanner, complex editor): an explicit reducer/state machine is allowed.
 - Route variants with the same layout and behavior may share one screen/ViewModel keyed by a small domain enum. Keep
   genuinely different behavior explicit instead of forcing it into a generic page.
 
-`core/mvi/` is legacy support while existing complex features are migrated. New features must not add empty
-Intent/Action/Effect types or route simple clicks through a reducer solely for consistency.
+There is no shared MVI framework. A genuinely complex feature may own a focused reducer/state machine, but new features
+must not add empty Intent/Action/Effect types or route simple clicks through a reducer solely for consistency.
 
 ### Navigation (Navigation3)
 

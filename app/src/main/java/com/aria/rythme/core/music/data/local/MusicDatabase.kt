@@ -14,9 +14,10 @@ import androidx.room.RoomDatabase
         SongOverrideEntity::class,
         PlaylistEntity::class,
         PlaylistSongEntity::class,
-        LyricsEntity::class
+        LyricsEntity::class,
+        FavoriteEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class MusicDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class MusicDatabase : RoomDatabase() {
     abstract fun songOverrideDao(): SongOverrideDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun lyricsDao(): LyricsDao
+    abstract fun favoriteDao(): FavoriteDao
 
     companion object {
         private const val DATABASE_NAME = "rythme_music.db"

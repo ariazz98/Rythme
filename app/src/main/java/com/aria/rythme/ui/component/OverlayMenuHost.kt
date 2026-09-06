@@ -3,6 +3,7 @@ package com.aria.rythme.ui.component
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -76,24 +77,28 @@ fun OverlayMenuHost(
     val menu = state.currentMenu
     val sharedTransitionScope = LocalSharedTransitionScope.current
 
-    // ActionMenu 始终保持在同一组合位置，避免 when 分支切换导致 AnimatedVisibility 重建
+    // 缓存菜单内容和来源到退出完成，关闭时仍能回到正确的操作胶囊。
     val actionMenu = menu as? OverlayMenu.ActionMenu
-    val cachedConfigs = remember { mutableStateOf(emptyList<MenuConfig>()) }
+    val cachedAction = remember { mutableStateOf<OverlayMenu.ActionMenu?>(null) }
     if (actionMenu != null) {
-        cachedConfigs.value = actionMenu.configs
+        cachedAction.value = actionMenu
     }
 
-    // ActionMenuOverlay 始终保持组合（sharedElement 过渡需要两端同时存在）。
-    // interactive 控制触摸事件：仅在菜单可见或过渡进行中时处理，
-    // 过渡完成后的残留内容不再拦截触摸。
+    // 使用菜单自己的可见性过渡，其他共享元素动画不会让它继续拦截触摸。
     val visible = actionMenu != null
-    val interactive = visible || sharedTransitionScope.isTransitionActive
-    ActionMenuOverlay(
-        configs = cachedConfigs.value,
-        visible = visible,
-        interactive = interactive,
-        onDismiss = { state.dismiss() }
-    )
+    val actionVisibility = remember { MutableTransitionState(false) }
+    actionVisibility.targetState = visible
+    cachedAction.value?.let { presented ->
+        ActionMenuOverlay(
+            menu = presented,
+            visibility = actionVisibility,
+            interactive = visible || !actionVisibility.isIdle,
+            onDismiss = { state.dismiss() }
+        )
+    }
+    LaunchedEffect(actionVisibility.isIdle, visible) {
+        if (actionVisibility.isIdle && !visible) cachedAction.value = null
+    }
 
     // SongContext 菜单：缓存数据以支持退出动画
     val songContextMenu = menu as? OverlayMenu.SongContext
@@ -165,8 +170,8 @@ fun OverlayMenuHost(
  */
 @Composable
 private fun ActionMenuOverlay(
-    configs: List<MenuConfig>,
-    visible: Boolean,
+    menu: OverlayMenu.ActionMenu,
+    visibility: MutableTransitionState<Boolean>,
     interactive: Boolean,
     onDismiss: () -> Unit
 ) {
@@ -174,11 +179,20 @@ private fun ActionMenuOverlay(
     val sharedTransitionScope = LocalSharedTransitionScope.current
     with(sharedTransitionScope) {
         AnimatedVisibility(
-            visible = visible,
+            visibleState = visibility,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(200))
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val density = LocalDensity.current
+                val safeTop = with(density) { WindowInsets.statusBars.asPaddingValues().calculateTopPadding().toPx() }
+                val margin = with(density) { 12.dp.toPx() }
+                val panelWidth = with(density) { 256.dp.toPx() }
+                val panelHeight = rememberMenuPanelHeightPx(menu.configs)
+                val panelX = (menu.anchorBounds.right - panelWidth)
+                    .coerceIn(margin, (constraints.maxWidth - panelWidth - margin).coerceAtLeast(margin))
+                val panelY = menu.anchorBounds.top
+                    .coerceIn(safeTop, (constraints.maxHeight - panelHeight - margin).coerceAtLeast(safeTop))
                 // scrim：仅在 interactive 状态下拦截触摸
                 if (interactive) {
                     Box(
@@ -202,11 +216,7 @@ private fun ActionMenuOverlay(
 
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .statusBarsPadding()
-                        .padding(
-                            end = 12.dp
-                        )
+                        .offset { IntOffset(panelX.roundToInt(), panelY.roundToInt()) }
                         .then(
                             if (interactive) Modifier.pointerInput(Unit) {
                                 awaitPointerEventScope {
@@ -221,7 +231,8 @@ private fun ActionMenuOverlay(
                 ) {
                     MenuPanel(
                         scope = this@AnimatedVisibility,
-                        configs = configs,
+                        configs = menu.configs,
+                        sourceKey = menu.sourceKey,
                         interactive = interactive
                     )
                 }

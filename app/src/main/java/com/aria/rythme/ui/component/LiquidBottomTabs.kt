@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -71,13 +72,8 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.shadow.InnerShadow
-import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -110,7 +106,10 @@ fun LiquidBottomTabs(
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val selectedColor = MaterialTheme.rythmeColors.bottomSelected
     val currentOnTabSelected by rememberUpdatedState(onTabSelected)
-    val tabsBackdrop = rememberLayerBackdrop()
+    val hdr = LocalGlassHdr.current
+    val glassGeneration = if (hdr.enabled) hdr.generation else 0
+    // 只重建强调色的采样缓存，拖动、选择和回弹状态仍由下面的稳定节点持有。
+    val tabsBackdrop = key(hdr.enabled, glassGeneration) { rememberLayerBackdrop() }
 
     BoxWithConstraints(
         modifier = modifier
@@ -244,30 +243,34 @@ fun LiquidBottomTabs(
             currentOnTabSelected(index)
         }
 
+        val expandedLayer: GraphicsLayerScope.() -> Unit = {
+            val progress = dragAnimation.pressProgress
+            val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, progress)
+            scaleX = scale * fullWidthReboundScale
+            scaleY = scale
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
                     translationX = panelOffset
-                }
-                .then(if (separateSearch) Modifier else Modifier.drawBackdrop(
+                },
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (!separateSearch) {
+                GlassBackdropSurface(
                     backdrop = backdrop,
                     shape = { ContinuousCapsule },
                     effects = {
                         vibrancy()
                         blur(2.dp.toPx())
-                        lens(24.dp.toPx(), 32.dp.toPx())
+                        glassLens(24.dp.toPx(), 32.dp.toPx())
                     },
-                    layerBlock = {
-                        val progress = dragAnimation.pressProgress
-                        val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, progress)
-                        scaleX = scale * fullWidthReboundScale
-                        scaleY = scale
-                    },
+                    layerBlock = expandedLayer,
                     onDrawSurface = { drawRect(containerColor) }
-                ).then(interactiveHighlight.modifier)),
-            contentAlignment = Alignment.CenterStart
-        ) {
+                )
+            }
             // 首个收起帧即切成两枚独立胶囊，不经过液桥或粘连轮廓。
             if (separateSearch) {
                 SplitTabCapsule(
@@ -280,94 +283,101 @@ fun LiquidBottomTabs(
                 )
             }
 
-            // 抵消背景的宽度回弹，不拉伸文字和图标；原来的整体按压反馈仍保留。
-            BottomTabContents(
-                tabs = tabs,
-                morph = morph,
-                primaryIndex = primaryIndex,
-                currentIndex = currentIndex,
-                pressProgress = dragAnimation.pressProgress,
-                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1f / fullWidthReboundScale },
-                itemModifier = { index ->
-                    Modifier
-                        .then(if (expandedInputEnabled) Modifier else Modifier.clearAndSetSemantics { })
-                        .semantics {
-                            role = Role.Tab
-                            selected = index == currentIndex
-                            onClick {
-                                if (expandedInputEnabled) selectTab(index)
-                                expandedInputEnabled
-                            }
-                        }
-                        .pointerInput(index, expandedInputEnabled) {
-                            if (!expandedInputEnabled) return@pointerInput
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                try {
-                                    selectTabOnDown(index)
-                                    waitForUpOrCancellation()
-                                } finally {
-                                    dragAnimation.release()
+            Box(Modifier.fillMaxSize().then(
+                if (separateSearch) Modifier else Modifier.graphicsLayer(expandedLayer)
+                    .clip(ContinuousCapsule).then(interactiveHighlight.modifier)
+            )) {
+                // 抵消背景的宽度回弹，不拉伸文字和图标；原来的整体按压反馈仍保留。
+                BottomTabContents(
+                    tabs = tabs,
+                    morph = morph,
+                    primaryIndex = primaryIndex,
+                    currentIndex = currentIndex,
+                    pressProgress = dragAnimation.pressProgress,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1f / fullWidthReboundScale },
+                    itemModifier = { index ->
+                        Modifier
+                            .then(if (expandedInputEnabled) Modifier else Modifier.clearAndSetSemantics { })
+                            .semantics {
+                                role = Role.Tab
+                                selected = index == currentIndex
+                                onClick {
+                                    if (expandedInputEnabled) selectTab(index)
+                                    expandedInputEnabled
                                 }
                             }
-                        }
-                }
-            )
+                            .pointerInput(index, expandedInputEnabled) {
+                                if (!expandedInputEnabled) return@pointerInput
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    try {
+                                        selectTabOnDown(index)
+                                        waitForUpOrCancellation()
+                                    } finally {
+                                        dragAnimation.release()
+                                    }
+                                }
+                            }
+                    }
+                )
+            }
         }
 
         // 着色层仍只供选择器采样，但和可见层共用每帧的轮廓、图标位置及文字布局。
-        Box(
-            modifier = Modifier
-                .clearAndSetSemantics { }
-                .alpha(0f)
-                .layerBackdrop(tabsBackdrop)
-                .graphicsLayer { translationX = panelOffset }
-                .fillMaxSize()
-        ) {
-            if (separateSearch) {
-                SplitTabCapsule(
-                    bounds = morph.primaryBounds(with(density) { primaryWidth.toPx() }),
-                    backdrop = backdrop
-                )
-                SplitTabCapsule(
-                    bounds = morph.searchBounds(with(density) { searchWidth.toPx() }),
-                    backdrop = backdrop
-                )
-            } else {
-                Box(
-                    Modifier
-                        .align(Alignment.CenterStart)
-                        .drawBackdrop(
+        key(hdr.enabled, glassGeneration) {
+            Box(
+                modifier = Modifier
+                    .clearAndSetSemantics { }
+                    .alpha(0f)
+                    .layerBackdrop(tabsBackdrop)
+                    .graphicsLayer { translationX = panelOffset }
+                    .fillMaxSize()
+            ) {
+                if (separateSearch) {
+                    SplitTabCapsule(
+                        bounds = morph.primaryBounds(with(density) { primaryWidth.toPx() }),
+                        backdrop = backdrop
+                    )
+                    SplitTabCapsule(
+                        bounds = morph.searchBounds(with(density) { searchWidth.toPx() }),
+                        backdrop = backdrop
+                    )
+                } else {
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .fillMaxWidth()
+                            .height(56.dp)
+                    ) {
+                        GlassBackdropSurface(
                             backdrop = backdrop,
                             shape = { ContinuousCapsule },
                             effects = {
                                 val progress = dragAnimation.pressProgress
                                 vibrancy()
                                 blur(2.dp.toPx())
-                                lens(
+                                glassLens(
                                     24.dp.toPx() * progress,
                                     32.dp.toPx() * progress
                                 )
                             },
-                            highlight = {
-                                Highlight.Default.copy(alpha = dragAnimation.pressProgress)
-                            },
+                            lightingAlpha = { dragAnimation.pressProgress },
                             onDrawSurface = { drawRect(containerColor) }
                         )
-                        .then(interactiveHighlight.modifier)
-                        .fillMaxWidth()
-                        .height(56.dp)
+                        Box(Modifier.matchParentSize().clip(ContinuousCapsule)
+                            .then(interactiveHighlight.modifier))
+                    }
+                }
+                BottomTabContents(
+                    tabs = tabs,
+                    morph = morph,
+                    primaryIndex = primaryIndex,
+                    currentIndex = currentIndex,
+                    emphasized = true,
+                    pressProgress = dragAnimation.pressProgress,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
-            BottomTabContents(
-                tabs = tabs,
-                morph = morph,
-                primaryIndex = primaryIndex,
-                currentIndex = currentIndex,
-                emphasized = true,
-                pressProgress = dragAnimation.pressProgress,
-                modifier = Modifier.fillMaxSize()
-            )
         }
 
         // 液态选择器组合页面与强调色内容，按压和拖动时恢复原来的折射与形变。
@@ -375,9 +385,11 @@ fun LiquidBottomTabs(
             modifier = Modifier
                 .align(AbsoluteAlignment.CenterLeft)
                 .graphicsLayer {
-                    alpha = if (separateSearch && currentIndex == 3) 0f else selectorAlpha
                     translationX = morph.selectorCenterX(dragAnimation.value) - tabWidthPx / 2f + panelOffset
                 }
+                .glassHdrFadeAndBlur(alpha = {
+                    if (separateSearch && currentIndex == 3) 0f else selectorAlpha
+                })
                 .then(
                     if (expandedInputEnabled) {
                         interactiveHighlight.gestureModifier.then(dragAnimation.modifier)
@@ -385,43 +397,35 @@ fun LiquidBottomTabs(
                         Modifier
                     }
                 )
-                .drawBackdrop(
-                    backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
-                    shape = { ContinuousCapsule },
-                    effects = {
-                        val progress = dragAnimation.pressProgress
-                        lens(
-                            10.dp.toPx() * progress,
-                            14.dp.toPx() * progress,
-                            chromaticAberration = true
-                        )
-                    },
-                    highlight = {
-                        Highlight.Default.copy(alpha = dragAnimation.pressProgress)
-                    },
-                    shadow = { Shadow(alpha = dragAnimation.pressProgress) },
-                    innerShadow = {
-                        InnerShadow(
-                            radius = 8.dp * dragAnimation.pressProgress,
-                            alpha = dragAnimation.pressProgress
-                        )
-                    },
-                    layerBlock = {
-                        scaleX = dragAnimation.scaleX
-                        scaleY = dragAnimation.scaleY
-                        val velocity = dragAnimation.velocity / 10f
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                    },
-                    onDrawSurface = {
-                        val progress = dragAnimation.pressProgress
-                        drawRect(selectedColor, alpha = 1f - progress)
-                        drawRect(Color.Black.copy(alpha = 0.03f * progress))
-                    }
-                )
                 .width(tabWidth)
                 .height(56.dp)
-        )
+        ) {
+            GlassBackdropSurface(
+                backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
+                shape = { ContinuousCapsule },
+                effects = {
+                    val progress = dragAnimation.pressProgress
+                    glassLens(
+                        10.dp.toPx() * progress,
+                        14.dp.toPx() * progress,
+                        chromaticAberration = true
+                    )
+                },
+                lightingAlpha = { dragAnimation.pressProgress },
+                layerBlock = {
+                    scaleX = dragAnimation.scaleX
+                    scaleY = dragAnimation.scaleY
+                    val velocity = dragAnimation.velocity / 10f
+                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                },
+                onDrawSurface = {
+                    val progress = dragAnimation.pressProgress
+                    drawRect(selectedColor, alpha = 1f - progress)
+                    drawRect(Color.Black.copy(alpha = 0.03f * progress))
+                }
+            )
+        }
 
         // 只给完全收起后的两个真实圆形分配点击区域，中间透明空隙不拦截 MiniPlayer。
         if (enabled && expansion < 0.001f) {
@@ -565,18 +569,19 @@ private fun SplitTabCapsule(
             .wrapContentSize(align = AbsoluteAlignment.TopLeft, unbounded = true)
             .width(with(density) { bounds.width.toDp() })
             .height(with(density) { bounds.height.toDp() })
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousCapsule },
-                effects = {
-                    vibrancy()
-                    blur(2.dp.toPx())
-                    lens(24.dp.toPx(), 32.dp.toPx())
-                },
-                // 独立胶囊只保留统一玻璃底色，选中态由图标颜色表达。
-                onDrawSurface = { drawRect(background) }
-            )
-    )
+    ) {
+        GlassBackdropSurface(
+            backdrop = backdrop,
+            shape = { ContinuousCapsule },
+            effects = {
+                vibrancy()
+                blur(2.dp.toPx())
+                glassLens(24.dp.toPx(), 32.dp.toPx())
+            },
+            // 独立胶囊只保留统一玻璃底色，选中态由图标颜色表达。
+            onDrawSurface = { drawRect(background) }
+        )
+    }
 }
 
 @Composable

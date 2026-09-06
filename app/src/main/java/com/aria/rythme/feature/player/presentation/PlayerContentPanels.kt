@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SharedTransitionScope.ResizeMode
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,17 +14,29 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -40,7 +53,9 @@ internal fun SharedTransitionScope.NowPlayingPanel(
     playerVisible: Boolean,
     animatedContentScope: AnimatedContentScope,
     innerPadding: PaddingValues,
-    coverSize: Dp
+    coverSize: Dp,
+    onFavoriteClick: () -> Unit,
+    onMoreClick: (Rect) -> Unit
 ) {
     val sharedIdentity = state.currentQueueEntryIdentity
 
@@ -109,6 +124,15 @@ internal fun SharedTransitionScope.NowPlayingPanel(
                 }
             }
 
+            Spacer(modifier = Modifier.width(8.dp))
+
+            NowPlayingActions(
+                visible = state.currentSong != null,
+                isFavorite = state.isCurrentSongFavorite,
+                onFavoriteClick = onFavoriteClick,
+                onMoreClick = onMoreClick
+            )
+
             Spacer(modifier = Modifier.width(32.dp))
         }
 
@@ -126,6 +150,8 @@ internal fun SharedTransitionScope.LyricsPanel(
     controlsVisible: Boolean,
     modifier: Modifier,
     onBackToNowPlaying: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onMoreClick: (Rect) -> Unit,
     onSeekToLine: (Int) -> Unit,
     onControlsVisibleChange: (Boolean) -> Unit
 ) {
@@ -143,6 +169,8 @@ internal fun SharedTransitionScope.LyricsPanel(
             playerVisible = playerVisible,
             animatedContentScope = animatedContentScope,
             onCoverClick = onBackToNowPlaying,
+            onFavoriteClick = onFavoriteClick,
+            onMoreClick = onMoreClick,
             modifier = modifier
         )
 
@@ -168,6 +196,8 @@ internal fun SharedTransitionScope.CompactNowPlayingHeader(
     playerVisible: Boolean,
     animatedContentScope: AnimatedContentScope,
     onCoverClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onMoreClick: (Rect) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -237,6 +267,73 @@ internal fun SharedTransitionScope.CompactNowPlayingHeader(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            NowPlayingActions(
+                visible = state.currentSong != null,
+                isFavorite = state.isCurrentSongFavorite,
+                onFavoriteClick = onFavoriteClick,
+                onMoreClick = onMoreClick
+            )
+        }
+    }
+}
+
+/** 播放页和紧凑标题共用的收藏/更多入口，避免两套 UI 再次发生漂移。 */
+@Composable
+private fun NowPlayingActions(
+    visible: Boolean,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    onMoreClick: (Rect) -> Unit
+) {
+    if (!visible) return
+
+    var moreBounds by remember { mutableStateOf(Rect.Zero) }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color(0x30FFFFFF))
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    onClick = onFavoriteClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_star),
+                contentDescription = "收藏",
+                tint = if (isFavorite) Color(0xFFFF375F) else Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .onGloballyPositioned { moreBounds = it.boundsInWindow() }
+                .clip(CircleShape)
+                .background(Color(0x30FFFFFF))
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    onClick = { onMoreClick(moreBounds) }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_more),
+                contentDescription = "更多",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

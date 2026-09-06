@@ -17,7 +17,9 @@ data class PlayerState(
     val isShuffleEnabled: Boolean = false,
     val volume: Int = 0,
     val playHistory: List<Song> = emptyList(),
+    val isCrossfadeEnabled: Boolean = false,
     val isInfinitePlayEnabled: Boolean = false,
+    val isCurrentSongFavorite: Boolean = false,
     val lyricsData: LyricsData? = null,
     val lyricsStatus: LyricsStatus = LyricsStatus.IDLE,
     val currentLyricIndex: Int = -1

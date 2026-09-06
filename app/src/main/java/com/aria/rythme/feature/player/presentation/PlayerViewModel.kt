@@ -43,7 +43,9 @@ class PlayerViewModel(
 
     private var progressUpdateJob: Job? = null
     private var lyricsLoadJob: Job? = null
+    private var favoriteObservationJob: Job? = null
     private var lastLyricsSongId: Long? = null
+    private var favoriteSongId: Long? = null
 
     init {
         observePlaybackState()
@@ -87,6 +89,17 @@ class PlayerViewModel(
 
     fun toggleShuffleMode() {
         playbackController.toggleShuffleMode()
+    }
+
+    fun toggleCrossfade() {
+        playbackController.toggleCrossfade()
+    }
+
+    fun toggleCurrentSongFavorite() {
+        val songId = currentState.currentSong?.id ?: return
+        viewModelScope.launch {
+            musicRepository.toggleSongFavorite(songId)
+        }
     }
 
     fun loadAndPlayRandom() {
@@ -170,6 +183,7 @@ class PlayerViewModel(
                 } else if (song.id != lastLyricsSongId) {
                     loadLyrics(song)
                 }
+                observeFavorite(song?.id)
             }
             .launchIn(viewModelScope)
 
@@ -187,6 +201,10 @@ class PlayerViewModel(
 
         playbackController.repeatMode
             .onEach { repeatMode -> updateState { it.copy(repeatMode = repeatMode) } }
+            .launchIn(viewModelScope)
+
+        playbackController.isCrossfadeEnabled
+            .onEach { enabled -> updateState { it.copy(isCrossfadeEnabled = enabled) } }
             .launchIn(viewModelScope)
 
         playbackController.isInfinitePlayEnabled
@@ -234,6 +252,22 @@ class PlayerViewModel(
                 }
             }
         }
+    }
+
+    private fun observeFavorite(songId: Long?) {
+        if (songId == favoriteSongId) return
+
+        favoriteSongId = songId
+        favoriteObservationJob?.cancel()
+        if (songId == null) {
+            updateState { it.copy(isCurrentSongFavorite = false) }
+            return
+        }
+        favoriteObservationJob = musicRepository.observeSongFavorite(songId)
+            .onEach { isFavorite ->
+                updateState { it.copy(isCurrentSongFavorite = isFavorite) }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun updateLyrics(data: LyricsData?, status: LyricsStatus) {
@@ -285,6 +319,7 @@ class PlayerViewModel(
         super.onCleared()
         stopProgressUpdate()
         lyricsLoadJob?.cancel()
+        favoriteObservationJob?.cancel()
     }
 
     private companion object {

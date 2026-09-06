@@ -4,6 +4,7 @@ import com.aria.rythme.core.music.data.local.AlbumDao
 import com.aria.rythme.core.music.data.local.AlbumEntity
 import com.aria.rythme.core.music.data.local.ArtistDao
 import com.aria.rythme.core.music.data.local.ArtistEntity
+import com.aria.rythme.core.music.data.local.FavoriteDao
 import com.aria.rythme.core.music.data.local.SongDao
 import com.aria.rythme.core.music.data.local.SongEntity
 import com.aria.rythme.core.music.data.local.SongOverrideDao
@@ -31,7 +32,8 @@ class MusicRepository(
     private val songDao: SongDao,
     private val albumDao: AlbumDao,
     private val artistDao: ArtistDao,
-    private val songOverrideDao: SongOverrideDao
+    private val songOverrideDao: SongOverrideDao,
+    private val favoriteDao: FavoriteDao
 ) {
     // ==================== 歌曲查询（自动合并覆盖层） ====================
 
@@ -78,6 +80,18 @@ class MusicRepository(
 
     fun getRecentlyAdded(limit: Int = 50): Flow<List<Song>> =
         songDao.getRecentlyAdded(limit).withOverrides()
+
+    fun observeSongFavorite(songId: Long): Flow<Boolean> =
+        favoriteDao.observeFavorite(FAVORITE_SONG, songId)
+
+    suspend fun toggleSongFavorite(songId: Long): Boolean =
+        favoriteDao.toggle(FAVORITE_SONG, songId)
+
+    fun observeArtistFavorite(artistId: Long): Flow<Boolean> =
+        favoriteDao.observeFavorite(FAVORITE_ARTIST, artistId)
+
+    suspend fun toggleArtistFavorite(artistId: Long): Boolean =
+        favoriteDao.toggle(FAVORITE_ARTIST, artistId)
 
     /**
      * 获取指定专辑中指定艺术家的歌曲（按 override 后的名称匹配）
@@ -268,6 +282,9 @@ class MusicRepository(
         const val COMPILATION_ARTIST = "群星"
     }
 }
+
+private const val FAVORITE_SONG = "song"
+private const val FAVORITE_ARTIST = "artist"
 
 // ==================== 扩展函数 ====================
 

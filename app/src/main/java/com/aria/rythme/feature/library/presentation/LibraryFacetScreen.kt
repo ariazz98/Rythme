@@ -20,6 +20,7 @@ import com.aria.rythme.ui.component.CommonListItem
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.MainGridPage
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.rememberPageSearchState
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -32,11 +33,14 @@ fun LibraryFacetListScreen(
         key = "library-facet-list:${facet.name}",
         parameters = { parametersOf(facet) }
     )
-    val items by viewModel.items.collectAsStateWithLifecycle()
+    val allItems by viewModel.items.collectAsStateWithLifecycle()
+    val search = rememberPageSearchState()
+    val items = allItems.filter { search.matches(it) }
 
     MainListPage(
         title = facet.title(),
-        routeKey = facet.listRoute()
+        routeKey = facet.listRoute(),
+        search = search
     ) {
         itemsIndexed(items, key = { _, item -> item }) { index, item ->
             CommonListItem(
@@ -59,10 +63,13 @@ fun LibraryFacetDetailScreen(
         parameters = { parametersOf(facet, value) }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val search = rememberPageSearchState()
+    val albums = state.albums.filter { search.matches(it.title, it.artist) }
 
     MainGridPage(
         title = value,
-        routeKey = facet.detailRoute(value)
+        routeKey = facet.detailRoute(value),
+        search = search
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -73,7 +80,7 @@ fun LibraryFacetDetailScreen(
             }
         }
 
-        items(state.albums, key = Album::id) { album ->
+        items(albums, key = Album::id) { album ->
             AlbumItem(album = album, onClick = { onAlbumClick(album) })
         }
     }

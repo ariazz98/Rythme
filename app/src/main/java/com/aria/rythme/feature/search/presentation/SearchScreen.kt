@@ -15,7 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.MainGridPage
@@ -31,7 +31,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SearchScreen(
     viewModel: SearchViewModel = koinViewModel()
 ) {
-    val state by viewModel.state.collectAsUiState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val overlayMenu = LocalOverlayMenu.current
     val categories = remember { searchCategories() }
 

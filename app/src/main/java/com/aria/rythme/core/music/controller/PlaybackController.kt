@@ -148,6 +148,10 @@ class PlaybackController(private val context: Context) {
     private val _volume = MutableStateFlow(0)
     val volume: StateFlow<Int> = _volume.asStateFlow()
 
+    // 交叉淡入淡出产品开关；实际双播放器音频混合将在播放内核阶段接入。
+    private val _isCrossfadeEnabled = MutableStateFlow(false)
+    val isCrossfadeEnabled: StateFlow<Boolean> = _isCrossfadeEnabled.asStateFlow()
+
     // 无限播放
     private val _isInfinitePlayEnabled = MutableStateFlow(false)
     val isInfinitePlayEnabled: StateFlow<Boolean> = _isInfinitePlayEnabled.asStateFlow()
@@ -499,6 +503,12 @@ class PlaybackController(private val context: Context) {
      */
     fun toggleShuffleMode() {
         scope.launch { setShuffleMode(!_shuffleMode.value) }
+    }
+
+    /** 保留播放器中的交叉淡入淡出入口和选择状态。 */
+    fun toggleCrossfade() {
+        _isCrossfadeEnabled.value = !_isCrossfadeEnabled.value
+        RythmeLogger.d(TAG, "Crossfade: ${_isCrossfadeEnabled.value}")
     }
 
     /**

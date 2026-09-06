@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -90,6 +91,9 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
     onToggleInfinitePlay: () -> Unit,
+    onToggleCrossfade: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onMoreClick: (Rect) -> Unit,
     innerPadding: PaddingValues,
     stickyBackdrop: Backdrop,
     screenDragOffsetY: MutableFloatState,
@@ -467,15 +471,18 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                         state = state,
                         playerVisible = playerVisible,
                         animatedContentScope = animatedContentScope,
-                        onCoverClick = onCoverClick
+                        onCoverClick = onCoverClick,
+                        onFavoriteClick = onFavoriteClick,
+                        onMoreClick = onMoreClick
                     )
                 }
 
-                ActionButtonsRow(
-                    state = state,
-                    onToggleShuffle = onToggleShuffle,
-                    onToggleRepeat = onToggleRepeat,
-                    onToggleInfinitePlay = onToggleInfinitePlay
+                    ActionButtonsRow(
+                        state = state,
+                        onToggleShuffle = onToggleShuffle,
+                        onToggleRepeat = onToggleRepeat,
+                        onToggleInfinitePlay = onToggleInfinitePlay,
+                        onToggleCrossfade = onToggleCrossfade
                 )
             }
 
@@ -739,7 +746,8 @@ private fun ActionButtonsRow(
     state: PlayerState,
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
-    onToggleInfinitePlay: () -> Unit
+    onToggleInfinitePlay: () -> Unit,
+    onToggleCrossfade: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -776,6 +784,15 @@ private fun ActionButtonsRow(
             enabled = infiniteEnabled,
             active = state.isInfinitePlayEnabled
         ) { onToggleInfinitePlay() }
+
+        val crossfadeEnabled = state.queue.entries.isNotEmpty()
+        ActionButton(
+            icon = R.drawable.ic_cross_fade,
+            iconSize = 24.dp,
+            enabled = crossfadeEnabled,
+            active = state.isCrossfadeEnabled,
+            onClick = onToggleCrossfade
+        )
 
     }
 

@@ -7,9 +7,11 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -21,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
@@ -28,6 +31,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -44,9 +48,7 @@ import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.ui.theme.CoverMiniIconColor
 import com.aria.rythme.ui.theme.rythmeColors
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 
@@ -58,7 +60,7 @@ import com.kyant.capsule.ContinuousCapsule
  *
  * ## 按压放大效果
  *
- * 使用 [drawBackdrop] 的 `layerBlock` 在按下时对胶囊背景整体轻微放大（约 +16dp/width ≈ 5%），
+ * 使用 [drawGlassBackdrop] 的 `layerBlock` 在按下时对胶囊背景整体轻微放大（约 +16dp/width ≈ 5%），
  * 与 BottomNavigationBar 的按压动效保持视觉一致。
  *
  * **手势检测**：通过独立的 `pointerInput` 监听按下/抬起，驱动 [pressAnimation]。
@@ -101,150 +103,154 @@ fun MiniPlayer(
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
 
-    Row(
-        modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousCapsule },
-                effects = {
-                    vibrancy()
-                    blur(4f.dp.toPx())
-                    lens(24f.dp.toPx(), 32f.dp.toPx())
-                },
-                layerBlock = {
-                    // 按压时胶囊背景轻微膨胀，scale 最大约 1.05（16dp / width）
-                    val progress = pressAnimation.value
-                    val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
-                    scaleX = scale
-                    scaleY = scale
-                },
-                onDrawSurface = { drawRect(containerColor) }
-            )
-            .pointerInput(scope) {
-                awaitEachGesture {
-                    // requireUnconsumed = false：接受已被 clickable 消费的 DOWN 事件，
-                    // 确保动画在手指按下时立即触发，而非被 clickable 拦截后丢失
-                    awaitFirstDown(requireUnconsumed = false)
-                    scope.launch { pressAnimation.animateTo(1f, pressSpec) }
+    val pressLayer: GraphicsLayerScope.() -> Unit = {
+        val progress = pressAnimation.value
+        val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
+        scaleX = scale
+        scaleY = scale
+    }
 
-                    // 等待手指抬起或手势取消，无论哪种情况都恢复到 0
-                    waitForUpOrCancellation()
-                    scope.launch { pressAnimation.animateTo(0f, pressSpec) }
+    Box(modifier = modifier.fillMaxWidth().height(50.dp)) {
+        GlassBackdropSurface(
+            backdrop = backdrop,
+            shape = { ContinuousCapsule },
+            effects = {
+                vibrancy()
+                blur(4f.dp.toPx())
+                glassLens(24f.dp.toPx(), 32f.dp.toPx())
+            },
+            layerBlock = pressLayer,
+            onDrawSurface = { drawRect(containerColor) }
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(pressLayer)
+                .clip(ContinuousCapsule)
+                .pointerInput(scope) {
+                    awaitEachGesture {
+                        // requireUnconsumed = false：接受已被 clickable 消费的 DOWN 事件，
+                        // 确保动画在手指按下时立即触发，而非被 clickable 拦截后丢失
+                        awaitFirstDown(requireUnconsumed = false)
+                        scope.launch { pressAnimation.animateTo(1f, pressSpec) }
+
+                        // 等待手指抬起或手势取消，无论哪种情况都恢复到 0
+                        waitForUpOrCancellation()
+                        scope.launch { pressAnimation.animateTo(0f, pressSpec) }
+                    }
                 }
-            }
-            .fillMaxWidth()
-            .height(50.dp)
-            // indication = null：禁用默认水波纹，视觉反馈完全由 layerBlock 动效承担
-            .clickable(interactionSource = null, indication = null) { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+                // indication = null：禁用默认水波纹，视觉反馈完全由 layerBlock 动效承担
+                .clickable(interactionSource = null, indication = null) { onClick() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
 
-        with(sharedTransitionScope) {
-            CoverItem(
-                modifier = Modifier
-                    .padding(start = 16.dp)
-                    .sharedElementWithCallerManagedVisibility(
-                        sharedContentState = rememberSharedContentState(
-                            key = "playerArtworkOverlay_$sharedIdentity"
-                        ),
-                        visible = !playerVisible
-                    ),
-                size = 32.dp,
-                corner = 6.dp,
-                song = song,
-                defaultBgColor = MaterialTheme.rythmeColors.miniCoverBg,
-                defaultIconColor = MaterialTheme.rythmeColors.miniCoverIcon
-            )
-        }
-
-        with(sharedTransitionScope) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .sharedElementWithCallerManagedVisibility(
-                        sharedContentState = rememberSharedContentState(
-                            key = "playerInfoOverlay_$sharedIdentity"
-                        ),
-                        visible = !playerVisible
-                    )
-            ) {
-                Text(
-                    text = song?.title ?: stringResource(R.string.not_play),
-                    color = MaterialTheme.rythmeColors.textColor,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    fontSize = 12.sp,
+            with(sharedTransitionScope) {
+                CoverItem(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            compositingStrategy = CompositingStrategy.Offscreen
-                        }
-                        .drawWithContent {
-                            drawContent()
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    0f to Color.Transparent,
-                                    1f to Color.Black,
-                                    startX = 0f,
-                                    endX = 8.dp.toPx()
-                                ),
-                                blendMode = BlendMode.DstIn
-                            )
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    0.85f to Color.Black,
-                                    1f to Color.Transparent
-                                ),
-                                blendMode = BlendMode.DstIn
-                            )
-                        }
-                        .customMarquee()
-                        .padding(start = 8.dp)
+                        .padding(start = 16.dp)
+                        .sharedElementWithCallerManagedVisibility(
+                            sharedContentState = rememberSharedContentState(
+                                key = "playerArtworkOverlay_$sharedIdentity"
+                            ),
+                            visible = !playerVisible
+                        ),
+                    size = 32.dp,
+                    corner = 6.dp,
+                    song = song,
+                    defaultBgColor = MaterialTheme.rythmeColors.miniCoverBg,
+                    defaultIconColor = MaterialTheme.rythmeColors.miniCoverIcon
                 )
-                if (!song?.artist.isNullOrEmpty()) {
+            }
+
+            with(sharedTransitionScope) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .sharedElementWithCallerManagedVisibility(
+                            sharedContentState = rememberSharedContentState(
+                                key = "playerInfoOverlay_$sharedIdentity"
+                            ),
+                            visible = !playerVisible
+                        )
+                ) {
                     Text(
-                        text = song.artist,
+                        text = song?.title ?: stringResource(R.string.not_play),
                         color = MaterialTheme.rythmeColors.textColor,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                compositingStrategy = CompositingStrategy.Offscreen
+                            }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0f to Color.Transparent,
+                                        1f to Color.Black,
+                                        startX = 0f,
+                                        endX = 8.dp.toPx()
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0.85f to Color.Black,
+                                        1f to Color.Transparent
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                            .customMarquee()
+                            .padding(start = 8.dp)
+                    )
+                    if (!song?.artist.isNullOrEmpty()) {
+                        Text(
+                            text = song.artist,
+                            color = MaterialTheme.rythmeColors.textColor,
+                            maxLines = 1,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            PlayPauseIcon(
+                isPlaying = isPlaying,
+                size = 18.dp,
+                onClick = onPlayPauseClick
+            )
+
+            // 下一首随收起进度淡出并让出实际宽度，完全收起后不保留节点或点击区域。
+            if (expansionFraction > 0f) {
+                Row(
+                    modifier = Modifier
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                            layout(
+                                (placeable.width * expansionFraction).roundToInt(),
+                                placeable.height
+                            ) { placeable.placeRelative(0, 0) }
+                        }
+                        .clipToBounds()
+                        .graphicsLayer { alpha = expansionFraction },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.width(21.dp))
+                    NextIcon(
+                        enable = canPlayNext && expansionFraction > 0.95f,
+                        height = 15.dp,
+                        tint = if (canPlayNext) MaterialTheme.rythmeColors.textColor else MaterialTheme.rythmeColors.miniNextWeak,
+                        onClick = onNextClick
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(21.dp))
         }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        PlayPauseIcon(
-            isPlaying = isPlaying,
-            size = 18.dp,
-            onClick = onPlayPauseClick
-        )
-
-        // 下一首随收起进度淡出并让出实际宽度，完全收起后不保留节点或点击区域。
-        if (expansionFraction > 0f) {
-            Row(
-                modifier = Modifier
-                    .layout { measurable, constraints ->
-                        val placeable = measurable.measure(constraints.copy(minWidth = 0))
-                        layout(
-                            (placeable.width * expansionFraction).roundToInt(),
-                            placeable.height
-                        ) { placeable.placeRelative(0, 0) }
-                    }
-                    .clipToBounds()
-                    .graphicsLayer { alpha = expansionFraction },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(modifier = Modifier.width(21.dp))
-                NextIcon(
-                    enable = canPlayNext && expansionFraction > 0.95f,
-                    height = 15.dp,
-                    tint = if (canPlayNext) MaterialTheme.rythmeColors.textColor else MaterialTheme.rythmeColors.miniNextWeak,
-                    onClick = onNextClick
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(21.dp))
     }
 }

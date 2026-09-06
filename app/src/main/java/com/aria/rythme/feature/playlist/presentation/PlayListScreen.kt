@@ -20,7 +20,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,11 +33,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.core.music.data.model.Playlist
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.Action
-import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.TopBarConfig
 import com.aria.rythme.ui.theme.rythmeColors
@@ -50,33 +48,29 @@ fun PlayListScreen(
     onPlaylistClick: (Long) -> Unit,
     viewModel: PlayListViewModel = koinViewModel()
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val playlists = state.value.playlists
-    val showCreateDialog = state.value.showCreateDialog
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val playlists = state.playlists
+    val showCreateDialog = state.showCreateDialog
 
-    val topBarState = LocalTopBarState.current
     val createDescription = stringResource(R.string.create_playlist)
     val topBarConfig = remember(viewModel, createDescription) {
         TopBarConfig(
+            auxiliaryActions = listOf(Action.Icon(
+                actionKey = "add",
+                iconRes = R.drawable.ic_add,
+                iconSize = 18.dp,
+                contentDescription = createDescription,
+                onClick = viewModel::showCreateDialog
+            )),
             actions = listOf(
-                Action(
-                    actionKey = "add",
-                    iconRes = R.drawable.ic_add,
-                    iconSize = 18.dp,
-                    contentDescription = createDescription,
-                    onClick = { viewModel.sendIntent(PlayListIntent.ShowCreateDialog) }
-                )
+                Action.Avatar(actionKey = "avatar", name = "ARiA")
             )
         )
     }
-    DisposableEffect(topBarConfig) {
-        topBarState.updateConfig(RythmeRoute.Playlist, topBarConfig)
-        onDispose { }
-    }
-
     MainListPage(
         title = stringResource(R.string.title_play_list),
-        routeKey = RythmeRoute.Playlist
+        routeKey = RythmeRoute.Playlist,
+        topBar = topBarConfig
     ) {
         if (playlists.isEmpty()) {
             item {
@@ -106,8 +100,8 @@ fun PlayListScreen(
 
     if (showCreateDialog) {
         CreatePlaylistDialog(
-            onDismiss = { viewModel.sendIntent(PlayListIntent.DismissCreateDialog) },
-            onCreate = { name -> viewModel.sendIntent(PlayListIntent.CreatePlaylist(name)) }
+            onDismiss = viewModel::dismissCreateDialog,
+            onCreate = viewModel::createPlaylist
         )
     }
 }

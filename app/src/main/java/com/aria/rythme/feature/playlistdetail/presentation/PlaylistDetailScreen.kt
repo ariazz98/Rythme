@@ -12,13 +12,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
@@ -33,9 +34,9 @@ import com.aria.rythme.ui.theme.rythmeColors
 fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val playlist = state.value.playlist
-    val songs = state.value.songs
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val playlist = state.playlist
+    val songs = state.songs
     val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
@@ -82,8 +83,8 @@ fun PlaylistDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 CommonOperateButton(
-                    onPlayClick = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) },
-                    onRandomPlayClick = { viewModel.sendIntent(PlaylistDetailIntent.ShufflePlay) }
+                    onPlayClick = { viewModel.playAll() },
+                    onRandomPlayClick = { viewModel.playAll(shuffle = true) }
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -115,7 +116,7 @@ fun PlaylistDetailScreen(
                 SongListItem(
                     song = song,
                     showDivider = index != songs.size - 1,
-                    onClick = { viewModel.sendIntent(PlaylistDetailIntent.PlaySong(song)) },
+                    onClick = { viewModel.playSong(song) },
                     onMoreClick = { bounds ->
                         overlayMenu.show(
                             OverlayMenu.SongContext(

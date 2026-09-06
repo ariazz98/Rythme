@@ -14,6 +14,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,12 +32,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
+import com.aria.rythme.ui.component.Action
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.MainGridPage
+import com.aria.rythme.ui.component.TopBarConfig
+import com.aria.rythme.ui.component.rememberPageSearchState
 import com.aria.rythme.ui.theme.rythmeColors
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -45,13 +50,34 @@ fun ArtistDetailScreen(
     onAlbumClick: (Album) -> Unit,
     viewModel: ArtistDetailViewModel = koinViewModel()
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val artist = state.value.artist
-    val albums = state.value.albums
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val artist = state.artist
+    val search = rememberPageSearchState()
+    val albums = state.albums.filter { search.matches(it.title, it.artist) }
     val routeKey = RythmeRoute.ArtistDetail(artistId)
-
+    val topBarConfig = remember(state.isFavorite, viewModel) {
+        TopBarConfig(
+            showBackButton = true,
+            actions = listOf(
+                Action.Icon(
+                    actionKey = "star",
+                    iconRes = R.drawable.ic_star,
+                    contentDescription = "收藏艺人",
+                    isActive = state.isFavorite,
+                    onClick = viewModel::toggleFavorite
+                ),
+                Action.Icon(
+                    actionKey = "more",
+                    iconRes = R.drawable.ic_more,
+                    contentDescription = "更多"
+                )
+            )
+        )
+    }
     MainGridPage(
-        routeKey = routeKey
+        routeKey = routeKey,
+        topBar = topBarConfig,
+        search = search
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(
@@ -106,12 +132,8 @@ fun ArtistDetailScreen(
                 Spacer(modifier = Modifier.height(21.dp))
 
                 CommonOperateButton(
-                    onPlayClick = {
-                        // TODO: 播放
-                    },
-                    onRandomPlayClick = {
-                        // TODO: 随机播放
-                    }
+                    onPlayClick = { viewModel.playAll() },
+                    onRandomPlayClick = { viewModel.playAll(shuffle = true) }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))

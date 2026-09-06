@@ -1,60 +1,52 @@
 package com.aria.rythme.feature.playlist.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
+import com.aria.rythme.core.music.data.model.Playlist
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+data class PlayListState(
+    val playlists: List<Playlist> = emptyList(),
+    val showCreateDialog: Boolean = false
+)
 
 class PlayListViewModel(
     private val playlistRepository: PlaylistRepository
-) : BaseViewModel<PlayListIntent, PlayListState, PlayListAction, PlayListEffect>() {
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(PlayListState())
+    val state = _state.asStateFlow()
 
     init {
-        observePlaylists()
-    }
-
-    override fun createInitialState(): PlayListState = PlayListState()
-
-    override fun handleIntent(intent: PlayListIntent) {
-        when (intent) {
-            is PlayListIntent.ShowCreateDialog -> {
-                reduceAndUpdate(PlayListAction.ToggleCreateDialog(true))
-            }
-            is PlayListIntent.DismissCreateDialog -> {
-                reduceAndUpdate(PlayListAction.ToggleCreateDialog(false))
-            }
-            is PlayListIntent.CreatePlaylist -> {
-                viewModelScope.launch {
-                    playlistRepository.createPlaylist(intent.name)
-                    reduceAndUpdate(PlayListAction.ToggleCreateDialog(false))
-                }
-            }
-            is PlayListIntent.DeletePlaylist -> {
-                viewModelScope.launch {
-                    playlistRepository.deletePlaylist(intent.id)
-                }
-            }
-        }
-    }
-
-    override fun reduce(action: PlayListAction): PlayListState {
-        return when (action) {
-            is PlayListAction.PlaylistsLoaded -> currentState.copy(
-                playlists = action.playlists
-            )
-            is PlayListAction.ToggleCreateDialog -> currentState.copy(
-                showCreateDialog = action.show
-            )
-        }
-    }
-
-    private fun observePlaylists() {
         playlistRepository.getAllPlaylists()
-            .onEach { playlists ->
-                reduceAndUpdate(PlayListAction.PlaylistsLoaded(playlists))
-            }
+            .onEach { playlists -> _state.update { it.copy(playlists = playlists) } }
             .launchIn(viewModelScope)
+    }
+
+    fun showCreateDialog() {
+        _state.update { it.copy(showCreateDialog = true) }
+    }
+
+    fun dismissCreateDialog() {
+        _state.update { it.copy(showCreateDialog = false) }
+    }
+
+    fun createPlaylist(name: String) {
+        viewModelScope.launch {
+            playlistRepository.createPlaylist(name)
+            _state.update { it.copy(showCreateDialog = false) }
+        }
+    }
+
+    fun deletePlaylist(id: Long) {
+        viewModelScope.launch {
+            playlistRepository.deletePlaylist(id)
+        }
     }
 }

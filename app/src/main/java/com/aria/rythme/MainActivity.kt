@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.aria.rythme.core.music.data.indexer.MusicIndexer
 import com.aria.rythme.ui.theme.RythmeTheme
+import com.aria.rythme.ui.component.ProvideGlassHdr
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
@@ -47,11 +48,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             RythmeTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    RythmeApp()
+                ProvideGlassHdr(window, display) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        RythmeApp()
+                    }
                 }
             }
         }

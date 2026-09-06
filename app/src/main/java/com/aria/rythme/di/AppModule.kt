@@ -44,6 +44,7 @@ val playModule = module {
     single { get<MusicDatabase>().songOverrideDao() }
     single { get<MusicDatabase>().playlistDao() }
     single { get<MusicDatabase>().lyricsDao() }
+    single { get<MusicDatabase>().favoriteDao() }
     single {
         OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -61,7 +62,7 @@ val playModule = module {
     single { PlaylistRepository(get(), get(), get()) }
     single { MediaStoreSource(androidContext(), get()) }
     single { MediaStoreWatcher(androidContext(), get(), get()) }
-    single { MusicRepository(get(), get(), get(), get()) }
+    single { MusicRepository(get(), get(), get(), get(), get()) }
     single { MusicIndexer(androidContext(), get(), get(), get(), get(), get()) }
     single {
         PlaybackController(androidContext()).apply {
@@ -97,7 +98,8 @@ val albumListModule = module {
     viewModel {
         AlbumListViewModel(
             musicRepository = get(),
-            appSettings = get()
+            appSettings = get(),
+            playbackController = get()
         )
     }
 }
@@ -106,7 +108,8 @@ val artistDetailModule = module {
     viewModel { params ->
         ArtistDetailViewModel(
             artistId = params.get(),
-            musicRepository = get()
+            musicRepository = get(),
+            playbackController = get()
         )
     }
 }

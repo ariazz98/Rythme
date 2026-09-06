@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -104,6 +105,8 @@ fun RythmeApp() {
     var playerVisible by remember { mutableStateOf(false) }
     val overlayMenuState = remember { OverlayMenuState() }
     val topBarState = rememberTopBarState()
+    val routesInBackStacks = navigationState.backStacks.values.flatMap { it }.toSet()
+    LaunchedEffect(routesInBackStacks) { topBarState.retainRoutes(routesInBackStacks) }
     val bottomBarState = rememberBottomBarState(
         initialPrimaryTabIndex = when (navigationState.topLevelRoute) {
             RythmeRoute.Playlist -> 1
@@ -134,8 +137,8 @@ fun RythmeApp() {
                             overlayMenuState.dismiss()
                         } else if (playerVisible) {
                             playerVisible = false
-                        } else if (topBarState.isSearchActive(navigationState.currentRoute)) {
-                            topBarState.updateSearchActive(navigationState.currentRoute, false)
+                        } else if (topBarState.getConfig(navigationState.currentRoute).search?.active == true) {
+                            topBarState.getConfig(navigationState.currentRoute).search?.close()
                         } else {
                             if (!navigator.goBack()) {
                                 activity?.finish()
@@ -172,14 +175,8 @@ private fun SharedTransitionScope.ScaffoldNavigation(
         modifier = Modifier,
         topBar = {
             RythmeHeader(
-                isShow = topBarState.isShow(navigationState.currentRoute),
                 routeKey = navigationState.currentRoute,
                 config = topBarState.getConfig(navigationState.currentRoute),
-                isSearchActive = topBarState.isSearchActive(navigationState.currentRoute),
-                searchTitle = topBarState.getSearchTitle(navigationState.currentRoute),
-                onSearchClose = {
-                    topBarState.updateSearchActive(navigationState.currentRoute, false)
-                },
                 skipAnimation = navigationState.operation == NavigationOperation.TabSwitch,
                 onBackClick = { navigator.goBack() }
             )

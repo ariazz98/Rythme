@@ -15,6 +15,7 @@ import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.rememberPageSearchState
 import com.aria.rythme.ui.component.MenuConfig
 import com.aria.rythme.ui.component.OverlayMenu
 import com.aria.rythme.ui.component.SongListItem
@@ -28,12 +29,14 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SongListScreen(
     viewModel: SongListViewModel = koinViewModel()
 ) {
-    val songs = viewModel.songs.collectAsStateWithLifecycle().value
+    val search = rememberPageSearchState()
+    val songs = viewModel.songs.collectAsStateWithLifecycle().value.filter { search.matches(it.title, it.artist, it.album) }
     val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
         title = stringResource(R.string.title_music_list),
         routeKey = RythmeRoute.SongList,
+        search = search,
         defaultTitleHidden = true,
         headerMode = HeaderMode.COLLAPSED
     ) {

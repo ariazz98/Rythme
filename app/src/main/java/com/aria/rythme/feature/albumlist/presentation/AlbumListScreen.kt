@@ -7,13 +7,12 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.Action
@@ -21,12 +20,12 @@ import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.LocalOverlayMenu
-import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.MainGridPage
 import com.aria.rythme.ui.component.MainListPage
 import com.aria.rythme.ui.component.MenuConfig
-import com.aria.rythme.ui.component.OverlayMenu
 import com.aria.rythme.ui.component.TopBarConfig
+import com.aria.rythme.ui.component.rememberPageSearchState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -34,53 +33,47 @@ fun AlbumListScreen(
     onAlbumClick: (Album) -> Unit,
     viewModel: AlbumListViewModel = koinViewModel()
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val albums = state.value.albums
-    val sortBy = state.value.sortBy
-    val layoutMode = state.value.layoutMode
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val search = rememberPageSearchState()
+    val albums = state.albums.filter { search.matches(it.title, it.artist) }
+    val sortBy = state.sortBy
+    val layoutMode = state.layoutMode
 
     val overlayMenuState = LocalOverlayMenu.current
-    val topBarState = LocalTopBarState.current
 
     val topBarConfig = remember(sortBy, layoutMode, overlayMenuState, viewModel) {
         TopBarConfig(
             showBackButton = true,
             actions = listOf(
-                Action(
+                Action.Icon(
+                    actionKey = "filter",
+                    iconRes = R.drawable.ic_filter,
+                    contentDescription = "筛选"
+                ),
+                Action.Icon(
                     actionKey = "more",
                     iconRes = R.drawable.ic_more,
                     contentDescription = "更多",
-                    onClick = {
-                        overlayMenuState.show(
-                            OverlayMenu.ActionMenu(
-                                buildAlbumListMenuConfigs(
+                    menu = {
+                        buildAlbumListMenuConfigs(
                                     currentSort = sortBy,
                                     currentLayout = layoutMode,
-                                    onSortSelected = {
-                                        viewModel.sendIntent(AlbumListIntent.SetSort(it))
-                                    },
-                                    onLayoutSelected = {
-                                        viewModel.sendIntent(AlbumListIntent.SetLayout(it))
-                                    },
+                                    onSortSelected = viewModel::setSort,
+                                    onLayoutSelected = viewModel::setLayout,
                                     onDismiss = overlayMenuState::dismiss
-                                )
-                            )
                         )
                     }
                 )
             )
         )
     }
-    DisposableEffect(topBarConfig) {
-        topBarState.updateConfig(RythmeRoute.AlbumList, topBarConfig)
-        onDispose { }
-    }
-
     when (layoutMode) {
         AlbumLayoutMode.GRID -> {
             MainGridPage(
                 title = stringResource(R.string.title_album),
                 routeKey = RythmeRoute.AlbumList,
+                topBar = topBarConfig,
+                search = search,
                 defaultTitleHidden = true,
                 headerMode = HeaderMode.COLLAPSED
             ) {
@@ -91,8 +84,8 @@ fun AlbumListScreen(
                             .padding(bottom = 12.dp)
                     ) {
                         CommonOperateButton(
-                            onPlayClick = { /* TODO */ },
-                            onRandomPlayClick = { /* TODO */ }
+                            onPlayClick = { viewModel.playAll() },
+                            onRandomPlayClick = { viewModel.playAll(shuffle = true) }
                         )
                     }
                 }
@@ -112,6 +105,8 @@ fun AlbumListScreen(
             MainListPage(
                 title = stringResource(R.string.title_album),
                 routeKey = RythmeRoute.AlbumList,
+                topBar = topBarConfig,
+                search = search,
                 defaultTitleHidden = true,
                 headerMode = HeaderMode.COLLAPSED
             ) {
@@ -123,8 +118,8 @@ fun AlbumListScreen(
                             .padding(bottom = 12.dp)
                     ) {
                         CommonOperateButton(
-                            onPlayClick = { /* TODO */ },
-                            onRandomPlayClick = { /* TODO */ }
+                            onPlayClick = { viewModel.playAll() },
+                            onRandomPlayClick = { viewModel.playAll(shuffle = true) }
                         )
                     }
                 }

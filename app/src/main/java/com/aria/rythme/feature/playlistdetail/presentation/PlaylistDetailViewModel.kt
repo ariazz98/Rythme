@@ -1,92 +1,69 @@
 package com.aria.rythme.feature.playlistdetail.presentation
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.BaseViewModel
 import com.aria.rythme.core.music.controller.PlaybackController
+import com.aria.rythme.core.music.data.model.Playlist
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+data class PlaylistDetailState(
+    val playlist: Playlist? = null,
+    val songs: List<Song> = emptyList(),
+    val isLoading: Boolean = true
+)
 
 class PlaylistDetailViewModel(
     private val playlistId: Long,
     private val playlistRepository: PlaylistRepository,
     private val playbackController: PlaybackController
-) : BaseViewModel<PlaylistDetailIntent, PlaylistDetailState, PlaylistDetailAction, PlaylistDetailEffect>() {
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(PlaylistDetailState())
+    val state = _state.asStateFlow()
 
     init {
         loadPlaylist()
-        observeSongs()
+        playlistRepository.getPlaylistSongs(playlistId)
+            .onEach { songs -> _state.update { it.copy(songs = songs) } }
+            .launchIn(viewModelScope)
     }
 
-    override fun createInitialState(): PlaylistDetailState = PlaylistDetailState()
-
-    override fun handleIntent(intent: PlaylistDetailIntent) {
-        when (intent) {
-            is PlaylistDetailIntent.PlaySong -> playSong(intent.song)
-            is PlaylistDetailIntent.PlayAll -> playAll()
-            is PlaylistDetailIntent.ShufflePlay -> shufflePlay()
-            is PlaylistDetailIntent.RemoveSong -> {
-                viewModelScope.launch {
-                    playlistRepository.removeSongFromPlaylist(playlistId, intent.songId)
-                    // 重新加载歌单信息以更新歌曲数量
-                    loadPlaylist()
-                }
-            }
-        }
+    fun playSong(song: Song) {
+        playQueue(_state.value.songs, song)
     }
 
-    override fun reduce(action: PlaylistDetailAction): PlaylistDetailState {
-        return when (action) {
-            is PlaylistDetailAction.PlaylistLoaded -> currentState.copy(
-                playlist = action.playlist,
-                isLoading = false
-            )
-            is PlaylistDetailAction.SongsLoaded -> currentState.copy(
-                songs = action.songs
-            )
+    fun playAll(shuffle: Boolean = false) {
+        val songs = _state.value.songs
+        val queue = if (shuffle) songs.shuffled() else songs
+        playQueue(queue, queue.firstOrNull())
+    }
+
+    fun removeSong(songId: Long) {
+        viewModelScope.launch {
+            playlistRepository.removeSongFromPlaylist(playlistId, songId)
+            loadPlaylist()
         }
     }
 
     private fun loadPlaylist() {
         viewModelScope.launch {
             playlistRepository.getPlaylistById(playlistId)?.let { playlist ->
-                reduceAndUpdate(PlaylistDetailAction.PlaylistLoaded(playlist))
+                _state.update { it.copy(playlist = playlist, isLoading = false) }
             }
         }
     }
 
-    private fun observeSongs() {
-        playlistRepository.getPlaylistSongs(playlistId)
-            .onEach { songs ->
-                reduceAndUpdate(PlaylistDetailAction.SongsLoaded(songs))
-            }
-            .launchIn(viewModelScope)
-    }
-
-    private fun playSong(song: Song) {
+    private fun playQueue(queue: List<Song>, first: Song?) {
+        if (first == null) return
         viewModelScope.launch {
-            playbackController.play(song, currentState.songs)
-        }
-    }
-
-    private fun playAll() {
-        viewModelScope.launch {
-            val songs = currentState.songs
-            if (songs.isNotEmpty()) {
-                playbackController.play(songs.first(), songs)
-            }
-        }
-    }
-
-    private fun shufflePlay() {
-        viewModelScope.launch {
-            val songs = currentState.songs
-            if (songs.isNotEmpty()) {
-                val shuffled = songs.shuffled()
-                playbackController.play(shuffled.first(), shuffled)
-            }
+            playbackController.play(first, queue)
         }
     }
 }

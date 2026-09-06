@@ -12,7 +12,11 @@ import com.aria.rythme.core.music.data.model.Song
  */
 sealed interface OverlayMenu {
     /** 右上角 Action 菜单 */
-    data class ActionMenu(val configs: List<MenuConfig>) : OverlayMenu
+    data class ActionMenu(
+        val sourceKey: Any,
+        val anchorBounds: Rect,
+        val configs: List<MenuConfig>
+    ) : OverlayMenu
 
     /** 歌曲上下文菜单（锚定到更多按钮位置） */
     data class SongContext(

@@ -2,7 +2,6 @@ package com.aria.rythme.feature.search.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aria.rythme.core.mvi.UiState
 import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.MusicRepository
@@ -18,7 +17,7 @@ data class SearchState(
     val query: String = "",
     val songs: List<Song> = emptyList(),
     val isSearching: Boolean = false
-) : UiState
+)
 
 /** Search 页自己的查询状态与本地曲库搜索。 */
 class SearchViewModel(

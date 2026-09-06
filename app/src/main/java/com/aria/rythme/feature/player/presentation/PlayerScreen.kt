@@ -1,5 +1,8 @@
 package com.aria.rythme.feature.player.presentation
 
+import android.content.Context
+import android.media.MediaRouter2
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -57,6 +60,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -80,7 +84,9 @@ import com.aria.rythme.ui.component.NextIcon
 import com.aria.rythme.ui.component.PlayPauseIcon
 import com.aria.rythme.ui.component.PreviousIcon
 import com.aria.rythme.ui.component.ProgressItem
+import com.aria.rythme.ui.component.OverlayMenu
 import com.aria.rythme.ui.component.VoiceItem
+import com.aria.rythme.ui.component.buildSongContextMenuConfigs
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousCapsule
@@ -128,6 +134,21 @@ fun PlayerScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     val overlayMenu = LocalOverlayMenu.current
     val hasSyncedLyrics = !state.lyricsData?.lines.isNullOrEmpty()
+    val onFavoriteClick = viewModel::toggleCurrentSongFavorite
+    val onMoreClick: (Rect) -> Unit = { bounds ->
+        state.currentSong?.let { song ->
+            overlayMenu.show(
+                OverlayMenu.SongContext(
+                    song = song,
+                    anchorBounds = bounds,
+                    configs = buildSongContextMenuConfigs(
+                        onDismiss = overlayMenu::dismiss,
+                        onEdit = { overlayMenu.show(OverlayMenu.SongEdit(song)) }
+                    )
+                )
+            )
+        }
+    }
 
     LaunchedEffect(viewModel, context) {
         viewModel.messages.collect { message ->
@@ -452,6 +473,24 @@ fun PlayerScreen(
                                 }
 
                                 Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable(
+                                            interactionSource = null,
+                                            indication = null,
+                                            onClick = { showSystemOutputSwitcher(context) }
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_airplay),
+                                        contentDescription = "输出设备",
+                                        tint = Color(0x80FFFFFF),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                Box(
                                     modifier = Modifier.size(40.dp)
                                         .then(if (activePanel == PlayerPanel.QUEUE) {
                                             Modifier
@@ -504,7 +543,9 @@ fun PlayerScreen(
                                     playerVisible = playerVisible,
                                     animatedContentScope = this@AnimatedContent,
                                     innerPadding = innerPadding,
-                                    coverSize = animateCoverSize
+                                    coverSize = animateCoverSize,
+                                    onFavoriteClick = onFavoriteClick,
+                                    onMoreClick = onMoreClick
                                 )
                             }
                             PlayerPanel.LYRICS -> {
@@ -535,6 +576,8 @@ fun PlayerScreen(
                                     onBackToNowPlaying = {
                                         activePanel = PlayerPanel.NONE
                                     },
+                                    onFavoriteClick = onFavoriteClick,
+                                    onMoreClick = onMoreClick,
                                     onSeekToLine = { index ->
                                         viewModel.seekToLyricLine(index)
                                     },
@@ -555,6 +598,9 @@ fun PlayerScreen(
                                     onToggleShuffle = viewModel::toggleShuffleMode,
                                     onToggleRepeat = viewModel::toggleRepeatMode,
                                     onToggleInfinitePlay = viewModel::toggleInfinitePlay,
+                                    onToggleCrossfade = viewModel::toggleCrossfade,
+                                    onFavoriteClick = onFavoriteClick,
+                                    onMoreClick = onMoreClick,
                                     innerPadding = innerPadding,
                                     stickyBackdrop = stickyBackdrop,
                                     screenDragOffsetY = dragOffsetYState,
@@ -576,5 +622,16 @@ fun PlayerScreen(
                 }
             }
         }
+    }
+}
+
+private fun showSystemOutputSwitcher(context: Context) {
+    val shown = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        MediaRouter2.getInstance(context).showSystemOutputSwitcher()
+    } else {
+        false
+    }
+    if (!shown) {
+        Toast.makeText(context, R.string.media_output_unavailable, Toast.LENGTH_SHORT).show()
     }
 }

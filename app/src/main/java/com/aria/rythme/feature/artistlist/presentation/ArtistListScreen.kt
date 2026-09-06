@@ -2,14 +2,16 @@ package com.aria.rythme.feature.artistlist.presentation
 
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.R
-import com.aria.rythme.core.extensions.collectAsUiState
 import com.aria.rythme.core.music.data.model.Artist
 import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.ArtistListItem
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.MainListPage
+import com.aria.rythme.ui.component.rememberPageSearchState
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -17,12 +19,14 @@ fun ArtistListScreen(
     onArtistClick: (Artist) -> Unit,
     viewModel: ArtistListViewModel = koinViewModel()
 ) {
-    val state = viewModel.state.collectAsUiState()
-    val artists = state.value.artists
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val search = rememberPageSearchState()
+    val artists = state.artists.filter { search.matches(it.name) }
 
     MainListPage(
         title = stringResource(R.string.title_artist),
-        routeKey = RythmeRoute.ArtistList
+        routeKey = RythmeRoute.ArtistList,
+        search = search
     ) {
         itemsIndexed(artists, key = { _, artist -> artist.id }) { index, artist ->
             ArtistListItem(

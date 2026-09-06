@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,44 +36,50 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.R
+import com.aria.rythme.ui.theme.AvatarDefaultBgEnd
+import com.aria.rythme.ui.theme.AvatarDefaultBgStart
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.shadow.Shadow
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.ui.component.utils.InteractiveHighlight
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 /** 按压缩放弹簧参数，与 LiquidBottomTabs 一致 */
 private val PressAnimSpec = spring(1f, 1000f, 0.001f)
@@ -89,122 +96,165 @@ enum class PanelAnchor {
     BottomEnd,
 }
 
-/** 右侧操作组；完整胶囊同时也是 ActionMenu 的共享元素起点。 */
+/** 每组有自己的实际边界和共享元素身份；独立操作与头像按实际宽度排列。 */
 @Composable
 fun AnimatedHeaderActions(
+    routeKey: androidx.navigation3.runtime.NavKey,
+    auxiliaryActions: List<Action> = emptyList(),
     actions: List<Action>,
     skipAnimation: Boolean = false,
+    navigationProgress: () -> Float = { 1f },
+    enabled: Boolean = true,
     backdrop: Backdrop = LocalBackdrop.current,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        HeaderActionGroup(routeKey to "auxiliary", auxiliaryActions, skipAnimation, navigationProgress, enabled, backdrop)
+        HeaderActionGroup(routeKey to "actions", actions, skipAnimation, navigationProgress, enabled, backdrop)
+    }
+}
+
+@Composable
+private fun HeaderActionGroup(
+    sourceKey: Any,
+    actions: List<Action>,
+    skipAnimation: Boolean,
+    navigationProgress: () -> Float,
+    enabled: Boolean,
+    backdrop: Backdrop
 ) {
     val coroutineScope = rememberCoroutineScope()
     val animState = remember { HeaderActionsAnimState() }
     var initialized by remember { mutableStateOf(false) }
-
+    var previousSource by remember { mutableStateOf(sourceKey) }
+    var navigationContentChanged by remember { mutableStateOf(false) }
+    var exitingForNavigation by remember { mutableStateOf(false) }
+    val currentNavigationProgress by rememberUpdatedState(navigationProgress)
     LaunchedEffect(Unit) {
         animState.initialize(actions)
         initialized = true
     }
-
-    LaunchedEffect(actions.visualKey()) {
+    LaunchedEffect(actions.contentKey(), sourceKey, skipAnimation) {
         if (initialized) {
-            animState.update(actions, skipAnimation)
+            val routeChanged = previousSource != sourceKey
+            navigationContentChanged = routeChanged && actions.contentKey() != animState.displayActions.contentKey()
+            exitingForNavigation = routeChanged && !skipAnimation && actions.isEmpty()
+            if (exitingForNavigation) snapshotFlow { currentNavigationProgress() }.first { it >= 0.999f }
+            animState.update(actions, skipAnimation || routeChanged)
+            exitingForNavigation = false
+            previousSource = sourceKey
         }
     }
-
-    SideEffect {
-        animState.syncActionRefs(actions)
-    }
+    SideEffect { animState.syncActionRefs(actions) }
 
     if (animState.phase == HeaderActionsAnimState.Phase.Hidden) return
-
+    val overlay = LocalOverlayMenu.current
+    val menu = overlay.currentMenu as? OverlayMenu.ActionMenu
+    val sourceHidden = menu?.sourceKey == sourceKey
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val sharedTransitionScope = LocalSharedTransitionScope.current
-    val isActionMenuOverlay = LocalOverlayMenu.current.currentMenu is OverlayMenu.ActionMenu
+    var anchorBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val pressAnim = remember { Animatable(0f) }
-    val actionHighlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
+    val highlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
+    val avatarOnly = animState.displayActions.all { it is Action.Avatar }
+    val pressLayer: GraphicsLayerScope.() -> Unit = {
+        val scale = 1f + pressAnim.value * 8.dp.toPx() / size.width
+        scaleX = scale
+        scaleY = scale
+    }
 
+    // 菜单打开时仍保留组的占位，避免旁边的独立按钮/头像移位。
     Box(
-        modifier = Modifier
+        Modifier
             .height(68.dp)
-            .graphicsLayer {
-                alpha = animState.overallAlpha.value
-                compositingStrategy = CompositingStrategy.ModulateAlpha
-            }
-            .thenBlur(animState.overallBlur.value),
+            .width((animState.displayActions.size * 44 + 24).dp)
+            .glassHdrFadeAndBlur(
+                alpha = { animState.overallAlpha.value * if (exitingForNavigation) 1f - navigationProgress() else 1f },
+                blurDp = { animState.overallBlur.value }
+            ),
         contentAlignment = Alignment.Center
     ) {
         with(sharedTransitionScope) {
             AnimatedVisibility(
-                visible = !isActionMenuOverlay,
-                modifier = Modifier.align(Alignment.CenterEnd)
+                visible = !sourceHidden,
+                enter = androidx.compose.animation.fadeIn(tween(ANIM_DURATION)),
+                exit = androidx.compose.animation.fadeOut(tween(ANIM_DURATION))
             ) {
                 Box(
                     modifier = Modifier
-                        .height(68.dp)
-                        .padding(horizontal = 12.dp)
-                        .thenBlur(animState.contentBlur.value),
+                        .onGloballyPositioned { anchorBounds = it.boundsInRoot() }
+                        .sharedBounds(
+                            sharedContentState = rememberSharedContentState(sourceKey),
+                            animatedVisibilityScope = this,
+                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
+                            boundsTransform = BoundsTransform { _, _ -> spring(0.55f, 250f) }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
+                    if (!avatarOnly) GlassBackdropSurface(
+                        backdrop = backdrop,
+                        shape = { ContinuousCapsule },
+                        hdr = true,
+                        effects = {
+                            vibrancy()
+                            blur(2.dp.toPx())
+                            glassLens(24.dp.toPx(), 32.dp.toPx())
+                        },
+                        layerBlock = pressLayer,
+                        onDrawSurface = { drawRect(containerColor) }
+                    )
                     Row(
                         modifier = Modifier
-                            .sharedElement(
-                                sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
-                                animatedVisibilityScope = this@AnimatedVisibility
-                            )
-                            .drawBackdrop(
-                                backdrop = backdrop,
-                                shape = { ContinuousCapsule },
-                                shadow = {
-                                    Shadow.Default.copy(radius = 12.dp, offset = DpOffset.Zero)
-                                },
-                                effects = {
-                                    vibrancy()
-                                    blur(2.dp.toPx())
-                                    lens(24.dp.toPx(), 32.dp.toPx())
-                                },
-                                layerBlock = {
-                                    val scale = 1f + pressAnim.value * 8.dp.toPx() / size.width
-                                    scaleX = scale
-                                    scaleY = scale
-                                },
-                                onDrawSurface = { drawRect(containerColor) }
-                            )
-                            .then(actionHighlight.modifier)
+                            .then(if (avatarOnly) Modifier else Modifier.graphicsLayer(pressLayer)
+                                .clip(ContinuousCapsule).then(highlight.modifier))
                             .height(44.dp)
                             .animateContentSize(tween(ANIM_DURATION / 2))
-                            .then(actionHighlight.gestureModifier)
-                            .pointerInput(coroutineScope) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
-                                    waitForUpOrCancellation()
-                                    coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
-                                }
-                            },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                            .thenBlur(if (navigationContentChanged && !skipAnimation) 8f * (1f - navigationProgress()) else animState.contentBlur.value)
+                            .then(
+                                if (avatarOnly) Modifier else Modifier
+                                    .then(highlight.gestureModifier)
+                                    .pointerInput(Unit) {
+                                        awaitEachGesture {
+                                            awaitFirstDown(requireUnconsumed = false)
+                                            try {
+                                                coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
+                                                waitForUpOrCancellation()
+                                            } finally {
+                                                coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
+                                            }
+                                        }
+                                    }
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         animState.displayActions.forEach { action ->
-                            ActionItem(action)
+                            val menuProvider = (action as? Action.Icon)?.menu
+                            ActionItem(
+                                action,
+                                onClick = if (!enabled || exitingForNavigation) null else if (menuProvider != null) {
+                                    {
+                                        if (!anchorBounds.isEmpty) overlay.show(
+                                            OverlayMenu.ActionMenu(sourceKey, anchorBounds, menuProvider())
+                                        )
+                                    }
+                                } else action.onClick
+                            )
                         }
                     }
-                }
+                    }
             }
         }
     }
 }
 
 @Composable
-private fun ActionItem(action: Action) {
-    val clickModifier = if (action.onClick != null) {
+private fun ActionItem(action: Action, onClick: (() -> Unit)? = action.onClick) {
+    val clickModifier = onClick?.let { onClick ->
         Modifier.clickable(
             interactionSource = null,
             indication = null,
-            onClick = action.onClick
+            onClick = onClick
         )
-    } else {
-        Modifier
-    }
+    } ?: Modifier
 
     Box(
         modifier = Modifier
@@ -212,12 +262,46 @@ private fun ActionItem(action: Action) {
             .then(clickModifier),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            painter = painterResource(action.iconRes),
-            contentDescription = action.contentDescription,
-            tint = MaterialTheme.rythmeColors.textColor,
-            modifier = Modifier.size(action.iconSize)
-        )
+        when (action) {
+            is Action.Icon -> Icon(
+                painter = painterResource(action.iconRes),
+                contentDescription = action.contentDescription,
+                tint = if (action.isActive) {
+                    MaterialTheme.rythmeColors.primary
+                } else {
+                    MaterialTheme.rythmeColors.textColor
+                },
+                modifier = Modifier.size(action.iconSize)
+            )
+
+            is Action.Avatar -> Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(
+                        verticalGradient(
+                            colors = listOf(AvatarDefaultBgStart, AvatarDefaultBgEnd)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!action.url.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = action.url,
+                        contentDescription = action.contentDescription.ifEmpty { "头像" },
+                        modifier = Modifier.size(44.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = action.name?.takeIf(String::isNotEmpty)?.take(2) ?: "R",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -228,6 +312,7 @@ fun BackButton(
     backdrop: Backdrop = LocalBackdrop.current,
     visible: Boolean,
     skipAnimation: Boolean = false,
+    visibilityFraction: Float? = null,
     onClick: () -> Unit
 ) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
@@ -235,69 +320,71 @@ fun BackButton(
     val pressAnim = remember { Animatable(0f) }
     val backHighlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
 
-    val blur by animateFloatAsState(
+    val animatedBlur by animateFloatAsState(
         targetValue = if (visible) 0f else 10f,
         animationSpec = if (skipAnimation) tween(0) else tween(ANIM_DURATION),
         label = "backBlur"
     )
 
-    val alpha by animateFloatAsState(
+    val animatedAlpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = if (skipAnimation) tween(0) else tween(ANIM_DURATION),
         label = "backAlpha"
     )
 
+    val alpha = visibilityFraction ?: animatedAlpha
+    val blur = visibilityFraction?.let { 10f * (1f - it) } ?: animatedBlur
+    val pressLayer: GraphicsLayerScope.() -> Unit = {
+        val pressScale = 1f + pressAnim.value * 8f.dp.toPx() / size.width
+        scaleX = pressScale
+        scaleY = pressScale
+    }
     if (alpha > 0.001f) {
         Box(modifier = Modifier
             .size(68.dp)
-            .alpha(alpha)
-            .thenBlur(blur),
+            .glassHdrFadeAndBlur(alpha = { alpha }, blurDp = { blur }),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { ContinuousCapsule },
-                        shadow = { Shadow.Default.copy(radius = 12.dp, offset = DpOffset(0.dp, 0.dp)) },
-                        effects = {
-                            vibrancy()
-                            blur(2f.dp.toPx())
-                            lens(24f.dp.toPx(), 32f.dp.toPx())
-                        },
-                        layerBlock = {
-                            val press = pressAnim.value
-                            val pressScale = 1f + press * 8f.dp.toPx() / size.width
-                            scaleX = pressScale
-                            scaleY = pressScale
-                        },
-                        onDrawSurface = {
-                            drawRect(color = containerColor)
-                        }
-                    )
-                    .then(backHighlight.modifier)
-                    .size(44.dp)
-                    .then(backHighlight.gestureModifier)
-                    .pointerInput(coroutineScope) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
-                            coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
-                            waitForUpOrCancellation()
-                            coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
-                        }
-                    }
-                    .clickable(
-                        interactionSource = null,
-                        indication = null
-                    ) { onClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_back),
-                    contentDescription = "返回",
-                    tint = MaterialTheme.rythmeColors.textColor,
-                    modifier = Modifier.size(20.dp)
+            Box(Modifier.size(44.dp)) {
+                GlassBackdropSurface(
+                    backdrop = backdrop,
+                    shape = { ContinuousCapsule },
+                    effects = {
+                        vibrancy()
+                        blur(2f.dp.toPx())
+                        glassLens(24f.dp.toPx(), 32f.dp.toPx())
+                    },
+                    layerBlock = pressLayer,
+                    onDrawSurface = { drawRect(containerColor) }
                 )
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer(pressLayer)
+                        .clip(ContinuousCapsule)
+                        .then(backHighlight.modifier)
+                        .size(44.dp)
+                        .then(backHighlight.gestureModifier)
+                        .pointerInput(coroutineScope) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
+                                waitForUpOrCancellation()
+                                coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
+                            }
+                        }
+                        .clickable(
+                            interactionSource = null,
+                            indication = null
+                        ) { onClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_back),
+                        contentDescription = "返回",
+                        tint = MaterialTheme.rythmeColors.textColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+            }
             }
         }
     }
@@ -312,18 +399,6 @@ fun CloseButton(
 
     Box(
         modifier = Modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousCapsule },
-                effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(24f.dp.toPx(), 32f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(color = containerColor)
-                }
-            )
             .size(44.dp)
             .clickable(
                 interactionSource = null,
@@ -331,6 +406,16 @@ fun CloseButton(
             ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
+        GlassBackdropSurface(
+            backdrop = backdrop,
+            shape = { ContinuousCapsule },
+            effects = {
+                vibrancy()
+                blur(2f.dp.toPx())
+                glassLens(24f.dp.toPx(), 32f.dp.toPx())
+            },
+            onDrawSurface = { drawRect(containerColor) }
+        )
         Icon(
             painter = painterResource(R.drawable.ic_close),
             contentDescription = "返回",
@@ -345,15 +430,18 @@ fun SharedTransitionScope.MenuPanel(
     backdrop: Backdrop = LocalBackdrop.current,
     scope: AnimatedVisibilityScope,
     configs: List<MenuConfig>,
+    sourceKey: Any,
     interactive: Boolean = true
 ) {
     MenuPanelContent(
         backdrop = backdrop,
         configs = configs,
         interactive = interactive,
-        columnModifier = Modifier.sharedElement(
-            sharedContentState = rememberSharedContentState(key = "actionMenuBounds"),
+        hdr = true,
+        columnModifier = Modifier.sharedBounds(
+            sharedContentState = rememberSharedContentState(key = sourceKey),
             animatedVisibilityScope = scope,
+            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
             boundsTransform = BoundsTransform { _, _ ->
                 spring(dampingRatio = 0.55f, stiffness = 250f)
             }
@@ -404,7 +492,8 @@ private fun MenuPanelContent(
     configs: List<MenuConfig>,
     interactive: Boolean = true,
     columnModifier: Modifier = Modifier,
-    anchor: PanelAnchor = PanelAnchor.TopEnd
+    anchor: PanelAnchor = PanelAnchor.TopEnd,
+    hdr: Boolean = true
 ) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val coroutineScope = rememberCoroutineScope()
@@ -450,139 +539,152 @@ private fun MenuPanelContent(
         }
     }
 
-    Column(
-        modifier = columnModifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousRoundedRectangle(48.dp) },
-                effects = {
-                    vibrancy()
-                    blur(12f.dp.toPx())
-                    lens(24f.dp.toPx(), 32f.dp.toPx())
-                },
-                layerBlock = {
-                    val dx = dragOffsetX.value
-                    val dy = dragOffsetY.value
+    val panelLayer: GraphicsLayerScope.() -> Unit = {
+        val dx = dragOffsetX.value
+        val dy = dragOffsetY.value
 
-                    // 阻尼位移：远离锚点方向产生位移，靠近锚点方向只形变
-                    // maxShift = 最大位移量，refDist = 阻尼参考距离
-                    val maxShift = 6.dp.toPx()
-                    val refDist = 100.dp.toPx()
-                    fun damp(v: Float) = maxShift * v / (refDist + kotlin.math.abs(v))
+        // 阻尼位移：远离锚点方向产生位移，靠近锚点方向只形变
+        // maxShift = 最大位移量，refDist = 阻尼参考距离
+        val maxShift = 6.dp.toPx()
+        val refDist = 100.dp.toPx()
+        fun damp(v: Float) = maxShift * v / (refDist + kotlin.math.abs(v))
 
-                    // 水平：锚点在右侧，左拖（远离）有位移，右拖（靠近）无位移
-                    translationX = if (dx < 0f) damp(dx) else 0f
+        // 水平：锚点在右侧，左拖（远离）有位移，右拖（靠近）无位移
+        translationX = if (dx < 0f) damp(dx) else 0f
 
-                    // 垂直：根据锚点方向决定
-                    // TopEnd: 锚点在上，下拖（远离）有位移，上拖无位移
-                    // BottomEnd: 锚点在下，上拖（远离）有位移，下拖无位移
-                    translationY = when (anchor) {
-                        PanelAnchor.TopEnd -> if (dy > 0f) damp(dy) else 0f
-                        PanelAnchor.BottomEnd -> if (dy < 0f) damp(dy) else 0f
-                    }
+        // 垂直：根据锚点方向决定
+        // TopEnd: 锚点在上，下拖（远离）有位移，上拖无位移
+        // BottomEnd: 锚点在下，上拖（远离）有位移，下拖无位移
+        translationY = when (anchor) {
+            PanelAnchor.TopEnd -> if (dy > 0f) damp(dy) else 0f
+            PanelAnchor.BottomEnd -> if (dy < 0f) damp(dy) else 0f
+        }
 
-                    // 方向性形变
-                    val deform = 0.03f
-                    // 垂直形变符号：TopEnd 时下拉(dy>0)变窄高，BottomEnd 时上拉(dy<0)变窄高
-                    val nyRaw = (dy / size.height).coerceIn(-1f, 1f) * deform
-                    val ny = when (anchor) {
-                        PanelAnchor.TopEnd -> nyRaw      // 下拉正值=窄高
-                        PanelAnchor.BottomEnd -> -nyRaw   // 翻转：上拉负值→正值=窄高
-                    }
-                    // 左拖正常响应，右拖大阻力
-                    val dxDamped = if (dx > 0f) dx * 0.15f else dx
-                    val nx = (dxDamped / size.width).coerceIn(-1f, 1f) * deform
-                    scaleX = 1f - ny - nx
-                    scaleY = 1f + ny + nx
-                },
-                onDrawSurface = {
-                    drawRect(color = containerColor)
-                }
-            )
-            .width(256.dp)
-            // 径向高光（在 padding 之前，覆盖整个面板）
-            .then(highlight.modifier)
-            .then(if (interactive) highlight.gestureModifier else Modifier)
-            .padding(12.dp)
-            // 胶囊绘制
-            .drawWithContent {
-                val alpha = capsuleAlpha.value
-                if (alpha > 0f) {
-                    drawRoundRect(
-                        color = Color.Black.copy(alpha = 0.1f * alpha),
-                        topLeft = Offset(0f, capsuleY.value),
-                        size = Size(size.width, itemHeightPx),
-                        cornerRadius = CornerRadius(itemHeightPx / 2)
-                    )
-                }
-                drawContent()
+        // 方向性形变
+        val deform = 0.03f
+        // 垂直形变符号：TopEnd 时下拉(dy>0)变窄高，BottomEnd 时上拉(dy<0)变窄高
+        val nyRaw = (dy / size.height).coerceIn(-1f, 1f) * deform
+        val ny = when (anchor) {
+            PanelAnchor.TopEnd -> nyRaw      // 下拉正值=窄高
+            PanelAnchor.BottomEnd -> -nyRaw   // 翻转：上拉负值→正值=窄高
+        }
+        // 左拖正常响应，右拖大阻力
+        val dxDamped = if (dx > 0f) dx * 0.15f else dx
+        val nx = (dxDamped / size.width).coerceIn(-1f, 1f) * deform
+        scaleX = 1f - ny - nx
+        scaleY = 1f + ny + nx
+    }
+    Box(modifier = columnModifier.width(256.dp)) {
+        GlassBackdropSurface(
+            backdrop = backdrop,
+            shape = { ContinuousRoundedRectangle(48.dp) },
+            shadow = GlassMenuShadow,
+            hdr = hdr,
+            effects = {
+                vibrancy()
+                blur(12f.dp.toPx())
+                glassLens(24f.dp.toPx(), 32f.dp.toPx())
+            },
+            layerBlock = panelLayer,
+            onDrawSurface = {
+                drawRect(color = containerColor)
             }
-            // 胶囊手势：按下显示 → 拖拽跟随 → 松开触发点击
-            .then(if (interactive) Modifier.pointerInput(itemInfos) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val startPos = down.position
-                    val hitIndex = itemInfos.indexOfFirst {
-                        down.position.y >= it.yPx && down.position.y < it.yPx + it.heightPx
+        )
+        Column(
+            modifier = Modifier
+                .graphicsLayer(panelLayer)
+                .clip(ContinuousRoundedRectangle(48.dp))
+                .width(256.dp)
+                // 径向高光（在 padding 之前，覆盖整个面板）
+                .then(highlight.modifier)
+                .then(if (interactive) highlight.gestureModifier else Modifier)
+                .padding(12.dp)
+                // 胶囊绘制
+                .drawWithContent {
+                    val alpha = capsuleAlpha.value
+                    if (alpha > 0f) {
+                        drawRoundRect(
+                            color = Color.Black.copy(alpha = 0.1f * alpha),
+                            topLeft = Offset(0f, capsuleY.value),
+                            size = Size(size.width, itemHeightPx),
+                            cornerRadius = CornerRadius(itemHeightPx / 2)
+                        )
                     }
-                    if (hitIndex >= 0) {
-                        activeIndex = hitIndex
-                        coroutineScope.launch {
-                            capsuleY.snapTo(itemInfos[hitIndex].yPx)
-                            capsuleAlpha.snapTo(1f)
+                    drawContent()
+                }
+                // 胶囊手势：按下显示 → 拖拽跟随 → 松开触发点击
+                .then(if (interactive) Modifier.pointerInput(itemInfos) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startPos = down.position
+                        fun hit(position: Offset): Int = if (position.x < 0f || position.x > size.width) -1 else
+                            itemInfos.indexOfFirst { position.y >= it.yPx && position.y < it.yPx + it.heightPx }
+                        val hitIndex = itemInfos.indexOfFirst {
+                            down.position.y >= it.yPx && down.position.y < it.yPx + it.heightPx
                         }
-                    }
-
-                    // 跟踪手指移动（胶囊选择 + 拖拽形变）
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        if (!change.pressed) break
-
-                        // 拖拽形变
-                        coroutineScope.launch {
-                            launch { dragOffsetX.snapTo(change.position.x - startPos.x) }
-                            launch { dragOffsetY.snapTo(change.position.y - startPos.y) }
-                        }
-
-                        // 胶囊选择
-                        val newIndex = itemInfos.indexOfFirst {
-                            change.position.y >= it.yPx && change.position.y < it.yPx + it.heightPx
-                        }
-                        if (newIndex >= 0 && newIndex != activeIndex) {
-                            activeIndex = newIndex
+                        if (hitIndex >= 0) {
+                            activeIndex = hitIndex
                             coroutineScope.launch {
-                                capsuleY.animateTo(
-                                    itemInfos[newIndex].yPx,
-                                    spring(dampingRatio = 0.8f, stiffness = 600f)
-                                )
+                                capsuleY.snapTo(itemInfos[hitIndex].yPx)
+                                capsuleAlpha.snapTo(1f)
                             }
                         }
-                    }
 
-                    // 松开：触发选中项的点击，形变回弹
-                    if (activeIndex >= 0) {
-                        itemInfos[activeIndex].onClick()
+                        // 跟踪手指移动（胶囊选择 + 拖拽形变）
+                        var released = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) {
+                                released = true
+                                activeIndex = hit(change.position)
+                                break
+                            }
+
+                            // 拖拽形变
+                            coroutineScope.launch {
+                                launch { dragOffsetX.snapTo(change.position.x - startPos.x) }
+                                launch { dragOffsetY.snapTo(change.position.y - startPos.y) }
+                            }
+
+                            // 胶囊选择
+                            val newIndex = hit(change.position)
+                            if (newIndex != activeIndex) {
+                                activeIndex = newIndex
+                                coroutineScope.launch {
+                                    capsuleAlpha.snapTo(if (newIndex >= 0) 1f else 0f)
+                                    if (newIndex >= 0) capsuleY.animateTo(
+                                        itemInfos[newIndex].yPx,
+                                        spring(dampingRatio = 0.8f, stiffness = 600f)
+                                    )
+                                }
+                            }
+                        }
+
+                        // 松开：触发选中项的点击，形变回弹
+                        if (released && activeIndex >= 0) {
+                            itemInfos[activeIndex].onClick()
+                        }
+                        activeIndex = -1
+                        coroutineScope.launch {
+                            launch { capsuleAlpha.animateTo(0f, tween(150)) }
+                            launch { dragOffsetX.animateTo(0f, spring(0.65f, 400f)) }
+                            launch { dragOffsetY.animateTo(0f, spring(0.65f, 400f)) }
+                        }
                     }
-                    activeIndex = -1
-                    coroutineScope.launch {
-                        launch { capsuleAlpha.animateTo(0f, tween(150)) }
-                        launch { dragOffsetX.animateTo(0f, spring(0.65f, 400f)) }
-                        launch { dragOffsetY.animateTo(0f, spring(0.65f, 400f)) }
+                } else Modifier)
+        ) {
+            configs.forEach { config ->
+                when (config) {
+                    is MenuConfig.Item -> MenuPanelItem(config)
+                    is MenuConfig.Group -> MenuPanelRow(config)
+                    is MenuConfig.Separator -> {
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth()
+                        )
                     }
-                }
-            } else Modifier)
-    ) {
-        configs.forEach { config ->
-            when (config) {
-                is MenuConfig.Item -> MenuPanelItem(config)
-                is MenuConfig.Group -> MenuPanelRow(config)
-                is MenuConfig.Separator -> {
-                    HorizontalDivider(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth()
-                    )
                 }
             }
         }
@@ -653,10 +755,14 @@ fun MenuPanelRow(
         horizontalArrangement = Arrangement.SpaceAround
     ) {
         config.items.forEach { item ->
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(60.dp),
-                contentAlignment = Alignment.Center
+                    .size(60.dp)
+                    .clip(ContinuousRoundedRectangle(12.dp))
+                    .background(if (item.isChecked) MaterialTheme.rythmeColors.bottomSelected else Color.Transparent)
+                    .clickable { item.onClick() },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
 
                 if (item.iconRes != null) {
