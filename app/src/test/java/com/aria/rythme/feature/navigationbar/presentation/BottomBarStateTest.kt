@@ -9,13 +9,16 @@ import org.junit.Test
 
 class BottomBarStateTest {
     @Test
-    fun collapsedBarRetainsPreparationUntilExpansionThreshold() {
+    fun collapsedBarRetainsPreparationUntilThePageReachesTop() {
         val state = BottomBarState(scrollThresholdPx = 48f)
         scroll(state, -48f)
         scroll(state, 24f)
         assertFalse(state.isExpanded)
         assertEquals(1f, state.collapsePreparationProgress, 0.001f)
-        scroll(state, 24f)
+        scroll(state, 240f)
+        assertFalse(state.isExpanded)
+        assertEquals(1f, state.collapsePreparationProgress, 0.001f)
+        scroll(state, 1f, isAtTop = true)
         assertTrue(state.isExpanded)
         assertEquals(0f, state.collapsePreparationProgress, 0.001f)
     }
@@ -71,21 +74,23 @@ class BottomBarStateTest {
     }
 
     @Test
-    fun upwardScrollExpandsCollapsedBar() {
+    fun upwardScrollInTheMiddleDoesNotExpandRegardlessOfDistance() {
         val state = BottomBarState(scrollThresholdPx = 48f)
 
         scroll(state, -48f)
         assertFalse(state.isExpanded)
 
         scroll(state, 48f)
-        assertTrue(state.isExpanded)
+        assertFalse(state.isExpanded)
+        scroll(state, 480f)
+        assertFalse(state.isExpanded)
     }
 
     @Test
     fun unconsumedDragOnStaticContentDoesNotCollapse() {
         val state = BottomBarState(scrollThresholdPx = 48f)
 
-        state.nestedScrollConnection.onPostScroll(
+        state.nestedScrollConnection { true }.onPostScroll(
             consumed = Offset.Zero,
             available = Offset(0f, -96f),
             source = NestedScrollSource.UserInput
@@ -107,11 +112,80 @@ class BottomBarStateTest {
         assertEquals(2, state.lastPrimaryTabIndex)
     }
 
-    private fun scroll(state: BottomBarState, deltaY: Float) {
-        state.nestedScrollConnection.onPostScroll(
+    @Test
+    fun aFlingCanExpandAtTopButCannotCollapseAwayFromTop() {
+        val state = BottomBarState(scrollThresholdPx = 48f)
+        scroll(state, -96f, source = NestedScrollSource.SideEffect)
+        assertTrue(state.isExpanded)
+        scroll(state, -48f)
+        scroll(state, 480f, source = NestedScrollSource.SideEffect)
+        assertFalse(state.isExpanded)
+        scroll(state, 1f, isAtTop = true, source = NestedScrollSource.SideEffect)
+        assertTrue(state.isExpanded)
+        assertEquals(0f, state.collapsePreparationProgress, 0f)
+    }
+
+    @Test
+    fun pullingAtTopExpandsEvenWhenContentCannotConsumeMoreScroll() {
+        val state = BottomBarState(scrollThresholdPx = 48f)
+        scroll(state, -48f)
+        state.nestedScrollConnection { true }.onPostScroll(
+            consumed = Offset.Zero,
+            available = Offset(0f, 1f),
+            source = NestedScrollSource.UserInput
+        )
+        assertTrue(state.isExpanded)
+    }
+
+    @Test
+    fun unconsumedScrollDoesNotPretendThePageHasReachedTop() {
+        val state = BottomBarState(scrollThresholdPx = 48f)
+        scroll(state, -48f)
+        state.nestedScrollConnection { false }.onPostScroll(
+            consumed = Offset.Zero,
+            available = Offset(0f, 96f),
+            source = NestedScrollSource.UserInput
+        )
+        assertFalse(state.isExpanded)
+    }
+
+    @Test
+    fun horizontalScrollAtTopDoesNotExpandAndPositionCallbackStaysLive() {
+        val state = BottomBarState(scrollThresholdPx = 48f)
+        var isAtTop = false
+        val connection = state.nestedScrollConnection { isAtTop }
+        scroll(state, -48f)
+        connection.onPostScroll(Offset(0f, 96f), Offset.Zero, NestedScrollSource.UserInput)
+        assertFalse(state.isExpanded)
+        isAtTop = true
+        connection.onPostScroll(Offset(96f, 0f), Offset.Zero, NestedScrollSource.UserInput)
+        assertFalse(state.isExpanded)
+        connection.onPostScroll(Offset(0f, 1f), Offset.Zero, NestedScrollSource.UserInput)
+        assertTrue(state.isExpanded)
+    }
+
+    @Test
+    fun reachingTopClearsOldCollapseDistanceBeforeTheNextDownwardScroll() {
+        val state = BottomBarState(scrollThresholdPx = 48f)
+        scroll(state, -48f)
+        scroll(state, 1f, isAtTop = true)
+        scroll(state, -24f)
+        assertTrue(state.isExpanded)
+        assertEquals(0.5f, state.collapsePreparationProgress, 0.001f)
+        scroll(state, -24f)
+        assertFalse(state.isExpanded)
+    }
+
+    private fun scroll(
+        state: BottomBarState,
+        deltaY: Float,
+        isAtTop: Boolean = false,
+        source: NestedScrollSource = NestedScrollSource.UserInput
+    ) {
+        state.nestedScrollConnection { isAtTop }.onPostScroll(
             consumed = Offset(0f, deltaY),
             available = Offset.Zero,
-            source = NestedScrollSource.UserInput
+            source = source
         )
     }
 }

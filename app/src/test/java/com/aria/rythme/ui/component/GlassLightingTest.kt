@@ -9,6 +9,28 @@ import kotlin.math.sqrt
 
 class GlassLightingTest {
     @Test
+    fun pressLightingIsOffAtRestAndCappedAtFourPercent() {
+        assertEquals(0f, glassPressLightAlpha(0f), 0f)
+        assertEquals(0.04f, glassPressLightAlpha(1f), 0f)
+        assertEquals(0.04f, glassPressLightAlpha(1.2f), 0f)
+        for (progress in listOf(-1f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)) {
+            assertEquals(0f, glassPressLightAlpha(progress), 0f)
+        }
+    }
+
+    @Test
+    fun pressLightingFollowsProgressContinuouslyAndReturnsToZero() {
+        for (step in 0..100) {
+            val progress = step / 100f
+            val alpha = glassPressLightAlpha(progress)
+            assertEquals(progress * 0.04f, alpha, 0.00001f)
+            assertTrue(alpha in 0f..0.04f)
+            assertEquals(0.04f, alpha + glassPressLightAlpha(1f - progress), 0.00001f)
+        }
+        assertEquals(0f, glassPressLightAlpha(0f), 0f)
+    }
+
+    @Test
     fun darkGlassDoesNotReuseLightThemeHighlightStrength() {
         val light = glassLightingProfile(false)
         val dark = glassLightingProfile(true)

@@ -4,7 +4,46 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GlassHdrTest {
-    @Test fun hdrIsLightOnlyAndRequiresControllableHeadroom() {
+    @Test fun darkPressUsesHdrWithoutEnablingStaticGlassAndReturnsToSdr() {
+        val state = GlassHdrState()
+        state.configurePressEnvironment(true, true)
+        assertTrue(state.pressAvailable)
+        assertFalse(state.enabled)
+        assertEquals(1f, state.requestedHeadroom, 0f)
+        state.requestPressHeadroom("button", 3f)
+        state.requestPressHeadroom("avatar", 6.5f)
+        assertEquals(6.5f, state.requestedHeadroom, 0f)
+        state.requestPressHeadroom("avatar", 0f)
+        assertEquals(3f, state.requestedHeadroom, 0f)
+        state.requestPressHeadroom("button", 0f)
+        assertEquals(1f, state.requestedHeadroom, 0f)
+    }
+
+    @Test fun leavingDarkThemeRestoresTheExistingLightHeadroomLimit() {
+        val state = GlassHdrState()
+        state.configurePressEnvironment(true, true)
+        state.requestPressHeadroom("avatar", 6.5f)
+        state.configurePressEnvironment(true, false)
+        assertEquals(2f, state.requestedHeadroom, 0f)
+        state.requestPressHeadroom("avatar", 0f)
+        assertEquals(1.2f, state.requestedHeadroom, 0f)
+        state.configurePressEnvironment(false, true)
+        assertFalse(state.pressAvailable)
+        assertEquals(1f, state.requestedHeadroom, 0f)
+    }
+
+    @Test fun transientPressHeadroomUsesTheMaximumAndRestoresStaticGlass() {
+        val state = GlassHdrState()
+        state.requestPressHeadroom("first", 1.92f)
+        state.requestPressHeadroom("second", 1.5f)
+        assertEquals(1.92f, state.requestedHeadroom, 0f)
+        state.requestPressHeadroom("first", 1.2f)
+        assertEquals(1.5f, state.requestedHeadroom, 0f)
+        state.requestPressHeadroom("second", Float.NaN)
+        assertEquals(GlassHdrHeadroom, state.requestedHeadroom, 0f)
+    }
+
+    @Test fun staticGlassHdrIsLightOnlyAndRequiresControllableHeadroom() {
         assertTrue(glassHdrEligible(35, false, true))
         assertFalse(glassHdrEligible(34, false, true))
         assertFalse(glassHdrEligible(36, true, true))

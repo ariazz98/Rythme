@@ -4,12 +4,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,11 +36,13 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.innerShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -54,16 +56,21 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
-import androidx.compose.ui.util.lerp
 import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.feature.navigationbar.data.model.BottomNavItem
 import com.aria.rythme.feature.navigationbar.data.model.TOP_LEVEL_DESTINATIONS
 import com.aria.rythme.ui.component.utils.DampedDragAnimation
 import com.aria.rythme.ui.component.utils.BottomTabMorphGeometry
+import com.aria.rythme.ui.component.utils.BottomBarMetrics
+import com.aria.rythme.ui.component.utils.bottomTabPressScale
+import com.aria.rythme.ui.component.utils.bottomTabEmphasisScale
+import com.aria.rythme.ui.component.utils.searchSurfaceMergeProgress
 import com.aria.rythme.ui.component.utils.TAB_MOTION_STIFFNESS
 import com.aria.rythme.ui.component.utils.capsuleWidthDamping
 import com.aria.rythme.ui.component.utils.InteractiveHighlight
@@ -80,6 +87,18 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
 
+// 当前已恢复暗边/高光、折射、色散和内部明暗；整体按压提亮由玻璃表面统一处理。
+// 整片黑色着色、触点补光仍关闭，原参数留在调用处。
+private const val TAB_DROPLET_TINT_AND_SPOTLIGHT_ENABLED = false
+
+// 仅给外层液滴补一圈柔和内阴影；独立于暗边、内部明暗和背景折射。
+private val TabDropletInnerShadow = Shadow(
+    radius = 8.dp,
+    color = Color.Black.copy(alpha = 0.10f),
+    offset = DpOffset.Zero,
+    spread = 0.dp
+)
+
 /**
  * 展开态 BottomBar：四个普通 Tab 共用一个外层胶囊。
  *
@@ -89,6 +108,7 @@ import kotlin.math.sign
 fun LiquidBottomTabs(
     selectedTabIndex: () -> Int,
     onTabSelected: (index: Int) -> Unit,
+    availableWidth: Dp,
     enabled: Boolean = true,
     backdrop: Backdrop = LocalBackdrop.current,
     modifier: Modifier = Modifier,
@@ -111,35 +131,40 @@ fun LiquidBottomTabs(
     // 只重建强调色的采样缓存，拖动、选择和回弹状态仍由下面的稳定节点持有。
     val tabsBackdrop = key(hdr.enabled, glassGeneration) { rememberLayerBackdrop() }
 
-    BoxWithConstraints(
+    // 宽度由外层提供，动画不再触发第二层 SubcomposeLayout；可变节点挂在稳定的 Box 下。
+    Box(
         modifier = modifier
-            .height(androidx.compose.ui.unit.lerp(50.dp, 64.dp, expansion))
+            .height(androidx.compose.ui.unit.lerp(BottomBarMetrics.CompactHeight.dp, BottomBarMetrics.ExpandedTabHeight.dp, expansion))
             .fillMaxSize(),
         contentAlignment = Alignment.CenterStart
     ) {
         val density = LocalDensity.current
         val horizontalPadding = 4.dp
-        val tabWidth = (maxWidth - horizontalPadding * 2) / tabsCount
+        val tabWidth = (availableWidth - horizontalPadding * 2) / tabsCount
         val tabWidthPx = with(density) { tabWidth.toPx() }
-        val totalWidthPx = constraints.maxWidth.toFloat()
+        val totalWidthPx = with(density) { availableWidth.roundToPx().toFloat() }
         val horizontalPaddingPx = with(density) { horizontalPadding.toPx() }
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
-        val compactDiameterPx = with(density) { 50.dp.toPx() }
+        val compactDiameter = BottomBarMetrics.CompactHeight.dp
+        val compactDiameterPx = with(density) { compactDiameter.toPx() }
         val morph = BottomTabMorphGeometry(
             width = totalWidthPx,
-            height = with(density) { androidx.compose.ui.unit.lerp(50.dp, 64.dp, expansion).toPx() },
+            height = with(density) {
+                androidx.compose.ui.unit.lerp(BottomBarMetrics.CompactHeight.dp, BottomBarMetrics.ExpandedTabHeight.dp, expansion).toPx()
+            },
             diameter = compactDiameterPx,
             padding = horizontalPaddingPx,
             expansion = expansion,
-            isLtr = isLtr
+            isLtr = isLtr,
+            labelHeight = with(density) { 14.dp.toPx() }
         )
-        val expandedSearchWidth = maxWidth - horizontalPadding - tabWidth * 3
-        val primaryTargetWidth = if (targetExpanded) maxWidth else 50.dp
-        val searchTargetWidth = if (targetExpanded) expandedSearchWidth else 50.dp
+        val expandedSearchWidth = availableWidth - horizontalPadding - tabWidth * 3
+        val primaryTargetWidth = if (targetExpanded) availableWidth else compactDiameter
+        val searchTargetWidth = if (targetExpanded) expandedSearchWidth else compactDiameter
         val primaryWidth by animateDpAsState(
             targetValue = primaryTargetWidth,
             animationSpec = spring(
-                dampingRatio = capsuleWidthDamping(primaryTargetWidth.value, (maxWidth - 50.dp).value),
+                dampingRatio = capsuleWidthDamping(primaryTargetWidth.value, (availableWidth - compactDiameter).value),
                 stiffness = TAB_MOTION_STIFFNESS
             ),
             label = "primaryTabWidthRebound"
@@ -147,12 +172,22 @@ fun LiquidBottomTabs(
         val searchWidth by animateDpAsState(
             targetValue = searchTargetWidth,
             animationSpec = spring(
-                dampingRatio = capsuleWidthDamping(searchTargetWidth.value, (expandedSearchWidth - 50.dp).value),
+                dampingRatio = capsuleWidthDamping(searchTargetWidth.value, (expandedSearchWidth - compactDiameter).value),
                 stiffness = TAB_MOTION_STIFFNESS
             ),
             label = "searchTabWidthRebound"
         )
-        val fullWidthReboundScale = if (separateSearch) 1f else primaryWidth / maxWidth
+        val fullWidthReboundScale = if (separateSearch) 1f else primaryWidth / availableWidth
+        val primaryBounds = morph.primaryBounds(with(density) { primaryWidth.toPx() })
+        val searchBounds = morph.searchBounds(with(density) { searchWidth.toPx() })
+        // 收起起点仍立即分离；展开由实际覆盖范围消去内沿。短交接只用于方向反转，
+        // 不给轮廓退出再附加一条延迟到终点的动画，也不重建图标/手势节点。
+        val joiningSearch = remember { Animatable(0f) }
+        LaunchedEffect(separateSearch, targetExpanded) {
+            if (!separateSearch) joiningSearch.snapTo(0f)
+            else joiningSearch.animateTo(if (targetExpanded) 1f else 0f, tween(50))
+        }
+        val searchSurfaceAlpha = 1f - joiningSearch.value * searchSurfaceMergeProgress(primaryBounds, searchBounds)
         val animationScope = rememberCoroutineScope()
         var currentIndex by remember {
             mutableIntStateOf(selectedTabIndex().coerceIn(0, tabsCount - 1))
@@ -161,7 +196,7 @@ fun LiquidBottomTabs(
         val dragSession = remember { FloatArray(2) }
 
         val panelOffset = run {
-            val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+            val widthPx = totalWidthPx.coerceAtLeast(1f)
             val fraction = (offsetAnimation.value / widthPx).fastCoerceIn(-1f, 1f)
             with(density) {
                 4.dp.toPx() * fraction.sign * EaseOut.transform(abs(fraction))
@@ -207,6 +242,9 @@ fun LiquidBottomTabs(
         val interactiveHighlight = remember(animationScope) {
             InteractiveHighlight(
                 animationScope = animationScope,
+                // 整体提亮放在可见/隐藏玻璃底面各一次，这里不再重复补光。
+                surfaceAlpha = 0f,
+                spotlightAlpha = if (TAB_DROPLET_TINT_AND_SPOTLIGHT_ENABLED) 0.04f else 0f,
                 position = { size, _ ->
                     Offset(
                         if (isLtr) {
@@ -243,12 +281,28 @@ fun LiquidBottomTabs(
             currentOnTabSelected(index)
         }
 
+        val expandedPressScale = bottomTabPressScale(
+            width = totalWidthPx,
+            widthGrowth = with(density) { 16.dp.toPx() },
+            progress = dragAnimation.pressProgress
+        )
         val expandedLayer: GraphicsLayerScope.() -> Unit = {
-            val progress = dragAnimation.pressProgress
-            val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, progress)
-            scaleX = scale * fullWidthReboundScale
-            scaleY = scale
+            scaleX = expandedPressScale * fullWidthReboundScale
+            scaleY = expandedPressScale
         }
+        val dropletVelocity = dragAnimation.velocity / 10f
+        val dropletScaleX = dragAnimation.scaleX /
+            (1f - (dropletVelocity * 0.75f).fastCoerceIn(-0.2f, 0.2f))
+        val dropletScaleY = dragAnimation.scaleY *
+            (1f - (dropletVelocity * 0.25f).fastCoerceIn(-0.2f, 0.2f))
+        val hiddenCapsuleHeightPx = with(density) { BottomBarMetrics.ExpandedSelectorHeight.dp.toPx() }
+        // 以隐藏胶囊为参照，让液滴两端的外扩距离等于上下间距；计入实际非等比形变。
+        val dropletEdgeOutset = if (separateSearch) 0f else morph.selectorEdgeOutset(
+            capsuleWidth = totalWidthPx * expandedPressScale * fullWidthReboundScale,
+            capsuleHeight = hiddenCapsuleHeightPx,
+            selectorWidth = tabWidthPx * dropletScaleX,
+            selectorHeight = hiddenCapsuleHeightPx * dropletScaleY
+        ) * dragAnimation.pressProgress
 
         Box(
             modifier = Modifier
@@ -268,18 +322,22 @@ fun LiquidBottomTabs(
                         glassLens(24.dp.toPx(), 32.dp.toPx())
                     },
                     layerBlock = expandedLayer,
+                    pressProgress = { dragAnimation.pressProgress },
                     onDrawSurface = { drawRect(containerColor) }
                 )
             }
             // 首个收起帧即切成两枚独立胶囊，不经过液桥或粘连轮廓。
             if (separateSearch) {
                 SplitTabCapsule(
-                    bounds = morph.primaryBounds(with(density) { primaryWidth.toPx() }),
-                    backdrop = backdrop
+                    bounds = primaryBounds,
+                    backdrop = backdrop,
+                    pressProgress = { if (currentIndex == primaryIndex) dragAnimation.pressProgress else 0f }
                 )
                 SplitTabCapsule(
-                    bounds = morph.searchBounds(with(density) { searchWidth.toPx() }),
-                    backdrop = backdrop
+                    bounds = searchBounds,
+                    backdrop = backdrop,
+                    alpha = searchSurfaceAlpha,
+                    pressProgress = { if (currentIndex == 3) dragAnimation.pressProgress else 0f }
                 )
             }
 
@@ -335,19 +393,22 @@ fun LiquidBottomTabs(
             ) {
                 if (separateSearch) {
                     SplitTabCapsule(
-                        bounds = morph.primaryBounds(with(density) { primaryWidth.toPx() }),
-                        backdrop = backdrop
+                        bounds = primaryBounds,
+                        backdrop = backdrop,
+                        pressProgress = { if (currentIndex == primaryIndex) dragAnimation.pressProgress else 0f }
                     )
                     SplitTabCapsule(
-                        bounds = morph.searchBounds(with(density) { searchWidth.toPx() }),
-                        backdrop = backdrop
+                        bounds = searchBounds,
+                        backdrop = backdrop,
+                        alpha = searchSurfaceAlpha,
+                        pressProgress = { if (currentIndex == 3) dragAnimation.pressProgress else 0f }
                     )
                 } else {
                     Box(
                         Modifier
                             .align(Alignment.CenterStart)
                             .fillMaxWidth()
-                            .height(56.dp)
+                            .height(BottomBarMetrics.ExpandedSelectorHeight.dp)
                     ) {
                         GlassBackdropSurface(
                             backdrop = backdrop,
@@ -362,6 +423,12 @@ fun LiquidBottomTabs(
                                 )
                             },
                             lightingAlpha = { dragAnimation.pressProgress },
+                            pressProgress = { dragAnimation.pressProgress },
+                            // 隐藏壳体保持原高度，仅宽度跟随可见壳体的按压与回弹。
+                            layerBlock = {
+                                scaleX = expandedPressScale * fullWidthReboundScale
+                                scaleY = 1f
+                            },
                             onDrawSurface = { drawRect(containerColor) }
                         )
                         Box(Modifier.matchParentSize().clip(ContinuousCapsule)
@@ -375,17 +442,24 @@ fun LiquidBottomTabs(
                     currentIndex = currentIndex,
                     emphasized = true,
                     pressProgress = dragAnimation.pressProgress,
-                    modifier = Modifier.fillMaxSize()
+                    inheritedPressScale = if (separateSearch) 1f else expandedPressScale,
+                    // 和可见内容共用最终位置变换，宽度回弹仍只改变壳体。
+                    modifier = Modifier.fillMaxSize().then(
+                        if (separateSearch) Modifier else Modifier
+                            .graphicsLayer(expandedLayer)
+                            .graphicsLayer { scaleX = 1f / fullWidthReboundScale }
+                    )
                 )
             }
         }
 
-        // 液态选择器组合页面与强调色内容，按压和拖动时恢复原来的折射与形变。
+        // 在已校准的折射基线上恢复色散；按压放大、拖动形变和坐标映射不变。
         Box(
             modifier = Modifier
                 .align(AbsoluteAlignment.CenterLeft)
                 .graphicsLayer {
-                    translationX = morph.selectorCenterX(dragAnimation.value) - tabWidthPx / 2f + panelOffset
+                    translationX = morph.selectorCenterX(dragAnimation.value, dropletEdgeOutset) -
+                        tabWidthPx / 2f + panelOffset
                 }
                 .glassHdrFadeAndBlur(alpha = {
                     if (separateSearch && currentIndex == 3) 0f else selectorAlpha
@@ -398,7 +472,7 @@ fun LiquidBottomTabs(
                     }
                 )
                 .width(tabWidth)
-                .height(56.dp)
+                .height(BottomBarMetrics.ExpandedSelectorHeight.dp)
         ) {
             GlassBackdropSurface(
                 backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
@@ -406,24 +480,38 @@ fun LiquidBottomTabs(
                 effects = {
                     val progress = dragAnimation.pressProgress
                     glassLens(
-                        10.dp.toPx() * progress,
-                        14.dp.toPx() * progress,
+                        size.height * BottomBarMetrics.SelectorRefractionHeightRatio * progress,
+                        size.height * BottomBarMetrics.SelectorRefractionAmountRatio * progress,
                         chromaticAberration = true
                     )
                 },
+                // 恢复原 2% 内部明暗；采样底稿已经提亮，外层不再叠加一次白色。
                 lightingAlpha = { dragAnimation.pressProgress },
+                shadow = null,
+                bodyReflectionEnabled = true,
                 layerBlock = {
-                    scaleX = dragAnimation.scaleX
-                    scaleY = dragAnimation.scaleY
-                    val velocity = dragAnimation.velocity / 10f
-                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                    scaleX = dropletScaleX
+                    scaleY = dropletScaleY
                 },
                 onDrawSurface = {
                     val progress = dragAnimation.pressProgress
+                    // 静止选中背景仍保留；按住成为液滴后照常退到完全透明。
                     drawRect(selectedColor, alpha = 1f - progress)
-                    drawRect(Color.Black.copy(alpha = 0.03f * progress))
+                    if (TAB_DROPLET_TINT_AND_SPOTLIGHT_ENABLED) {
+                        drawRect(Color.Black.copy(alpha = 0.03f * progress))
+                    }
                 }
+            )
+            // 与液滴共用每帧形变，阴影不写回隐藏层、不参与折射采样。
+            // 阴影样式固定，只改变图层透明度，避免按压时反复生成模糊遮罩。
+            Box(
+                Modifier.matchParentSize()
+                    .graphicsLayer {
+                        scaleX = dropletScaleX
+                        scaleY = dropletScaleY
+                        alpha = dragAnimation.pressProgress.coerceIn(0f, 1f)
+                    }
+                    .innerShadow(ContinuousCapsule, TabDropletInnerShadow)
             )
         }
 
@@ -436,7 +524,7 @@ fun LiquidBottomTabs(
                     Modifier
                         .align(Alignment.TopStart)
                         .graphicsLayer { translationX = center.x - compactDiameterPx / 2f }
-                        .size(50.dp)
+                        .size(compactDiameter)
                         .semantics(mergeDescendants = true) {
                             role = Role.Tab
                             contentDescription = label
@@ -473,12 +561,14 @@ private fun BottomTabContents(
     modifier: Modifier = Modifier,
     emphasized: Boolean = false,
     pressProgress: Float = 0f,
+    inheritedPressScale: Float = 1f,
     itemModifier: (Int) -> Modifier = { Modifier }
 ) {
     val density = LocalDensity.current
     val expansion = morph.expansion
     val separateSearch = expansion < 1f
     val contentAlpha = ((expansion - 0.5f) * 2f).coerceIn(0f, 1f)
+    val contentBlur = 4f * (1f - contentAlpha)
     val colors = MaterialTheme.rythmeColors
     val selectorAlpha = ((expansion - 0.65f) / 0.35f).coerceIn(0f, 1f)
     val contentPress = pressProgress * if (separateSearch) selectorAlpha else 1f
@@ -487,10 +577,19 @@ private fun BottomTabContents(
         tabs.forEachIndexed { index, item ->
             key(index) {
                 val sharedIcon = index == primaryIndex || index == 3
+                // 过渡时保留图标直接持有选中色，不依赖正在淡出的选择器补足颜色。
+                val selectedTint = emphasized || (separateSearch && currentIndex == index)
                 // 合并时选择器正在淡入，底层仍可见；两种着色必须同步放大，避免形成双轮廓。
                 val scaleWithSelection = emphasized ||
                     (separateSearch && currentIndex != 3 && index == currentIndex)
-                val tabScale = if (scaleWithSelection) lerp(1f, 1.2f, contentPress) else 1f
+                // 图标和标题作为整体围绕共同中心放大；位置先跟随可见层，尺寸不重复叠乘。
+                // 分离合并期间保留原倍率和两种着色的共同变换。
+                val tabScale = if (scaleWithSelection) {
+                    bottomTabEmphasisScale(
+                        contentPress,
+                        if (emphasized && !separateSearch) inheritedPressScale else 1f
+                    )
+                } else 1f
                 Box(
                     Modifier
                         .align(AbsoluteAlignment.TopLeft)
@@ -506,26 +605,18 @@ private fun BottomTabContents(
                 ) {
                     TabContent(
                         item = item,
-                        selected = emphasized,
+                        selected = selectedTint,
                         hideIcon = sharedIcon,
                         modifier = Modifier.fillMaxSize().clip(ContinuousCapsule).graphicsLayer {
                             alpha = if (separateSearch && index == 3) 0f else contentAlpha
-                        }
+                        }.thenBlur(contentBlur)
                     )
                     // 主 Tab 与 Search 的图标贯穿展开/收起，两层连同淡入文字都使用相同坐标。
                     if (sharedIcon) {
                         Icon(
                             painter = painterResource(item.icon),
                             contentDescription = null,
-                            tint = if (emphasized) colors.primary else androidx.compose.ui.graphics.lerp(
-                                colors.textColor,
-                                colors.primary,
-                                when {
-                                    currentIndex != index -> 0f
-                                    separateSearch && index == 3 -> 1f
-                                    else -> 1f - expansion
-                                }
-                            ),
+                            tint = if (selectedTint) colors.primary else colors.textColor,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .size(24.dp)
@@ -541,9 +632,10 @@ private fun BottomTabContents(
                                 .align(Alignment.TopCenter)
                                 .clearAndSetSemantics { }
                                 .graphicsLayer {
-                                    translationY = 37.dp.toPx()
+                                    translationY = morph.height / 2f + 5.dp.toPx()
                                     alpha = contentAlpha
                                 }
+                                .thenBlur(contentBlur)
                         )
                     }
                 }
@@ -556,7 +648,9 @@ private fun BottomTabContents(
 @Composable
 private fun SplitTabCapsule(
     bounds: Rect,
-    backdrop: Backdrop
+    backdrop: Backdrop,
+    alpha: Float = 1f,
+    pressProgress: () -> Float = { 0f }
 ) {
     val density = LocalDensity.current
     val background = MaterialTheme.rythmeColors.bottomBackground
@@ -569,6 +663,7 @@ private fun SplitTabCapsule(
             .wrapContentSize(align = AbsoluteAlignment.TopLeft, unbounded = true)
             .width(with(density) { bounds.width.toDp() })
             .height(with(density) { bounds.height.toDp() })
+            .glassHdrFadeAndBlur(alpha = { alpha })
     ) {
         GlassBackdropSurface(
             backdrop = backdrop,
@@ -578,6 +673,7 @@ private fun SplitTabCapsule(
                 blur(2.dp.toPx())
                 glassLens(24.dp.toPx(), 32.dp.toPx())
             },
+            pressProgress = pressProgress,
             // 独立胶囊只保留统一玻璃底色，选中态由图标颜色表达。
             onDrawSurface = { drawRect(background) }
         )

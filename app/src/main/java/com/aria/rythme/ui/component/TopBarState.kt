@@ -4,14 +4,9 @@ import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.State
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
-import com.aria.rythme.R
-import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 
 /** TopBar 操作的视觉定义；功能可以稍后接入，但入口不能因此消失。 */
 sealed interface Action {
@@ -47,57 +42,37 @@ data class TopBarConfig(
     val showBackButton: Boolean = false,
     val auxiliaryActions: List<Action> = emptyList(),
     val actions: List<Action> = emptyList(),
-    val title: String? = null,
-    val search: PageSearchState? = null,
-    val navigationVisibility: State<Float>? = null
+    val title: String? = null
 )
 
+/** 二三级页按调用处给出的左到右顺序布局：1/2 项共用表面，3 项为左二右一。 */
+internal fun secondaryTopBar(vararg actions: Action): TopBarConfig {
+    require(actions.size <= 3) { "二三级页最多显示三个顶部操作，其余放入菜单" }
+    val items = actions.toList()
+    return TopBarConfig(
+        showBackButton = true,
+        auxiliaryActions = if (items.size == 3) items.take(2) else emptyList(),
+        actions = if (items.size == 3) items.takeLast(1) else items
+    )
+}
+
 /**
- * 全局 TopBar 的页面级展示状态。
- *
- * 页面直接提交包含回调的 [TopBarConfig]；不再维护第二份 action-handler 注册表。
- * 动画层通过 [Action] 的内容身份识别页面变化；回调和收藏状态更新不触发页面过渡。
+ * 只缓存实际导航 entry 的运行绑定，不再预填另一份页面按钮定义。
+ * 清理由 Navigation3 的 onPop 驱动：真正出栈且离场组合释放后才移除。
  */
-class TopBarState(
-    private val topLevelRoutes: Set<NavKey> = ALL_TOP_LEVEL_ROUTES
-) {
-    private val configMap = mutableStateMapOf<NavKey, TopBarConfig>()
+class TopBarState {
+    private val entries = mutableStateMapOf<TopBarEntryKey, TopBarEntry>()
 
-    private val defaultBackOnly = TopBarConfig(showBackButton = true)
-
-    private val defaultArtistDetail = TopBarConfig(
-        showBackButton = true,
-        actions = listOf(
-            Action.Icon(actionKey = "star", iconRes = R.drawable.ic_star),
-            Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
-        )
-    )
-
-    private val defaultAlbumDetail = TopBarConfig(
-        showBackButton = true,
-        actions = listOf(
-            Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
-        )
-    )
-
-    fun getConfig(routeKey: NavKey): TopBarConfig =
-        configMap[routeKey] ?: defaultConfigFor(routeKey)
-
-    private fun defaultConfigFor(routeKey: NavKey): TopBarConfig = when (routeKey) {
-        is RythmeRoute.ArtistDetail -> defaultArtistDetail
-        is RythmeRoute.AlbumDetail -> defaultAlbumDetail
-        in topLevelRoutes -> TopBarConfig()
-        else -> defaultBackOnly
+    internal fun attach(entry: TopBarEntry) {
+        entries[entry.key] = entry
     }
 
-    fun updateConfig(routeKey: NavKey, config: TopBarConfig) {
-        configMap[routeKey] = config
+    internal fun remove(key: TopBarEntryKey) {
+        entries.remove(key)
     }
 
-    /** 只随真正出栈清理；List/Grid 重组或切 Tab 不代表页面被移除。 */
-    fun retainRoutes(routes: Set<NavKey>) {
-        configMap.keys.filter { it !in routes && it !in topLevelRoutes }.forEach(configMap::remove)
-    }
+    internal fun find(tab: NavKey, route: NavKey): TopBarEntry? =
+        entries.values.firstOrNull { it.key.tab == tab && it.route == route && it.config != null }
 }
 
 internal fun Action.visualKey(): String = when (this) {
@@ -115,64 +90,5 @@ internal fun List<Action>.contentKey(): List<Any> = map {
     }
 }
 
-val LocalTopBarState = staticCompositionLocalOf { TopBarState() }
-
 @Composable
-fun rememberTopBarState(): TopBarState = remember {
-    TopBarState().apply {
-        val backOnly = TopBarConfig(showBackButton = true)
-        val avatarAction = Action.Avatar(actionKey = "avatar", name = "ARiA")
-        val avatarConfig = TopBarConfig(actions = listOf(avatarAction))
-        updateConfig(RythmeRoute.Home, avatarConfig)
-        updateConfig(
-            RythmeRoute.Playlist,
-            TopBarConfig(
-                auxiliaryActions = listOf(Action.Icon(
-                    actionKey = "add",
-                    iconRes = R.drawable.ic_add,
-                    iconSize = 18.dp
-                )),
-                actions = listOf(avatarAction)
-            )
-        )
-        updateConfig(
-            RythmeRoute.Library,
-            TopBarConfig(
-                auxiliaryActions = listOf(Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)),
-                actions = listOf(avatarAction)
-            )
-        )
-        updateConfig(RythmeRoute.Search, avatarConfig)
-        updateConfig(
-            RythmeRoute.ArtistList,
-            TopBarConfig(
-                showBackButton = true,
-                actions = listOf(
-                    Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter)
-                )
-            )
-        )
-        updateConfig(
-            RythmeRoute.AlbumList,
-            TopBarConfig(
-                showBackButton = true,
-                actions = listOf(
-                    Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter),
-                    Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
-                )
-            )
-        )
-        updateConfig(
-            RythmeRoute.SongList,
-            TopBarConfig(
-                showBackButton = true,
-                actions = listOf(
-                    Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter),
-                    Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
-                )
-            )
-        )
-        updateConfig(RythmeRoute.GenreList, backOnly)
-        updateConfig(RythmeRoute.ComposerList, backOnly)
-    }
-}
+fun rememberTopBarState(): TopBarState = remember { TopBarState() }

@@ -37,7 +37,8 @@ import coil3.request.crossfade
 import com.aria.rythme.LocalSharedAlbumId
 import com.aria.rythme.LocalContentSharedTransitionScope
 import com.aria.rythme.R
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.Action
+import com.aria.rythme.ui.component.TopBarConfig
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.IndexedListItem
@@ -58,7 +59,6 @@ fun AlbumDetailScreen(
     val state = viewModel.state.collectAsStateWithLifecycle().value
     val album = state.album
     val songs = state.songs
-    val routeKey = RythmeRoute.AlbumDetail(albumId)
     val context = LocalContext.current
     val sharedTransitionScope = LocalContentSharedTransitionScope.current
     val sharedAlbumId = LocalSharedAlbumId.current
@@ -67,7 +67,10 @@ fun AlbumDetailScreen(
     val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
-        routeKey = routeKey,
+        topBar = TopBarConfig(
+            showBackButton = true,
+            actions = listOf(Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more))
+        ),
         headerMode = HeaderMode.HIDDEN
     ) {
 
@@ -127,8 +130,8 @@ fun AlbumDetailScreen(
                     text = album?.title ?: "",
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
                     color = MaterialTheme.rythmeColors.textColor,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 

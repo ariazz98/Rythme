@@ -29,6 +29,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import com.aria.rythme.core.music.data.repository.ListeningHistoryRepository
+import com.aria.rythme.core.music.data.repository.ListeningOrigin
+import com.aria.rythme.core.music.data.repository.ResumePoint
 
 /**
  * 播放控制器
@@ -57,7 +63,27 @@ import kotlinx.coroutines.launch
  *
  * @param context 应用上下文
  */
-class PlaybackController(private val context: Context) {
+class PlaybackController(private val context: Context, private val listeningHistory: ListeningHistoryRepository) {
+
+    private var listeningOrigin = ListeningOrigin()
+    private var listeningEntryId: String? = null
+    private var listeningPositionJob: Job? = null
+
+    private fun saveListeningPosition(player: Player, allowNewListen: Boolean) {
+        val snapshot = _queue.value
+        val entryId = player.currentMediaItem?.mediaId ?: return
+        val index = snapshot.indexOf(entryId)
+        val entry = snapshot.entries.getOrNull(index) ?: return
+        val newListen = listeningEntryId != entryId
+        if (newListen && !allowNewListen) return
+        listeningEntryId = entryId
+        val point = ResumePoint(entry.song.id, player.currentPosition.coerceAtLeast(0),
+            snapshot.entries.map { it.song.id }, index, listeningOrigin)
+        scope.launch {
+            try { listeningHistory.record(point, newListen) }
+            catch (error: java.io.IOException) { RythmeLogger.e(TAG, "保存收听位置失败", error) }
+        }
+    }
 
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -261,7 +287,13 @@ class PlaybackController(private val context: Context) {
      * @param song 要播放的歌曲
      * @param playlist 可选的播放列表上下文
      */
-    suspend fun play(song: Song, playlist: List<Song> = emptyList()) {
+    suspend fun play(
+        song: Song,
+        playlist: List<Song> = emptyList(),
+        origin: ListeningOrigin = ListeningOrigin(),
+        startPositionMs: Long = 0L,
+        startIndex: Int? = null
+    ) {
         RythmeLogger.d(TAG, "准备播放: ${song.title}")
         
         // 等待初始化完成
@@ -274,8 +306,11 @@ class PlaybackController(private val context: Context) {
             return
         }
 
+        listeningOrigin = origin
+        listeningEntryId = null
         if (playlist.isNotEmpty()) {
-            val sourceIndex = playlist.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+            val sourceIndex = startIndex?.takeIf { playlist.getOrNull(it)?.id == song.id }
+                ?: playlist.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
             // 输入歌单变化时创建新的入队记录；相同歌单则复用条目身份。
             if (sourceQueue.map { it.song } != playlist) {
@@ -289,7 +324,7 @@ class PlaybackController(private val context: Context) {
                 val targetEntryId = sourceQueue[sourceIndex].id
                 rebuildFinalQueue(preferredCurrentEntryId = targetEntryId)
                 val mediaItems = _queue.value.entries.map { createMediaItem(it) }
-                controller.setMediaItems(mediaItems, _queue.value.currentIndex, 0L)
+                controller.setMediaItems(mediaItems, _queue.value.currentIndex, startPositionMs.coerceAtLeast(0))
                 controller.prepare()
                 controller.play()
             } else {
@@ -297,7 +332,7 @@ class PlaybackController(private val context: Context) {
                 val queueIndex = _queue.value.indexOf(targetEntryId).coerceAtLeast(0)
                 RythmeLogger.d(TAG, "跳转到队列索引: $queueIndex")
                 updateCurrentIndex(queueIndex)
-                controller.seekToDefaultPosition(queueIndex)
+                controller.seekTo(queueIndex, startPositionMs.coerceAtLeast(0))
                 controller.play()
             }
         } else {
@@ -310,7 +345,7 @@ class PlaybackController(private val context: Context) {
             _isInfinitePlayEnabled.value = false
             rebuildFinalQueue(preferredCurrentEntryId = entry.id)
             val mediaItem = createMediaItem(entry)
-            controller.setMediaItem(mediaItem)
+            controller.setMediaItem(mediaItem, startPositionMs.coerceAtLeast(0))
             controller.prepare()
             controller.play()
         }
@@ -855,6 +890,16 @@ class PlaybackController(private val context: Context) {
     private inner class PlayerListener : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
+            listeningPositionJob?.cancel()
+            mediaController?.let { player ->
+                saveListeningPosition(player, allowNewListen = isPlaying)
+                if (isPlaying) listeningPositionJob = scope.launch {
+                    while (isActive) {
+                        delay(5_000)
+                        if (player.isPlaying) saveListeningPosition(player, allowNewListen = true)
+                    }
+                }
+            }
         }
 
         override fun onPositionDiscontinuity(
@@ -881,6 +926,7 @@ class PlaybackController(private val context: Context) {
                 )) {
                 _currentPosition.value = player.currentPosition
                 _duration.value = player.duration.coerceAtLeast(0)
+                saveListeningPosition(player, allowNewListen = player.isPlaying)
             }
         }
 

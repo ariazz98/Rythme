@@ -21,19 +21,26 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -69,12 +76,15 @@ import com.aria.rythme.feature.playlistdetail.presentation.PlaylistDetailScreen
 import com.aria.rythme.feature.search.presentation.SearchScreen
 import com.aria.rythme.feature.songlist.presentation.SongListScreen
 import com.aria.rythme.ui.component.LocalOverlayMenu
-import com.aria.rythme.ui.component.LocalTopBarState
 import com.aria.rythme.ui.component.OverlayMenuHost
 import com.aria.rythme.ui.component.OverlayMenuState
 import com.aria.rythme.ui.component.RythmeHeader
 import com.aria.rythme.ui.component.TopBarState
 import com.aria.rythme.ui.component.rememberTopBarState
+import com.aria.rythme.ui.component.TopBarEntry
+import com.aria.rythme.ui.component.rememberTopBarEntryDecorator
+import com.aria.rythme.ui.component.HeaderLayout
+import com.aria.rythme.ui.component.utils.expandedBottomBarContentInset
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -105,11 +115,14 @@ fun RythmeApp() {
     var playerVisible by remember { mutableStateOf(false) }
     val overlayMenuState = remember { OverlayMenuState() }
     val topBarState = rememberTopBarState()
-    val routesInBackStacks = navigationState.backStacks.values.flatMap { it }.toSet()
-    LaunchedEffect(routesInBackStacks) { topBarState.retainRoutes(routesInBackStacks) }
+    LaunchedEffect(navigationState.topLevelRoute, navigationState.currentRoute) {
+        if (overlayMenuState.currentMenu is com.aria.rythme.ui.component.OverlayMenu.ActionMenu) {
+            overlayMenuState.dismiss()
+        }
+    }
     val bottomBarState = rememberBottomBarState(
         initialPrimaryTabIndex = when (navigationState.topLevelRoute) {
-            RythmeRoute.Playlist -> 1
+            RythmeRoute.Pitch -> 1
             RythmeRoute.Library -> 2
             else -> 0
         }
@@ -122,7 +135,6 @@ fun RythmeApp() {
             LocalPlayerVisible provides playerVisible,
             LocalOverlayMenu provides overlayMenuState,
             LocalBackdrop provides backdrop,
-            LocalTopBarState provides topBarState,
             LocalBottomBarState provides bottomBarState
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -137,8 +149,8 @@ fun RythmeApp() {
                             overlayMenuState.dismiss()
                         } else if (playerVisible) {
                             playerVisible = false
-                        } else if (topBarState.getConfig(navigationState.currentRoute).search?.active == true) {
-                            topBarState.getConfig(navigationState.currentRoute).search?.close()
+                        } else if (topBarState.find(navigationState.topLevelRoute, navigationState.currentRoute)?.search?.active == true) {
+                            topBarState.find(navigationState.topLevelRoute, navigationState.currentRoute)?.search?.close()
                         } else {
                             if (!navigator.goBack()) {
                                 activity?.finish()
@@ -171,22 +183,30 @@ private fun SharedTransitionScope.ScaffoldNavigation(
     openPlayer: () -> Unit,
     onBack: () -> Unit
 ) {
+    val settings = org.koin.compose.koinInject<com.aria.rythme.core.music.data.settings.AppSettingsRepository>()
+    val profileName by settings.displayName.collectAsStateWithLifecycle("ARiA")
+    val targetHeader = topBarState.find(navigationState.topLevelRoute, navigationState.currentRoute)
+    var previousHeader by remember { mutableStateOf<TopBarEntry?>(null) }
+    SideEffect { if (targetHeader != null) previousHeader = targetHeader }
+    // 新 entry 首次提交前保留上一画面，禁止旧页面回调；不先绘制一套兜底按钮。
+    val header = targetHeader ?: previousHeader
     Scaffold(
         modifier = Modifier,
         topBar = {
-            RythmeHeader(
-                routeKey = navigationState.currentRoute,
-                config = topBarState.getConfig(navigationState.currentRoute),
+            if (header != null) RythmeHeader(
+                entry = header,
+                profileName = profileName,
+                enabled = targetHeader != null,
                 skipAnimation = navigationState.operation == NavigationOperation.TabSwitch,
                 onBackClick = { navigator.goBack() }
-            )
+            ) else Box(Modifier.statusBarsPadding().fillMaxWidth().height(HeaderLayout.toolbar))
         },
         bottomBar = {
             BottomNavigationBar(
                 selectedTabIndex = {
                     when (navigationState.topLevelRoute) {
                         RythmeRoute.Home -> 0
-                        RythmeRoute.Playlist -> 1
+                        RythmeRoute.Pitch -> 1
                         RythmeRoute.Library -> 2
                         RythmeRoute.Search -> 3
                         else -> 0
@@ -195,7 +215,7 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                 onTabSelected = {
                     when (it) {
                         0 -> navigator.navigate(RythmeRoute.Home)
-                        1 -> navigator.navigate(RythmeRoute.Playlist)
+                        1 -> navigator.navigate(RythmeRoute.Pitch)
                         2 -> navigator.navigate(RythmeRoute.Library)
                         3 -> navigator.navigate(RythmeRoute.Search)
                     }
@@ -206,12 +226,20 @@ private fun SharedTransitionScope.ScaffoldNavigation(
             )
         }
     ) { innerPadding ->
+        val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val fixedBottom = expandedBottomBarContentInset(navigationInset.value).dp
+        val contentPadding = remember(innerPadding, fixedBottom) {
+            // 保留 Scaffold 的顶部和左右安全区，但不把底栏动画高度传给正文。
+            object : PaddingValues by innerPadding {
+                override fun calculateBottomPadding() = fixedBottom
+            }
+        }
         val sharedAlbumId = (navigationState.currentRoute as? RythmeRoute.AlbumDetail)?.id
 
         // Album 专用 SharedTransitionLayout，overlay 在 topBar/bottomBar 之下
         SharedTransitionLayout {
             CompositionLocalProvider(
-                LocalInnerPadding provides innerPadding,
+                LocalInnerPadding provides contentPadding,
                 LocalSharedAlbumId provides sharedAlbumId,
                 LocalContentSharedTransitionScope provides this@SharedTransitionLayout
             ) {
@@ -257,7 +285,19 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                     },
                     entries = navigationState.toEntries(
                         entryProvider {
-                            entry<RythmeRoute.Home> { HomeScreen() }
+                            entry<RythmeRoute.Home> { HomeScreen(
+                                onAlbumClick = { navigator.navigate(RythmeRoute.AlbumDetail(it.id.toString())) },
+                                onOriginClick = { origin ->
+                                    when (origin.kind) {
+                                        "album" -> navigator.navigate(RythmeRoute.AlbumDetail(origin.id.toString(), origin.artistId, origin.composer, origin.genre))
+                                        "playlist" -> navigator.navigate(RythmeRoute.PlaylistDetail(origin.id.toString()))
+                                    }
+                                },
+                                onAlbumsClick = { navigator.navigate(RythmeRoute.AlbumList) },
+                                onSettingsClick = { navigator.navigate(RythmeRoute.Settings) }
+                            ) }
+                            entry<RythmeRoute.Settings> { com.aria.rythme.feature.settings.SettingsScreen() }
+                            entry<RythmeRoute.Pitch> { com.aria.rythme.feature.pitch.presentation.PitchScreen() }
                             entry<RythmeRoute.Playlist> {
                                 PlayListScreen(
                                     onPlaylistClick = { id ->
@@ -267,6 +307,7 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                             }
                             entry<RythmeRoute.Library> {
                                 LibraryScreen(
+                                    onPlaylistsClick = { navigator.navigate(RythmeRoute.Playlist) },
                                     onArtistsClick = { navigator.navigate(RythmeRoute.ArtistList) },
                                     onAlbumsClick = { navigator.navigate(RythmeRoute.AlbumList) },
                                     onSongsClick = { navigator.navigate(RythmeRoute.SongList) },
@@ -323,7 +364,6 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                             }
                             entry<RythmeRoute.ArtistDetail> { key ->
                                 ArtistDetailScreen(
-                                    artistId = key.id,
                                     onAlbumClick = { album ->
                                         navigator.navigate(RythmeRoute.AlbumDetail(album.id.toString()))
                                     },
@@ -368,6 +408,13 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                                     }
                                 )
                             }
+                        },
+                        extraDecorators = { tab ->
+                            listOf(rememberTopBarEntryDecorator(
+                                tab,
+                                topBarState,
+                                skipNavigationAnimation = navigationState.operation == NavigationOperation.TabSwitch
+                            ))
                         }
                     )
                 )

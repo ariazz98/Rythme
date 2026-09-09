@@ -12,53 +12,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.navigation3.runtime.NavKey
 import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.feature.navigationbar.domain.model.ALL_TOP_LEVEL_ROUTES
 import com.aria.rythme.feature.navigationbar.presentation.LocalBottomBarState
 import com.aria.rythme.ui.theme.rythmeColors
-import kotlinx.coroutines.flow.first
 
 @Composable
 fun MainListPage(
     title: String? = null,
-    routeKey: NavKey,
     headerMode: HeaderMode = HeaderMode.COLLAPSED,
-    defaultTitleHidden: Boolean = false,
     topBar: TopBarConfig? = null,
-    search: PageSearchState = rememberPageSearchState(),
+    search: PageSearchState? = null,
     mainContent: LazyListScope.() -> Unit
 ) {
-    val isRoot = routeKey in ALL_TOP_LEVEL_ROUTES
-    val density = LocalDensity.current
-    val titleHeightPx = with(density) { (HeaderLayout.title + HeaderLayout.gap * 2).roundToPx() }
+    val entry = LocalTopBarEntry.current
+    val isRoot = entry.route in ALL_TOP_LEVEL_ROUTES
+    val pageSearch = search ?: rememberPageSearchState()
+    val hasSearch = if (isRoot) search != null else headerMode != HeaderMode.HIDDEN
     val listState = rememberLazyListState()
-    val collapse = rememberPageHeader(routeKey, title, topBar, headerMode, search)
+    val collapse = rememberPageHeader(title, topBar, headerMode, pageSearch, hasSearch)
     val innerPadding = LocalInnerPadding.current
     val bottomBar = LocalBottomBarState.current
-
-    if (!isRoot && defaultTitleHidden) LaunchedEffect(Unit) {
-        snapshotFlow { listState.canScrollForward }.first { it }
-        listState.scrollToItem(0, titleHeightPx)
+    val bottomBarScrollConnection = remember(bottomBar, listState) {
+        bottomBar.nestedScrollConnection { !listState.canScrollBackward }
     }
-    val titleAlpha by remember {
-        derivedStateOf {
-            if (isRoot) 1f else if (listState.firstVisibleItemIndex > 0) 0f
-            else (1f - listState.firstVisibleItemScrollOffset / titleHeightPx.toFloat()).coerceIn(0f, 1f)
-        }
+
+    val atTop = !listState.canScrollBackward
+    val firstVisibleItemIndex = listState.firstVisibleItemIndex
+    val scrollOffsetDp = listState.firstVisibleItemScrollOffset / LocalDensity.current.density
+    SideEffect {
+        entry.scroll.atTop = atTop
+        entry.scroll.firstVisibleItemIndex = firstVisibleItemIndex
+        entry.scroll.firstVisibleItemScrollOffsetDp = scrollOffsetDp
     }
 
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.rythmeColors.surface)
-            .nestedScroll(bottomBar.nestedScrollConnection)
-            .then(if (!isRoot && !search.active) Modifier.nestedScroll(collapse.nestedScrollConnection) else Modifier)
+            .nestedScroll(bottomBarScrollConnection)
+            .then(if (!isRoot && !pageSearch.active) Modifier.nestedScroll(collapse.nestedScrollConnection) else Modifier)
     ) {
         item(key = "page-header") {
             PageHeaderContent(
-                title, innerPadding.calculateTopPadding(), isRoot, headerMode, search,
-                collapse, titleAlpha, HeaderLayout.horizontalPadding
+                title, innerPadding.calculateTopPadding(), isRoot, headerMode, pageSearch,
+                collapse, HeaderLayout.horizontalPadding, hasSearch
             )
         }
         mainContent()
@@ -69,31 +67,32 @@ fun MainListPage(
 @Composable
 fun MainGridPage(
     title: String? = null,
-    routeKey: NavKey,
     gridCount: Int = 2,
     headerMode: HeaderMode = HeaderMode.COLLAPSED,
-    defaultTitleHidden: Boolean = false,
     topBar: TopBarConfig? = null,
-    search: PageSearchState = rememberPageSearchState(),
+    search: PageSearchState? = null,
     mainContent: LazyGridScope.() -> Unit
 ) {
-    val isRoot = routeKey in ALL_TOP_LEVEL_ROUTES
-    val density = LocalDensity.current
-    val titleHeightPx = with(density) { (HeaderLayout.title + HeaderLayout.gap * 2).roundToPx() }
+    val entry = LocalTopBarEntry.current
+    val isRoot = entry.route in ALL_TOP_LEVEL_ROUTES
+    val pageSearch = search ?: rememberPageSearchState()
+    val hasSearch = if (isRoot) search != null else headerMode != HeaderMode.HIDDEN
     val gridState = rememberLazyGridState()
-    val collapse = rememberPageHeader(routeKey, title, topBar, headerMode, search)
+    val collapse = rememberPageHeader(title, topBar, headerMode, pageSearch, hasSearch)
+    val gridSpacing = 12.dp
     val innerPadding = LocalInnerPadding.current
     val bottomBar = LocalBottomBarState.current
-
-    if (!isRoot && defaultTitleHidden) LaunchedEffect(Unit) {
-        snapshotFlow { gridState.canScrollForward }.first { it }
-        gridState.scrollToItem(0, titleHeightPx)
+    val bottomBarScrollConnection = remember(bottomBar, gridState) {
+        bottomBar.nestedScrollConnection { !gridState.canScrollBackward }
     }
-    val titleAlpha by remember {
-        derivedStateOf {
-            if (isRoot) 1f else if (gridState.firstVisibleItemIndex > 0) 0f
-            else (1f - gridState.firstVisibleItemScrollOffset / titleHeightPx.toFloat()).coerceIn(0f, 1f)
-        }
+
+    val atTop = !gridState.canScrollBackward
+    val firstVisibleItemIndex = gridState.firstVisibleItemIndex
+    val scrollOffsetDp = gridState.firstVisibleItemScrollOffset / LocalDensity.current.density
+    SideEffect {
+        entry.scroll.atTop = atTop
+        entry.scroll.firstVisibleItemIndex = firstVisibleItemIndex
+        entry.scroll.firstVisibleItemScrollOffsetDp = scrollOffsetDp
     }
 
     LazyVerticalGrid(
@@ -102,13 +101,14 @@ fun MainGridPage(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.rythmeColors.surface)
             .padding(horizontal = HeaderLayout.horizontalPadding)
-            .nestedScroll(bottomBar.nestedScrollConnection)
-            .then(if (!isRoot && !search.active) Modifier.nestedScroll(collapse.nestedScrollConnection) else Modifier),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .nestedScroll(bottomBarScrollConnection)
+            .then(if (!isRoot && !pageSearch.active) Modifier.nestedScroll(collapse.nestedScrollConnection) else Modifier),
+        horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+        verticalArrangement = Arrangement.spacedBy(gridSpacing)
     ) {
         item(key = "page-header", span = { GridItemSpan(maxLineSpan) }) {
-            PageHeaderContent(title, innerPadding.calculateTopPadding(), isRoot, headerMode, search, collapse, titleAlpha, 0.dp)
+            PageHeaderContent(title, innerPadding.calculateTopPadding(), isRoot, headerMode, pageSearch,
+                collapse, 0.dp, hasSearch, rootSearchSpacing = gridSpacing)
         }
         mainContent()
         item(key = "bottom-bar-inset", span = { GridItemSpan(maxLineSpan) }) {

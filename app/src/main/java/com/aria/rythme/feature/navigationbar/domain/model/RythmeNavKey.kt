@@ -18,6 +18,8 @@ import kotlinx.serialization.Serializable
  */
 
 sealed interface RythmeRoute: NavKey {
+    @Serializable
+    data object Settings : RythmeRoute
 
     @Serializable
     data object ScaffoldPage : RythmeRoute
@@ -28,9 +30,11 @@ sealed interface RythmeRoute: NavKey {
     @Serializable
     data object Home : RythmeRoute
 
-    /**
-     * 广播
-     */
+    /** 音高工具，第二个一级页面。 */
+    @Serializable
+    data object Pitch : RythmeRoute
+
+    /** 资料库内的歌单列表，保留原路由身份及已有功能。 */
     @Serializable
     data object Playlist : RythmeRoute
 
@@ -111,7 +115,7 @@ sealed interface RythmeRoute: NavKey {
 
 val ALL_TOP_LEVEL_ROUTES = setOf(
     RythmeRoute.Home,
-    RythmeRoute.Playlist,
+    RythmeRoute.Pitch,
     RythmeRoute.Library,
     RythmeRoute.Search
 )

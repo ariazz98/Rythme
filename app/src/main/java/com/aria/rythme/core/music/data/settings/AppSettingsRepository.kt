@@ -46,6 +46,15 @@ private val Context.scanSettingsDataStore: DataStore<Preferences> by preferences
  * @param context 应用上下文
  */
 class AppSettingsRepository(private val context: Context) {
+    private val displayNameKey = stringPreferencesKey("local_display_name")
+    val displayName: Flow<String> = context.scanSettingsDataStore.data
+        .catch { error -> if (error is java.io.IOException) emit(emptyPreferences()) else throw error }
+        .map { it[displayNameKey] ?: "ARiA" }
+
+    suspend fun updateDisplayName(name: String) {
+        require(name.trim().isNotEmpty() && name.trim().length <= 30)
+        context.scanSettingsDataStore.edit { it[displayNameKey] = name.trim() }
+    }
 
     /**
      * 扫描设置流

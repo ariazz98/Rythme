@@ -44,7 +44,7 @@ import kotlin.math.ceil
 import kotlin.math.exp
 
 // 录屏白底按钮的轮廓外只有少量灰阶衰减，使用轻微、近乎居中的环境投影。
-private val GlassSurfaceShadow = Shadow(
+internal val GlassSurfaceShadow = Shadow(
     radius = 12.dp,
     offset = DpOffset(0.dp, 0.75.dp),
     color = Color.Black.copy(alpha = 0.035f)
@@ -120,11 +120,18 @@ internal fun BoxScope.GlassBackdropSurface(
     hdr: Boolean = true,
     lightingAlpha: () -> Float = { 1f },
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
-    shadow: Shadow = GlassSurfaceShadow,
-    onDrawSurface: (DrawScope.() -> Unit)? = null
+    shadow: Shadow? = GlassSurfaceShadow,
+    onDrawSurface: (DrawScope.() -> Unit)? = null,
+    bodyReflectionEnabled: Boolean = true,
+    pressProgress: () -> Float = { 0f },
+    reflectionBrush: (() -> Brush)? = null,
+    bodyReflectionBrush: (() -> Brush)? = null,
+    rimHeadroom: () -> Float = { GlassHdrHeadroom },
+    pressHdr: Boolean = false,
+    rimHeadroomLimit: Float = GlassHdrHeadroom
 ) {
     val state = LocalGlassHdr.current
-    val useHdr = hdr && state.enabled
+    val useHdr = hdr && (state.enabled || (pressHdr && state.pressAvailable))
     key(useHdr, if (useHdr) state.generation else 0) {
         Box(Modifier.matchParentSize().drawGlassBackdrop(
             backdrop = backdrop,
@@ -134,7 +141,12 @@ internal fun BoxScope.GlassBackdropSurface(
             shadow = shadow,
             layerBlock = layerBlock,
             onDrawSurface = onDrawSurface,
-            highlightHeadroom = if (useHdr) GlassHdrHeadroom else 1f
+            bodyReflectionEnabled = bodyReflectionEnabled,
+            pressProgress = pressProgress,
+            reflectionBrush = reflectionBrush,
+            bodyReflectionBrush = bodyReflectionBrush,
+            highlightHeadroom = if (useHdr) rimHeadroom() else 1f,
+            rimHeadroomLimit = rimHeadroomLimit
         ))
     }
 }
@@ -149,10 +161,15 @@ internal fun Modifier.drawGlassBackdrop(
     shape: () -> Shape,
     effects: BackdropEffectScope.() -> Unit,
     lightingAlpha: () -> Float = { 1f },
-    shadow: Shadow = GlassSurfaceShadow,
+    shadow: Shadow? = GlassSurfaceShadow,
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
-    highlightHeadroom: Float = 1f
+    highlightHeadroom: Float = 1f,
+    bodyReflectionEnabled: Boolean = true,
+    pressProgress: () -> Float = { 0f },
+    reflectionBrush: (() -> Brush)? = null,
+    bodyReflectionBrush: (() -> Brush)? = null,
+    rimHeadroomLimit: Float = GlassHdrHeadroom
 ): Modifier {
     // 跟随实际 RythmeTheme，而不是直接读系统开关，主题预览或覆盖也保持一致。
     val profile = glassLightingProfile(MaterialTheme.rythmeColors.surface.luminance() < 0.5f)
@@ -162,7 +179,7 @@ internal fun Modifier.drawGlassBackdrop(
         shape = shape,
         effects = effects,
         highlight = null,
-        shadow = { shadow.copy(alpha = shadow.alpha * lightingAlpha().coerceIn(0f, 1f)) },
+        shadow = { shadow?.copy(alpha = shadow.alpha * lightingAlpha().coerceIn(0f, 1f)) },
         innerShadow = null,
         layerBlock = layerBlock,
         onDrawSurface = onDrawSurface
@@ -213,11 +230,12 @@ internal fun Modifier.drawGlassBackdrop(
         directionShader.setFloatUniform("extent", size.width, size.height)
         directionShader.setFloatUniform("radii", radii)
         directionShader.setFloatUniform("power", profile.directionPower)
-        directionShader.setFloatUniform("headroom", highlightHeadroom.coerceIn(1f, GlassHdrHeadroom))
-        val reflection = ShaderBrush(directionShader)
+        directionShader.setFloatUniform("headroom", highlightHeadroom.coerceIn(1f, rimHeadroomLimit.coerceAtLeast(1f)))
+        // 复合轮廓可提供真实法线；普通玻璃仍完整沿用原来的光照与材质参数。
+        val reflection = reflectionBrush?.invoke() ?: ShaderBrush(directionShader)
         // 光照不是跟着大菜单的整个高度拉长：平面内部不应出现一大片灰色腰带。
         val lightingHeight = size.height.coerceAtMost(64.dp.toPx())
-        val bodyReflection = Brush.verticalGradient(
+        val bodyReflection = bodyReflectionBrush?.invoke() ?: Brush.verticalGradient(
             *Array(97) { index ->
                 val depth = index / 96f
                 depth to Color.Black.copy(alpha = glassBodyReflectionAlpha(depth))
@@ -261,10 +279,17 @@ internal fun Modifier.drawGlassBackdrop(
         }
         onDrawWithContent {
             val alpha = lightingAlpha().coerceIn(0f, 1f)
-            if (alpha > 0f) {
+            if (alpha > 0f && bodyReflectionEnabled) {
                 clipPath(path) {
                     drawRect(bodyReflection, alpha = alpha)
                 }
+            }
+            val pressAlpha = glassPressLightAlpha(pressProgress())
+            if (pressAlpha > 0f) {
+                // 只提亮材质，置于内容和轮廓高光下方；不用 Plus 叠白造成截白。
+                clipPath(path) { drawRect(Color.White, alpha = pressAlpha) }
+            }
+            if (alpha > 0f) {
                 clipPath(innerPath) {
                     // 普通透明合成保留灰阶余量，避免 Plus 在白底形成一条截白的内边界。
                     glow.alpha = alpha
@@ -292,6 +317,10 @@ internal fun Modifier.drawGlassBackdrop(
         }
     }
 }
+
+/** 整体按压提亮的上限为 4%；独立于触点光斑和静态轮廓照明。 */
+internal fun glassPressLightAlpha(progress: Float): Float =
+    if (progress.isFinite()) 0.04f * progress.coerceIn(0f, 1f) else 0f
 
 /** 连续的反射明暗曲线，没有分段线性渐变的折点或固定宽度描边的内边界。 */
 internal fun glassBodyReflectionAlpha(depth: Float): Float {

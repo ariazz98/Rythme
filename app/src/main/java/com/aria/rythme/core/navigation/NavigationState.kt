@@ -1,6 +1,11 @@
 package com.aria.rythme.core.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +17,7 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -42,6 +48,11 @@ fun rememberNavigationState(
     }
 
     val backStacks = topLevelRoutes.associateWith { key -> rememberNavBackStack(key) }
+    // 一级入口调整后，旧保存状态可能仍指向已经降为二级的路由。
+    // 只纠正无效的根选择，不清空仍有效的各 Tab 返回栈。
+    SideEffect {
+        if (topLevelRoute.value !in topLevelRoutes) topLevelRoute.value = startRoute
+    }
 
     return remember(startRoute, topLevelRoutes) {
         NavigationState(
@@ -74,6 +85,9 @@ class NavigationState(
     val currentRoute: NavKey
         get() = backStacks[topLevelRoute]?.lastOrNull() ?: topLevelRoute
 
+    internal fun shouldPlaceTab(tab: NavKey): Boolean =
+        operation != NavigationOperation.TabSwitch || tab == topLevelRoute
+
     val stacksInUse: List<NavKey>
         get() = if (topLevelRoute == startRoute) {
             listOf(startRoute)
@@ -87,18 +101,31 @@ class NavigationState(
  */
 @Composable
 fun NavigationState.toEntries(
-    entryProvider: (NavKey) -> NavEntry<NavKey>
+    entryProvider: (NavKey) -> NavEntry<NavKey>,
+    extraDecorators: @Composable (NavKey) -> List<NavEntryDecorator<NavKey>> = { emptyList() }
 ): SnapshotStateList<NavEntry<NavKey>> {
 
-    val decoratedEntries = backStacks.mapValues { (_, stack) ->
+    val decoratedEntries = backStacks.mapValues { (tab, stack) ->
         val decorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
             rememberViewModelStoreNavEntryDecorator()
-        )
+        ) + extraDecorators(tab)
         rememberDecoratedNavEntries(
             backStack = stack,
             entryDecorators = decorators,
-            entryProvider = entryProvider
+            entryProvider = { route ->
+                val provided = entryProvider(route)
+                NavEntry(navEntry = provided) {
+                    // 切 Tab 不绘制/命中离开的 Tab，即使 NavDisplay 尚在回收它的旧场景。
+                    // 只跳过 placement，仍保留 composition 与保存状态；同 Tab 的 Push/Pop 不受影响。
+                    Box(Modifier.layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height) {
+                            if (shouldPlaceTab(tab)) placeable.place(0, 0)
+                        }
+                    }) { provided.Content() }
+                }
+            }
         )
     }
 

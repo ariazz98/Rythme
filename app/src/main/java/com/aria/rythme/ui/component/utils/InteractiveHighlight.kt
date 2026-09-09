@@ -22,7 +22,10 @@ import kotlinx.coroutines.launch
 class InteractiveHighlight(
     val animationScope: CoroutineScope,
     val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
-    val radius: ((size: Size) -> Float)? = null
+    val radius: ((size: Size) -> Float)? = null,
+    // 按压补光与玻璃轮廓照明分开；调用方可收敛补光，不改变手势或材质。
+    val surfaceAlpha: Float = 0.08f,
+    val spotlightAlpha: Float = 0.15f
 ) {
 
     private val pressProgressAnimationSpec =
@@ -58,25 +61,29 @@ return color * intensity;
         Modifier.drawWithContent {
             val progress = pressProgressAnimation.value
             if (progress > 0f) {
-                drawRect(
-                    Color.White.copy(0.08f * progress),
-                    blendMode = BlendMode.Plus
-                )
-                shader.apply {
-                    val position = position(size, positionAnimation.value)
-                    setFloatUniform("size", size.width, size.height)
-                    setColorUniform("color", Color.White.copy(0.15f * progress).toArgb())
-                    setFloatUniform("radius", radius?.invoke(size) ?: (size.minDimension * 1.5f))
-                    setFloatUniform(
-                        "position",
-                        position.x.fastCoerceIn(0f, size.width),
-                        position.y.fastCoerceIn(0f, size.height)
+                if (surfaceAlpha > 0f) {
+                    drawRect(
+                        Color.White.copy((surfaceAlpha * progress).coerceIn(0f, 1f)),
+                        blendMode = BlendMode.Plus
                     )
                 }
-                drawRect(
-                    ShaderBrush(shader),
-                    blendMode = BlendMode.Plus
-                )
+                if (spotlightAlpha > 0f) {
+                    shader.apply {
+                        val position = position(size, positionAnimation.value)
+                        setFloatUniform("size", size.width, size.height)
+                        setColorUniform("color", Color.White.copy((spotlightAlpha * progress).coerceIn(0f, 1f)).toArgb())
+                        setFloatUniform("radius", radius?.invoke(size) ?: (size.minDimension * 1.5f))
+                        setFloatUniform(
+                            "position",
+                            position.x.fastCoerceIn(0f, size.width),
+                            position.y.fastCoerceIn(0f, size.height)
+                        )
+                    }
+                    drawRect(
+                        ShaderBrush(shader),
+                        blendMode = BlendMode.Plus
+                    )
+                }
             }
 
             drawContent()

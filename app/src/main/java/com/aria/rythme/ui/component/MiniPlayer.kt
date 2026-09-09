@@ -18,8 +18,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -46,7 +49,7 @@ import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.R
 import com.aria.rythme.core.extensions.customMarquee
 import com.aria.rythme.core.music.data.model.Song
-import com.aria.rythme.ui.theme.CoverMiniIconColor
+import com.aria.rythme.ui.component.utils.BottomBarMetrics
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
@@ -102,6 +105,7 @@ fun MiniPlayer(
 
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
+    var artistOverflows by remember { mutableStateOf(false) }
 
     val pressLayer: GraphicsLayerScope.() -> Unit = {
         val progress = pressAnimation.value
@@ -110,7 +114,10 @@ fun MiniPlayer(
         scaleY = scale
     }
 
-    Box(modifier = modifier.fillMaxWidth().height(50.dp)) {
+    val surfaceHeight = androidx.compose.ui.unit.lerp(
+        BottomBarMetrics.CompactHeight.dp, BottomBarMetrics.ExpandedMiniHeight.dp, expansionFraction
+    )
+    Box(modifier = modifier.fillMaxWidth().height(surfaceHeight)) {
         GlassBackdropSurface(
             backdrop = backdrop,
             shape = { ContinuousCapsule },
@@ -120,6 +127,7 @@ fun MiniPlayer(
                 glassLens(24f.dp.toPx(), 32f.dp.toPx())
             },
             layerBlock = pressLayer,
+            pressProgress = { pressAnimation.value },
             onDrawSurface = { drawRect(containerColor) }
         )
         Row(
@@ -132,11 +140,13 @@ fun MiniPlayer(
                         // requireUnconsumed = false：接受已被 clickable 消费的 DOWN 事件，
                         // 确保动画在手指按下时立即触发，而非被 clickable 拦截后丢失
                         awaitFirstDown(requireUnconsumed = false)
-                        scope.launch { pressAnimation.animateTo(1f, pressSpec) }
-
-                        // 等待手指抬起或手势取消，无论哪种情况都恢复到 0
-                        waitForUpOrCancellation()
-                        scope.launch { pressAnimation.animateTo(0f, pressSpec) }
+                        try {
+                            scope.launch { pressAnimation.animateTo(1f, pressSpec) }
+                            // 等待手指抬起或手势取消，无论哪种情况都恢复到 0
+                            waitForUpOrCancellation()
+                        } finally {
+                            scope.launch { pressAnimation.animateTo(0f, pressSpec) }
+                        }
                     }
                 }
                 // indication = null：禁用默认水波纹，视觉反馈完全由 layerBlock 动效承担
@@ -154,7 +164,7 @@ fun MiniPlayer(
                             ),
                             visible = !playerVisible
                         ),
-                    size = 32.dp,
+                    size = androidx.compose.ui.unit.lerp(32.dp, 30.dp, expansionFraction),
                     corner = 6.dp,
                     song = song,
                     defaultBgColor = MaterialTheme.rythmeColors.miniCoverBg,
@@ -211,8 +221,23 @@ fun MiniPlayer(
                             text = song.artist,
                             color = MaterialTheme.rythmeColors.textColor,
                             maxLines = 1,
+                            softWrap = false,
                             fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 8.dp)
+                            onTextLayout = { artistOverflows = it.didOverflowWidth },
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    drawContent()
+                                    if (artistOverflows) drawRect(
+                                        brush = Brush.horizontalGradient(
+                                            listOf(Color.Black, Color.Transparent),
+                                            startX = (size.width - 16.dp.toPx()).coerceAtLeast(0f),
+                                            endX = size.width
+                                        ),
+                                        blendMode = BlendMode.DstIn
+                                    )
+                                }
                         )
                     }
                 }
@@ -222,7 +247,7 @@ fun MiniPlayer(
 
             PlayPauseIcon(
                 isPlaying = isPlaying,
-                size = 18.dp,
+                size = androidx.compose.ui.unit.lerp(16.dp / BottomBarMetrics.CompactScale, 16.dp, expansionFraction),
                 onClick = onPlayPauseClick
             )
 

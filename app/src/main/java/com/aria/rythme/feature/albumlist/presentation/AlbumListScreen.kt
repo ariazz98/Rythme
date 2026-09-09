@@ -14,7 +14,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.R
 import com.aria.rythme.core.music.data.model.Album
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.Action
 import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.CommonOperateButton
@@ -48,7 +47,8 @@ fun AlbumListScreen(
                 Action.Icon(
                     actionKey = "filter",
                     iconRes = R.drawable.ic_filter,
-                    contentDescription = "筛选"
+                    contentDescription = "筛选",
+                    menu = { com.aria.rythme.ui.component.previewFilterMenu(overlayMenuState::dismiss) }
                 ),
                 Action.Icon(
                     actionKey = "more",
@@ -71,10 +71,8 @@ fun AlbumListScreen(
         AlbumLayoutMode.GRID -> {
             MainGridPage(
                 title = stringResource(R.string.title_album),
-                routeKey = RythmeRoute.AlbumList,
                 topBar = topBarConfig,
                 search = search,
-                defaultTitleHidden = true,
                 headerMode = HeaderMode.COLLAPSED
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -104,10 +102,8 @@ fun AlbumListScreen(
         AlbumLayoutMode.LIST -> {
             MainListPage(
                 title = stringResource(R.string.title_album),
-                routeKey = RythmeRoute.AlbumList,
                 topBar = topBarConfig,
                 search = search,
-                defaultTitleHidden = true,
                 headerMode = HeaderMode.COLLAPSED
             ) {
                 item {

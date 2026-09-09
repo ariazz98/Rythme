@@ -1,26 +1,27 @@
 package com.aria.rythme.feature.search.presentation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import com.aria.rythme.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.Action
+import com.aria.rythme.ui.component.TopBarConfig
 import com.aria.rythme.ui.component.LocalOverlayMenu
 import com.aria.rythme.ui.component.MainGridPage
 import com.aria.rythme.ui.component.OverlayMenu
-import com.aria.rythme.ui.component.PageSearchField
+import com.aria.rythme.ui.component.rememberPageSearchState
 import com.aria.rythme.ui.component.SmallCategoryCard
 import com.aria.rythme.ui.component.SongListItem
 import com.aria.rythme.ui.component.buildSongContextMenuConfigs
@@ -33,24 +34,34 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val overlayMenu = LocalOverlayMenu.current
-    val categories = remember { searchCategories() }
+    val genres by viewModel.browseGenres.collectAsStateWithLifecycle()
+    val search = rememberPageSearchState(state.query, viewModel::updateQuery)
 
     MainGridPage(
         title = stringResource(R.string.title_search),
-        routeKey = RythmeRoute.Search
+        search = search,
+        topBar = TopBarConfig(actions = listOf(Action.Avatar(actionKey = "avatar", name = "ARiA")))
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            PageSearchField(
-                value = state.query,
-                onValueChange = viewModel::updateQuery
-            )
-        }
-
         if (state.query.isBlank()) {
-            items(categories, key = { it.title }) { category ->
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.padding(top = 8.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("最近搜索", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.rythmeColors.textColor)
+                    Text("搜索记录待接入", fontSize = 13.sp, color = MaterialTheme.rythmeColors.subTitleColor)
+                }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("浏览本地音乐", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.rythmeColors.textColor)
+                    Text("来自曲库的类型 · 分类入口待接入", fontSize = 12.sp, color = MaterialTheme.rythmeColors.subTitleColor)
+                }
+            }
+            if (genres.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                SearchMessage("曲库暂未提供类型信息，你仍然可以在上方搜索歌曲。")
+            }
+            items(genres, key = { "genre:$it" }) { genre ->
                 SmallCategoryCard(
-                    title = category.title,
-                    cover = Brush.linearGradient(category.colors)
+                    title = genre,
+                    cover = Brush.linearGradient(genreColors(genre))
                 )
             }
         } else if (state.isSearching) {
@@ -62,6 +73,10 @@ fun SearchScreen(
                 SearchMessage(stringResource(R.string.search_no_results))
             }
         } else {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("歌曲", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.rythmeColors.textColor,
+                    modifier = Modifier.padding(vertical = 8.dp))
+            }
             items(
                 items = state.songs,
                 key = { it.id },
@@ -100,22 +115,7 @@ private fun SearchMessage(message: String) {
     )
 }
 
-private data class SearchCategory(
-    val title: String,
-    val colors: List<Color>
-)
-
-private fun searchCategories(): List<SearchCategory> = listOf(
-    SearchCategory("农历新年", listOf(Color(0xFF87CEEB), Color(0xFFFFB6C1))),
-    SearchCategory("C-Pop", listOf(Color(0xFFE85D75), Color(0xFFFF8FA3))),
-    SearchCategory("爱", listOf(Color(0xFFE8D5C4), Color(0xFFF5EBE0))),
-    SearchCategory("空间音频", listOf(Color(0xFFE85D75), Color(0xFFFF6B6B))),
-    SearchCategory("国语流行", listOf(Color(0xFFD4729B), Color(0xFFFF9EC5))),
-    SearchCategory("DJ 混音精选", listOf(Color(0xFFB71C1C), Color(0xFFE53935))),
-    SearchCategory("月度音乐回忆", listOf(Color(0xFFFFB347), Color(0xFF64B5F6))),
-    SearchCategory("排行榜", listOf(Color(0xFF6B7C3D), Color(0xFF8FA456))),
-    SearchCategory("爵士乐", listOf(Color(0xFF4A9FD8), Color(0xFF64B5F6))),
-    SearchCategory("创作与制作", listOf(Color(0xFF7C7C3D), Color(0xFF9E9E5A))),
-    SearchCategory("嘻哈 / 说唱", listOf(Color(0xFF5C6BC0), Color(0xFF7986CB))),
-    SearchCategory("古典音乐", listOf(Color(0xFF7B1FA2), Color(0xFF9C27B0)))
-)
+private fun genreColors(name: String): List<Color> {
+    val hue = ((name.hashCode() ushr 1) % 360).toFloat()
+    return listOf(Color.hsv(hue, 0.48f, 0.66f), Color.hsv((hue + 24f) % 360f, 0.58f, 0.86f))
+}

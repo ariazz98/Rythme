@@ -1,11 +1,85 @@
 package com.aria.rythme.ui.component
 
 import androidx.compose.ui.geometry.Rect
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import org.junit.Assert.*
 import org.junit.Test
 
 class PageHeaderStateTest {
+    @Test fun controlledSearchWritesToItsOwnerAndClosesWithAnEmptyQuery() {
+        var ownerQuery = "Hotel"
+        val search = PageSearchState.controlled(false, { ownerQuery }, { ownerQuery = it })
+        assertEquals("Hotel", search.query)
+        ownerQuery = "Eagles"
+        assertEquals("Eagles", search.query)
+        search.query = "Moon"
+        assertEquals("Moon", ownerQuery)
+        search.open()
+        search.close()
+        assertFalse(search.active)
+        assertEquals("", ownerQuery)
+    }
+
+    @Test fun repeatedOpenDoesNotReplaceTheCapturedTransitionOrigin() {
+        val search = PageSearchState()
+        val origin = Rect(21f, 140f, 320f, 184f)
+        search.bounds = origin
+        search.open()
+        search.bounds = Rect.Zero
+        search.open()
+        assertEquals(origin, search.origin)
+    }
+
+    @Test fun rootUsesActualTopStateWithoutWaitingForATitleToMove() {
+        val scroll = HeaderScrollState()
+        assertFalse(scroll.shouldShowChrome(isRoot = true, hasStandardTitle = false))
+        scroll.atTop = false
+        assertTrue(scroll.shouldShowChrome(isRoot = true, hasStandardTitle = false))
+        scroll.atTop = true
+        assertFalse(scroll.shouldShowChrome(isRoot = true, hasStandardTitle = false))
+    }
+
+    @Test fun standardTitleSwitchesAtFixedScrollDistanceAndReversesBelowIt() {
+        val scroll = HeaderScrollState().apply {
+            atTop = false
+            firstVisibleItemScrollOffsetDp = 47f
+        }
+        assertFalse(scroll.shouldShowChrome(false, true))
+        scroll.firstVisibleItemScrollOffsetDp = 48f
+        assertTrue(scroll.shouldShowChrome(false, true))
+        scroll.firstVisibleItemScrollOffsetDp = 49f
+        assertTrue(scroll.shouldShowChrome(false, true))
+        scroll.firstVisibleItemScrollOffsetDp = 47f
+        assertFalse(scroll.shouldShowChrome(false, true))
+    }
+
+    @Test fun recycledTitleStaysCompactButReturningToTopAlwaysClearsChrome() {
+        val scroll = HeaderScrollState().apply {
+            atTop = false
+            firstVisibleItemIndex = 4
+        }
+        assertTrue(scroll.shouldShowChrome(false, true))
+        scroll.atTop = true
+        assertFalse(scroll.shouldShowChrome(false, true))
+    }
+
+    @Test fun pagesWithoutStandardTitleNeverShowScrollChrome() {
+        val scroll = HeaderScrollState().apply {
+            atTop = false
+            firstVisibleItemScrollOffsetDp = 200f
+        }
+        assertFalse(scroll.shouldShowChrome(false, false))
+        scroll.firstVisibleItemIndex = 2
+        assertFalse(scroll.shouldShowChrome(false, false))
+    }
+
+    @Test fun scrollStateIsIsolatedPerEntry() {
+        val first = HeaderScrollState().apply { atTop = false }
+        val second = HeaderScrollState()
+        assertFalse(first.shouldShowChrome(false, true))
+        assertTrue(first.shouldShowChrome(true, true))
+        assertFalse(second.shouldShowChrome(true, true))
+    }
+
     @Test
     fun searchUsesCapturedOriginAndQueryIsOwnedByItsPage() {
         val albums = PageSearchState()
@@ -26,19 +100,4 @@ class PageHeaderStateTest {
         assertTrue(albums.matches("Other album"))
     }
 
-    @Test
-    fun routeRetentionKeepsInactivePagesAndOnlyClearsPoppedPages() {
-        val topBar = TopBarState()
-        val albumRoute = RythmeRoute.AlbumDetail("1")
-        val artistRoute = RythmeRoute.ArtistDetail("2")
-        val search = PageSearchState("Eagles")
-        val config = TopBarConfig(title = "Albums", search = search)
-        topBar.updateConfig(albumRoute, config)
-        topBar.updateConfig(artistRoute, TopBarConfig(title = "Artist"))
-        topBar.retainRoutes(setOf(RythmeRoute.Home, albumRoute))
-        assertSame(config, topBar.getConfig(albumRoute))
-        assertNull(topBar.getConfig(artistRoute).title)
-        topBar.updateConfig(albumRoute, config.copy(title = "Albums in list layout"))
-        assertSame(search, topBar.getConfig(albumRoute).search)
-    }
 }

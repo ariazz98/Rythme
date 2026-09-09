@@ -15,12 +15,12 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
 
 /**
  * BottomBar 的纯展示状态。
  *
- * 它只处理 Tab 点击和用户滚动事件，不读取页面的绝对滚动位置。
+ * 向下用户滚动累计到阈值时收起；向上回到页面顶部或点击 Tab 时展开。
+ * 页面通过回调提供实时的到顶状态，不在这里持有列表或网格状态。
  */
 @Stable
 class BottomBarState internal constructor(
@@ -37,16 +37,20 @@ class BottomBarState internal constructor(
     var lastPrimaryTabIndex by mutableIntStateOf(initialPrimaryTabIndex.coerceIn(PRIMARY_TAB_INDICES))
         private set
 
-    private var scrollDirection = 0
     private var accumulatedScrollPx = 0f
 
-    val nestedScrollConnection = object : NestedScrollConnection {
+    fun nestedScrollConnection(isAtTop: () -> Boolean) = object : NestedScrollConnection {
         override fun onPostScroll(
             consumed: Offset,
             available: Offset,
             source: NestedScrollSource
         ): Offset {
-            if (source == NestedScrollSource.UserInput) {
+            // 使用滚动消费后的实际位置；惯性滚动到顶也展开，不依赖剩余拖动距离。
+            // 仅响应向上滚动/顶端下拉，横向轮播或页面初次布局不会误触发展开。
+            if ((consumed.y > 0f || available.y > 0f) && isAtTop()) {
+                expand()
+                resetScrollAccumulator()
+            } else if (source == NestedScrollSource.UserInput) {
                 onUserScroll(consumed.y)
             }
             return Offset.Zero
@@ -63,28 +67,20 @@ class BottomBarState internal constructor(
     }
 
     private fun onUserScroll(dragDeltaY: Float) {
-        val direction = when {
-            dragDeltaY > 0f -> SCROLLING_UP
-            dragDeltaY < 0f -> SCROLLING_DOWN
-            else -> return
+        if (dragDeltaY == 0f) return
+        if (dragDeltaY > 0f) {
+            // 反向只取消未完成的预收起；已收起时保持缩放，直到实际回顶。
+            resetScrollAccumulator()
+            if (isExpanded) collapsePreparationProgress = 0f
+            return
         }
+        if (!isExpanded) return
 
-        if (direction != scrollDirection) {
-            scrollDirection = direction
-            accumulatedScrollPx = 0f
-        }
-
-        accumulatedScrollPx += abs(dragDeltaY)
-        if (isExpanded) {
-            collapsePreparationProgress = if (direction == SCROLLING_DOWN) {
-                (accumulatedScrollPx / scrollThresholdPx).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        }
+        accumulatedScrollPx -= dragDeltaY
+        collapsePreparationProgress = (accumulatedScrollPx / scrollThresholdPx).coerceIn(0f, 1f)
         if (accumulatedScrollPx < scrollThresholdPx) return
 
-        if (direction == SCROLLING_DOWN) collapse() else expand()
+        collapse()
         resetScrollAccumulator()
     }
 
@@ -98,14 +94,11 @@ class BottomBarState internal constructor(
     }
 
     private fun resetScrollAccumulator() {
-        scrollDirection = 0
         accumulatedScrollPx = 0f
     }
 
     private companion object {
         val PRIMARY_TAB_INDICES = 0..2
-        const val SCROLLING_UP = 1
-        const val SCROLLING_DOWN = -1
     }
 }
 

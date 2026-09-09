@@ -34,7 +34,6 @@ import coil3.compose.AsyncImage
 import com.aria.rythme.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.core.music.data.model.Album
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
 import com.aria.rythme.ui.component.Action
 import com.aria.rythme.ui.component.CommonOperateButton
@@ -46,7 +45,6 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ArtistDetailScreen(
-    artistId: String,
     onAlbumClick: (Album) -> Unit,
     viewModel: ArtistDetailViewModel = koinViewModel()
 ) {
@@ -54,7 +52,7 @@ fun ArtistDetailScreen(
     val artist = state.artist
     val search = rememberPageSearchState()
     val albums = state.albums.filter { search.matches(it.title, it.artist) }
-    val routeKey = RythmeRoute.ArtistDetail(artistId)
+    val artistName = artist?.name ?: stringResource(R.string.unknown_artist)
     val topBarConfig = remember(state.isFavorite, viewModel) {
         TopBarConfig(
             showBackButton = true,
@@ -75,7 +73,6 @@ fun ArtistDetailScreen(
         )
     }
     MainGridPage(
-        routeKey = routeKey,
         topBar = topBarConfig,
         search = search
     ) {
@@ -121,11 +118,11 @@ fun ArtistDetailScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = artist?.name ?: stringResource(R.string.unknown_artist),
+                    text = artistName,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
                     color = MaterialTheme.rythmeColors.textColor,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 

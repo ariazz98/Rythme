@@ -35,6 +35,9 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val playModule = module {
+    viewModel { com.aria.rythme.feature.home.presentation.HomeViewModel(get(), get(), get(), get()) }
+    viewModel { com.aria.rythme.feature.settings.SettingsViewModel(get(), get()) }
+    single { com.aria.rythme.core.music.data.repository.ListeningHistoryRepository(androidContext()) }
     single { AppSettingsRepository(androidContext()) }
     single { MusicDatabase.getInstance(androidContext()) }
     single { get<MusicDatabase>().songDao() }
@@ -65,7 +68,7 @@ val playModule = module {
     single { MusicRepository(get(), get(), get(), get(), get()) }
     single { MusicIndexer(androidContext(), get(), get(), get(), get(), get()) }
     single {
-        PlaybackController(androidContext()).apply {
+        PlaybackController(androidContext(), get()).apply {
             initialize()
         }
     }

@@ -4,27 +4,31 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +41,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,26 +53,26 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush.Companion.verticalGradient
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.aria.rythme.LocalBackdrop
 import com.aria.rythme.R
-import com.aria.rythme.ui.theme.AvatarDefaultBgEnd
-import com.aria.rythme.ui.theme.AvatarDefaultBgStart
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.effects.blur
@@ -79,10 +82,13 @@ import com.aria.rythme.ui.component.utils.InteractiveHighlight
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
 
 /** 按压缩放弹簧参数，与 LiquidBottomTabs 一致 */
 private val PressAnimSpec = spring(1f, 1000f, 0.001f)
+
+// 头像单独按参考截图的 sRGB 转换结果校准，不更改全局玻璃颜色。
+internal val HeaderAvatarTop = Color(0xFFADC8E8)
+internal val HeaderAvatarBottom = Color(0xFF737CB8)
 
 /**
  * 面板锚点位置，决定拖拽形变的方向响应。
@@ -99,17 +105,69 @@ enum class PanelAnchor {
 /** 每组有自己的实际边界和共享元素身份；独立操作与头像按实际宽度排列。 */
 @Composable
 fun AnimatedHeaderActions(
-    routeKey: androidx.navigation3.runtime.NavKey,
+    sourceKey: Any,
     auxiliaryActions: List<Action> = emptyList(),
     actions: List<Action>,
+    referenceScale: Float = 1f,
     skipAnimation: Boolean = false,
     navigationProgress: () -> Float = { 1f },
     enabled: Boolean = true,
     backdrop: Backdrop = LocalBackdrop.current,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        HeaderActionGroup(routeKey to "auxiliary", auxiliaryActions, skipAnimation, navigationProgress, enabled, backdrop)
-        HeaderActionGroup(routeKey to "actions", actions, skipAnimation, navigationProgress, enabled, backdrop)
+    val scope = rememberCoroutineScope()
+    val auxiliaryPress = remember(scope) { TopBarPressState(scope) }
+    val actionPress = remember(scope) { TopBarPressState(scope) }
+    val target = headerActionLayout(auxiliaryActions, actions)
+    val signature = auxiliaryActions.contentKey() to actions.contentKey()
+    val transition = remember { HeaderActionTransitionState(target, sourceKey, signature) }
+    val pending = transition.source != sourceKey || transition.signature != signature
+    val navigationVisibility = navigationProgress()
+    val navigationEnded = navigationVisibility >= 0.999f
+    val navProgress = HeaderActionMotion.navigationPhase(navigationVisibility)
+    val tail = remember { Animatable(0f) }
+    // 主段跟随真实 entry；只在页面完成后接上本地尾巴，不向 NavDisplay 注册额外退出动画。
+    LaunchedEffect(sourceKey, signature, skipAnimation, navigationEnded, transition.morph) {
+        tail.snapTo(0f)
+        if (!skipAnimation && navigationEnded && !pending && transition.morph != null) {
+            tail.animateTo(1f, tween(HeaderActionMotion.TailMillis, easing = LinearEasing))
+        }
+    }
+    // 同样的视觉布局只更新回调；切 Tab 不继承上一段尚未完成的形变。
+    val snap = skipAnimation || (pending && transition.signature == signature)
+    val progress = transition.progress(navProgress + if (navigationEnded) (1f - navProgress) * tail.value else 0f)
+    val animating = !snap && if (pending) !navigationEnded else transition.morph != null && progress < 0.999f
+    val frame = when {
+        !animating -> target
+        pending -> transition.lastFrame
+        else -> transition.morph!!.frame(progress)
+    }
+    SideEffect {
+        transition.lastFrame = frame
+        if (pending || (skipAnimation && transition.morph != null)) {
+            transition.retarget(target, sourceKey, signature, navProgress, snap || navigationEnded)
+        } else if (!animating && transition.morph != null) {
+            // 旧 entry 之后开始离场时，不能倒放已经结束的上一段导航。
+            transition.finish(target)
+        }
+    }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val menuSource = LocalOverlayMenu.current.presentedAction?.sourceKey
+    val sourceOwnedByMenu = menuSource == (sourceKey to "auxiliary") || menuSource == (sourceKey to "actions")
+    val connected = !animating && !sourceOwnedByMenu && auxiliaryActions.isNotEmpty() && actions.isNotEmpty() &&
+        auxiliaryPress.canConnect && actionPress.canConnect &&
+        !auxiliaryPress.bounds.isEmpty && !actionPress.bounds.isEmpty &&
+        (kotlin.math.abs(auxiliaryPress.amount.value) > 0.001f || kotlin.math.abs(actionPress.amount.value) > 0.001f ||
+            auxiliaryPress.light.value > 0.001f || actionPress.light.value > 0.001f) &&
+        kotlin.math.abs(auxiliaryPress.bounds.center.y - actionPress.bounds.center.y) < 1f
+    Box(Modifier.width((frame.width * referenceScale).dp).height(68.dp)
+        .onGloballyPositioned { origin = it.boundsInRoot().topLeft }) {
+        if (connected) TopBarConnectedGlass(auxiliaryPress, actionPress, origin, backdrop, referenceScale)
+        Row(Modifier.align(Alignment.CenterEnd).requiredWidth((target.width * referenceScale).dp)
+            .graphicsLayer { alpha = if (animating) 0f else 1f }, verticalAlignment = Alignment.CenterVertically) {
+            HeaderActionGroup(sourceKey to "auxiliary", auxiliaryActions, referenceScale, enabled && !animating, backdrop, auxiliaryPress, connected)
+            HeaderActionGroup(sourceKey to "actions", actions, referenceScale, enabled && !animating, backdrop, actionPress, connected)
+        }
+        if (animating) NavigationHeaderActions(frame, backdrop, referenceScale)
     }
 }
 
@@ -117,47 +175,35 @@ fun AnimatedHeaderActions(
 private fun HeaderActionGroup(
     sourceKey: Any,
     actions: List<Action>,
-    skipAnimation: Boolean,
-    navigationProgress: () -> Float,
+    referenceScale: Float,
     enabled: Boolean,
-    backdrop: Backdrop
+    backdrop: Backdrop,
+    press: TopBarPressState,
+    connected: Boolean
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val animState = remember { HeaderActionsAnimState() }
-    var initialized by remember { mutableStateOf(false) }
-    var previousSource by remember { mutableStateOf(sourceKey) }
-    var navigationContentChanged by remember { mutableStateOf(false) }
-    var exitingForNavigation by remember { mutableStateOf(false) }
-    val currentNavigationProgress by rememberUpdatedState(navigationProgress)
-    LaunchedEffect(Unit) {
-        animState.initialize(actions)
-        initialized = true
+    if (actions.isEmpty()) {
+        SideEffect { press.canConnect = false }
+        return
     }
-    LaunchedEffect(actions.contentKey(), sourceKey, skipAnimation) {
-        if (initialized) {
-            val routeChanged = previousSource != sourceKey
-            navigationContentChanged = routeChanged && actions.contentKey() != animState.displayActions.contentKey()
-            exitingForNavigation = routeChanged && !skipAnimation && actions.isEmpty()
-            if (exitingForNavigation) snapshotFlow { currentNavigationProgress() }.first { it >= 0.999f }
-            animState.update(actions, skipAnimation || routeChanged)
-            exitingForNavigation = false
-            previousSource = sourceKey
-        }
-    }
-    SideEffect { animState.syncActionRefs(actions) }
-
-    if (animState.phase == HeaderActionsAnimState.Phase.Hidden) return
     val overlay = LocalOverlayMenu.current
-    val menu = overlay.currentMenu as? OverlayMenu.ActionMenu
+    val menu = overlay.presentedAction
     val sourceHidden = menu?.sourceKey == sourceKey
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
-    val sharedTransitionScope = LocalSharedTransitionScope.current
     var anchorBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
-    val pressAnim = remember { Animatable(0f) }
-    val highlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
-    val avatarOnly = animState.displayActions.all { it is Action.Avatar }
+    val avatar = actions.singleOrNull() as? Action.Avatar
+    val pressHighlight = rememberTopBarPressHighlight()
+    val hdr = LocalGlassHdr.current
+    TopBarPressHeadroom(press, avatar != null)
+    val canConnect = !sourceHidden && enabled
+    SideEffect {
+        press.avatar = avatar != null
+        press.nominalWidth = TopBarComponentMetrics.surfaceWidth(actions.size)
+        press.canConnect = canConnect
+    }
+    LaunchedEffect(sourceKey, enabled) { press.release() }
+    val itemWidth = (TopBarComponentMetrics.touchWidth(actions.size) * referenceScale).dp
     val pressLayer: GraphicsLayerScope.() -> Unit = {
-        val scale = 1f + pressAnim.value * 8.dp.toPx() / size.width
+        val scale = TopBarPressMotion.scale(TopBarComponentMetrics.surfaceWidth(actions.size), avatar != null, press.amount.value)
         scaleX = scale
         scaleY = scale
     }
@@ -166,74 +212,68 @@ private fun HeaderActionGroup(
     Box(
         Modifier
             .height(68.dp)
-            .width((animState.displayActions.size * 44 + 24).dp)
-            .glassHdrFadeAndBlur(
-                alpha = { animState.overallAlpha.value * if (exitingForNavigation) 1f - navigationProgress() else 1f },
-                blurDp = { animState.overallBlur.value }
-            ),
+            .width(((TopBarComponentMetrics.surfaceWidth(actions.size) + TopBarComponentMetrics.GroupGap) * referenceScale).dp),
         contentAlignment = Alignment.Center
     ) {
-        with(sharedTransitionScope) {
-            AnimatedVisibility(
-                visible = !sourceHidden,
-                enter = androidx.compose.animation.fadeIn(tween(ANIM_DURATION)),
-                exit = androidx.compose.animation.fadeOut(tween(ANIM_DURATION))
-            ) {
+        Box(Modifier.graphicsLayer { alpha = if (sourceHidden) 0f else 1f }) {
                 Box(
                     modifier = Modifier
-                        .onGloballyPositioned { anchorBounds = it.boundsInRoot() }
-                        .sharedBounds(
-                            sharedContentState = rememberSharedContentState(sourceKey),
-                            animatedVisibilityScope = this,
-                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
-                            boundsTransform = BoundsTransform { _, _ -> spring(0.55f, 250f) }
-                        ),
+                        .onGloballyPositioned {
+                            anchorBounds = it.boundsInRoot()
+                            press.bounds = anchorBounds
+                        }
+,
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!avatarOnly) GlassBackdropSurface(
+                    if (!connected) GlassBackdropSurface(
                         backdrop = backdrop,
                         shape = { ContinuousCapsule },
                         hdr = true,
+                        pressHdr = true,
+                        rimHeadroomLimit = if (hdr.darkTheme) 7f else GlassHdrHeadroom,
+                        rimHeadroom = { if (avatar != null) maxOf(hdr.staticHeadroom, topBarAvatarGain(press.light.value, hdr.darkTheme)) else hdr.staticHeadroom },
                         effects = {
                             vibrancy()
                             blur(2.dp.toPx())
                             glassLens(24.dp.toPx(), 32.dp.toPx())
                         },
                         layerBlock = pressLayer,
-                        onDrawSurface = { drawRect(containerColor) }
+                        bodyReflectionBrush = { topBarPressBodyReflection(press.light.value) },
+                        onDrawSurface = {
+                            drawRect(containerColor)
+                            // 先照亮完整玻璃容器，再绘制不透明内盘，外圈与内盘各自增亮，不叠白。
+                            drawRect(pressHighlight.single(size, press), blendMode = BlendMode.Plus)
+                            if (avatar != null) {
+                                // 内盘四周仍能采样页面背景，不是纯色圆盘描边。
+                                // 图片成功加载后覆盖内盘；加载中/失败时仍保留原有渐变底。
+                                drawCircle(
+                                    brush = verticalGradient(topBarAvatarColors(press.light.value, hdr.pressAvailable, hdr.darkTheme)),
+                                    radius = (size.minDimension / 2f - (TopBarComponentMetrics.AvatarInset * referenceScale).dp.toPx()).coerceAtLeast(0f)
+                                )
+                            }
+                        }
                     )
                     Row(
                         modifier = Modifier
-                            .then(if (avatarOnly) Modifier else Modifier.graphicsLayer(pressLayer)
-                                .clip(ContinuousCapsule).then(highlight.modifier))
-                            .height(44.dp)
-                            .animateContentSize(tween(ANIM_DURATION / 2))
-                            .thenBlur(if (navigationContentChanged && !skipAnimation) 8f * (1f - navigationProgress()) else animState.contentBlur.value)
-                            .then(
-                                if (avatarOnly) Modifier else Modifier
-                                    .then(highlight.gestureModifier)
-                                    .pointerInput(Unit) {
-                                        awaitEachGesture {
-                                            awaitFirstDown(requireUnconsumed = false)
-                                            try {
-                                                coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
-                                                waitForUpOrCancellation()
-                                            } finally {
-                                                coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
-                                            }
-                                        }
-                                    }
-                            ),
+                            .graphicsLayer(pressLayer)
+                            .clip(ContinuousCapsule)
+                            .height((TopBarComponentMetrics.SurfaceHeight * referenceScale).dp)
+                            .topBarPress(press, actions.map { it.key }, enabled && !sourceHidden),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        animState.displayActions.forEach { action ->
+                        actions.forEachIndexed { index, action ->
                             val menuProvider = (action as? Action.Icon)?.menu
                             ActionItem(
                                 action,
-                                onClick = if (!enabled || exitingForNavigation) null else if (menuProvider != null) {
+                                width = itemWidth,
+                                referenceScale = referenceScale,
+                                opticalOffset = (TopBarComponentMetrics.iconOffset(actions.size, index) * referenceScale).dp,
+                                press = press,
+                                onClick = if (!enabled || sourceHidden) null else if (menuProvider != null) {
                                     {
                                         if (!anchorBounds.isEmpty) overlay.show(
-                                            OverlayMenu.ActionMenu(sourceKey, anchorBounds, menuProvider())
+                                            OverlayMenu.ActionMenu(sourceKey, anchorBounds, menuProvider(),
+                                                actions.toList(), action.key, press.scale, referenceScale, backdrop)
                                         )
                                     }
                                 } else action.onClick
@@ -241,13 +281,20 @@ private fun HeaderActionGroup(
                         }
                     }
                     }
-            }
         }
     }
 }
 
 @Composable
-private fun ActionItem(action: Action, onClick: (() -> Unit)? = action.onClick) {
+internal fun ActionItem(action: Action, width: Dp, referenceScale: Float, opticalOffset: Dp, press: TopBarPressState, onClick: (() -> Unit)? = action.onClick) {
+    val pressed = press.pressedKey == action.key
+    val dark = LocalGlassHdr.current.darkTheme
+    val dimIcon = pressed && action is Action.Icon
+    val iconAlpha by animateFloatAsState(
+        targetValue = TopBarPressMotion.iconTargetAlpha(pressed, avatar = action is Action.Avatar, dark = dark),
+        animationSpec = if (dimIcon) TopBarPressMotion.iconDown else TopBarPressMotion.iconUp,
+        label = "topBarPressedIcon"
+    )
     val clickModifier = onClick?.let { onClick ->
         Modifier.clickable(
             interactionSource = null,
@@ -258,12 +305,23 @@ private fun ActionItem(action: Action, onClick: (() -> Unit)? = action.onClick) 
 
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .width(width).height((TopBarComponentMetrics.SurfaceHeight * referenceScale).dp)
             .then(clickModifier),
         contentAlignment = Alignment.Center
     ) {
+        // 透明合成层覆盖完整点击槽，给图标的光学偏移留余量；否则 More 右侧圆点会在淡化时被裁切。
+        Box(Modifier.fillMaxSize().glassHdrFadeAndBlur(alpha = { iconAlpha })
+            .then(if (action is Action.Icon) Modifier.topBarForegroundLight(press) else Modifier), contentAlignment = Alignment.Center) {
         when (action) {
-            is Action.Icon -> Icon(
+            is Action.Icon -> if (action.iconRes == R.drawable.ic_more) {
+                val color = if (action.isActive) MaterialTheme.rythmeColors.primary else MaterialTheme.rythmeColors.textColor
+                // 只校准顶栏的三点：参考圆点直径 4pt、中心距 8pt；不改其他位置的 More 图标。
+                Canvas(Modifier.offset(x = opticalOffset, y = (0.3f * referenceScale).dp).size((action.iconSize.value * referenceScale).dp)
+                    .semantics { contentDescription = action.contentDescription }) {
+                    val unit = size.minDimension / 22f
+                    for (index in -1..1) drawCircle(color, 2.04f * unit, Offset(center.x + index * 7.875f * unit, center.y))
+                }
+            } else Icon(
                 painter = painterResource(action.iconRes),
                 contentDescription = action.contentDescription,
                 tint = if (action.isActive) {
@@ -271,36 +329,11 @@ private fun ActionItem(action: Action, onClick: (() -> Unit)? = action.onClick) 
                 } else {
                     MaterialTheme.rythmeColors.textColor
                 },
-                modifier = Modifier.size(action.iconSize)
+                modifier = Modifier.offset(x = opticalOffset, y = (0.3f * referenceScale).dp).size(action.iconSize * referenceScale)
             )
 
-            is Action.Avatar -> Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(
-                        verticalGradient(
-                            colors = listOf(AvatarDefaultBgStart, AvatarDefaultBgEnd)
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!action.url.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = action.url,
-                        contentDescription = action.contentDescription.ifEmpty { "头像" },
-                        modifier = Modifier.size(44.dp),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text(
-                        text = action.name?.takeIf(String::isNotEmpty)?.take(2) ?: "R",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            is Action.Avatar -> HeaderAvatarContent(action, referenceScale, Modifier.topBarAvatarLight(press))
+        }
         }
     }
 }
@@ -311,14 +344,22 @@ private fun ActionItem(action: Action, onClick: (() -> Unit)? = action.onClick) 
 fun BackButton(
     backdrop: Backdrop = LocalBackdrop.current,
     visible: Boolean,
+    referenceScale: Float = 1f,
     skipAnimation: Boolean = false,
     visibilityFraction: Float? = null,
     onClick: () -> Unit
 ) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val coroutineScope = rememberCoroutineScope()
-    val pressAnim = remember { Animatable(0f) }
-    val backHighlight = remember(coroutineScope) { InteractiveHighlight(coroutineScope) }
+    val press = remember(coroutineScope) { TopBarPressState(coroutineScope) }
+    val pressHighlight = rememberTopBarPressHighlight()
+    val hdr = LocalGlassHdr.current
+    TopBarPressHeadroom(press, avatar = false)
+    val iconAlpha by animateFloatAsState(
+        targetValue = TopBarPressMotion.iconTargetAlpha(press.pressedKey != null, dark = hdr.darkTheme),
+        animationSpec = if (press.pressedKey != null) TopBarPressMotion.iconDown else TopBarPressMotion.iconUp,
+        label = "backPressedIcon"
+    )
 
     val animatedBlur by animateFloatAsState(
         targetValue = if (visible) 0f else 10f,
@@ -335,7 +376,7 @@ fun BackButton(
     val alpha = visibilityFraction ?: animatedAlpha
     val blur = visibilityFraction?.let { 10f * (1f - it) } ?: animatedBlur
     val pressLayer: GraphicsLayerScope.() -> Unit = {
-        val pressScale = 1f + pressAnim.value * 8f.dp.toPx() / size.width
+        val pressScale = TopBarPressMotion.scale(TopBarComponentMetrics.SurfaceHeight, false, press.amount.value)
         scaleX = pressScale
         scaleY = pressScale
     }
@@ -345,9 +386,11 @@ fun BackButton(
             .glassHdrFadeAndBlur(alpha = { alpha }, blurDp = { blur }),
             contentAlignment = Alignment.Center
         ) {
-            Box(Modifier.size(44.dp)) {
+            Box(Modifier.size((TopBarComponentMetrics.SurfaceHeight * referenceScale).dp)) {
                 GlassBackdropSurface(
                     backdrop = backdrop,
+                    pressHdr = true,
+                    rimHeadroom = { hdr.staticHeadroom },
                     shape = { ContinuousCapsule },
                     effects = {
                         vibrancy()
@@ -355,35 +398,32 @@ fun BackButton(
                         glassLens(24f.dp.toPx(), 32f.dp.toPx())
                     },
                     layerBlock = pressLayer,
-                    onDrawSurface = { drawRect(containerColor) }
+                    bodyReflectionBrush = { topBarPressBodyReflection(press.light.value) },
+                    onDrawSurface = {
+                        drawRect(containerColor)
+                        drawRect(pressHighlight.single(size, press), blendMode = BlendMode.Plus)
+                    }
                 )
                 Box(
                     modifier = Modifier
                         .graphicsLayer(pressLayer)
                         .clip(ContinuousCapsule)
-                        .then(backHighlight.modifier)
-                        .size(44.dp)
-                        .then(backHighlight.gestureModifier)
-                        .pointerInput(coroutineScope) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                coroutineScope.launch { pressAnim.animateTo(1f, PressAnimSpec) }
-                                waitForUpOrCancellation()
-                                coroutineScope.launch { pressAnim.animateTo(0f, PressAnimSpec) }
-                            }
-                        }
+                        .size((TopBarComponentMetrics.SurfaceHeight * referenceScale).dp)
+                        .topBarPress(press, listOf("back"), visible)
                         .clickable(
                             interactionSource = null,
                             indication = null
                         ) { onClick() },
                     contentAlignment = Alignment.Center
                 ) {
+                    Box(Modifier.fillMaxSize().glassHdrFadeAndBlur(alpha = { iconAlpha }).topBarForegroundLight(press), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(R.drawable.ic_back),
                         contentDescription = "返回",
                         tint = MaterialTheme.rythmeColors.textColor,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.offset(x = (-1.5f * referenceScale).dp).size((18.8f * referenceScale).dp)
                     )
+                    }
             }
             }
         }
@@ -396,12 +436,19 @@ fun CloseButton(
     onClick: () -> Unit
 ) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressProgress by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
+        animationSpec = PressAnimSpec,
+        label = "closeGlassPress"
+    )
 
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(HeaderSearchLayout.surfaceHeight)
             .clickable(
-                interactionSource = null,
+                interactionSource = interactionSource,
                 indication = null
             ) { onClick() },
         contentAlignment = Alignment.Center
@@ -414,6 +461,7 @@ fun CloseButton(
                 blur(2f.dp.toPx())
                 glassLens(24f.dp.toPx(), 32f.dp.toPx())
             },
+            pressProgress = { pressProgress },
             onDrawSurface = { drawRect(containerColor) }
         )
         Icon(
@@ -425,29 +473,6 @@ fun CloseButton(
     }
 }
 
-@Composable
-fun SharedTransitionScope.MenuPanel(
-    backdrop: Backdrop = LocalBackdrop.current,
-    scope: AnimatedVisibilityScope,
-    configs: List<MenuConfig>,
-    sourceKey: Any,
-    interactive: Boolean = true
-) {
-    MenuPanelContent(
-        backdrop = backdrop,
-        configs = configs,
-        interactive = interactive,
-        hdr = true,
-        columnModifier = Modifier.sharedBounds(
-            sharedContentState = rememberSharedContentState(key = sourceKey),
-            animatedVisibilityScope = scope,
-            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
-            boundsTransform = BoundsTransform { _, _ ->
-                spring(dampingRatio = 0.55f, stiffness = 250f)
-            }
-        )
-    )
-}
 
 /**
  * 独立锚定菜单面板，支持通过 columnModifier 注入共享元素等 Modifier。
@@ -487,13 +512,19 @@ fun rememberMenuPanelHeightPx(configs: List<MenuConfig>): Float {
 }
 
 @Composable
-private fun MenuPanelContent(
+internal fun MenuPanelContent(
     backdrop: Backdrop = LocalBackdrop.current,
     configs: List<MenuConfig>,
     interactive: Boolean = true,
     columnModifier: Modifier = Modifier,
     anchor: PanelAnchor = PanelAnchor.TopEnd,
-    hdr: Boolean = true
+    hdr: Boolean = true,
+    panelWidth: Dp = 256.dp,
+    panelShape: androidx.compose.ui.graphics.Shape = ContinuousRoundedRectangle(48.dp),
+    drawSurface: Boolean = true,
+    interaction: MenuPanelInteraction = rememberMenuPanelInteraction(),
+    deformContent: Boolean = true,
+    contentViewport: Modifier = Modifier
 ) {
     val containerColor = MaterialTheme.rythmeColors.bottomBackground
     val coroutineScope = rememberCoroutineScope()
@@ -510,16 +541,11 @@ private fun MenuPanelContent(
     var activeIndex by remember { mutableStateOf(-1) }
 
     // 拖拽形变状态（原始像素偏移，layerBlock 中做阻尼映射）
-    val dragOffsetX = remember { Animatable(0f) }
-    val dragOffsetY = remember { Animatable(0f) }
+    val dragOffsetX = interaction.dragX
+    val dragOffsetY = interaction.dragY
 
     // 高光：跟随手指位置，半径限制为面板宽度的一半
-    val highlight = remember(coroutineScope) {
-        InteractiveHighlight(
-            animationScope = coroutineScope,
-            radius = { size -> size.width * 2 / 3 }
-        )
-    }
+    val highlight = interaction.highlight
 
     data class ItemInfo(val yPx: Float, val heightPx: Float, val onClick: () -> Unit)
 
@@ -540,44 +566,16 @@ private fun MenuPanelContent(
     }
 
     val panelLayer: GraphicsLayerScope.() -> Unit = {
-        val dx = dragOffsetX.value
-        val dy = dragOffsetY.value
-
-        // 阻尼位移：远离锚点方向产生位移，靠近锚点方向只形变
-        // maxShift = 最大位移量，refDist = 阻尼参考距离
-        val maxShift = 6.dp.toPx()
-        val refDist = 100.dp.toPx()
-        fun damp(v: Float) = maxShift * v / (refDist + kotlin.math.abs(v))
-
-        // 水平：锚点在右侧，左拖（远离）有位移，右拖（靠近）无位移
-        translationX = if (dx < 0f) damp(dx) else 0f
-
-        // 垂直：根据锚点方向决定
-        // TopEnd: 锚点在上，下拖（远离）有位移，上拖无位移
-        // BottomEnd: 锚点在下，上拖（远离）有位移，下拖无位移
-        translationY = when (anchor) {
-            PanelAnchor.TopEnd -> if (dy > 0f) damp(dy) else 0f
-            PanelAnchor.BottomEnd -> if (dy < 0f) damp(dy) else 0f
-        }
-
-        // 方向性形变
-        val deform = 0.03f
-        // 垂直形变符号：TopEnd 时下拉(dy>0)变窄高，BottomEnd 时上拉(dy<0)变窄高
-        val nyRaw = (dy / size.height).coerceIn(-1f, 1f) * deform
-        val ny = when (anchor) {
-            PanelAnchor.TopEnd -> nyRaw      // 下拉正值=窄高
-            PanelAnchor.BottomEnd -> -nyRaw   // 翻转：上拉负值→正值=窄高
-        }
-        // 左拖正常响应，右拖大阻力
-        val dxDamped = if (dx > 0f) dx * 0.15f else dx
-        val nx = (dxDamped / size.width).coerceIn(-1f, 1f) * deform
-        scaleX = 1f - ny - nx
-        scaleY = 1f + ny + nx
+        val transform = menuPanelTransform(dragOffsetX.value, dragOffsetY.value, size, density.density, anchor)
+        translationX = transform.x
+        translationY = transform.y
+        scaleX = transform.scaleX
+        scaleY = transform.scaleY
     }
-    Box(modifier = columnModifier.width(256.dp)) {
-        GlassBackdropSurface(
+    Box(modifier = columnModifier.width(panelWidth)) {
+        if (drawSurface) GlassBackdropSurface(
             backdrop = backdrop,
-            shape = { ContinuousRoundedRectangle(48.dp) },
+            shape = { panelShape },
             shadow = GlassMenuShadow,
             hdr = hdr,
             effects = {
@@ -586,15 +584,18 @@ private fun MenuPanelContent(
                 glassLens(24f.dp.toPx(), 32f.dp.toPx())
             },
             layerBlock = panelLayer,
+            pressProgress = { highlight.pressProgress },
             onDrawSurface = {
                 drawRect(color = containerColor)
             }
         )
         Column(
             modifier = Modifier
-                .graphicsLayer(panelLayer)
-                .clip(ContinuousRoundedRectangle(48.dp))
-                .width(256.dp)
+                .then(if (deformContent) Modifier.graphicsLayer(panelLayer) else Modifier)
+                .clip(panelShape)
+                .width(panelWidth)
+                // 只裁剪可滚动内容；外壳和投影不进入滚动视口。
+                .then(contentViewport)
                 // 径向高光（在 padding 之前，覆盖整个面板）
                 .then(highlight.modifier)
                 .then(if (interactive) highlight.gestureModifier else Modifier)

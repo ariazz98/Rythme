@@ -11,6 +11,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,6 +47,34 @@ private fun normalizedHdrRatio(ratio: Float): Float =
 
 @Stable
 internal class GlassHdrState {
+    private val pressHeadrooms = mutableMapOf<Any, Float>()
+    var pressAvailable by mutableStateOf(false)
+        private set
+    var darkTheme by mutableStateOf(false)
+        private set
+    val staticHeadroom: Float get() = if (darkTheme) 1f else GlassHdrHeadroom
+    var requestedHeadroom by mutableFloatStateOf(GlassHdrHeadroom)
+        private set
+
+    /** 深色只开放顶部按压所需的 HDR，原静态玻璃 enabled 策略不变。 */
+    fun configurePressEnvironment(available: Boolean, dark: Boolean) {
+        pressAvailable = available
+        darkTheme = dark
+        if (!available) pressHeadrooms.clear()
+        else pressHeadrooms.replaceAll { _, value -> value.coerceAtMost(if (dark) 7f else 2f) }
+        updateHeadroom()
+    }
+
+    private fun updateHeadroom() {
+        requestedHeadroom = maxOf(staticHeadroom, pressHeadrooms.values.maxOrNull() ?: staticHeadroom)
+    }
+
+    fun requestPressHeadroom(owner: Any, value: Float) {
+        if (!value.isFinite() || value <= staticHeadroom) pressHeadrooms.remove(owner)
+        else pressHeadrooms[owner] = value.coerceAtMost(if (darkTheme) 7f else 2f)
+        updateHeadroom()
+    }
+
     var enabled by mutableStateOf(false)
         private set
     var generation by mutableIntStateOf(0)
@@ -54,7 +86,7 @@ internal class GlassHdrState {
         // 留一小段迟滞，避免自动亮度在两个 0.01 档位边界来回抖动。
         val ratioChanged = bucket != ratioBucket &&
             abs(normalizedHdrRatio(ratio) - ratioBucket / 100f) >= 0.006f
-        if (this.enabled != enabled || (enabled && ratioChanged)) {
+        if (this.enabled != enabled || ((enabled || pressAvailable) && ratioChanged)) {
             this.enabled = enabled
             ratioBucket = bucket
             generation++
@@ -67,13 +99,14 @@ internal val LocalGlassHdr = staticCompositionLocalOf { GlassHdrState() }
 /** 只管理当前窗口的显示能力；页面和播放器状态不参与 HDR 缓存生命周期。 */
 @Composable
 internal fun ProvideGlassHdr(window: Window, display: Display?, content: @Composable () -> Unit) {
-    val state = remember(window) { GlassHdrState() }
     val dark = MaterialTheme.rythmeColors.surface.luminance() < 0.5f
     val supported = Build.VERSION.SDK_INT >= 35 && display?.isHdr == true && display.isHdrSdrRatioAvailable
+    val state = remember(window) { GlassHdrState().apply { configurePressEnvironment(supported, dark) } }
     val enabled = glassHdrEligible(Build.VERSION.SDK_INT, dark, supported)
+    SideEffect { state.configurePressEnvironment(supported, dark) }
 
-    DisposableEffect(window, display, enabled) {
-        if (!enabled || display == null || Build.VERSION.SDK_INT < 35) {
+    DisposableEffect(window, display, supported, dark) {
+        if (!supported || Build.VERSION.SDK_INT < 35) {
             state.configure(false, 1f)
             onDispose { }
         } else {
@@ -82,7 +115,7 @@ internal fun ProvideGlassHdr(window: Window, display: Display?, content: @Compos
             val decor = window.decorView
             var disposed = false
             val refresh = Runnable {
-                if (!disposed) state.configure(true, display.hdrSdrRatio)
+                if (!disposed) state.configure(enabled, display.hdrSdrRatio)
             }
             val listener = Consumer<Display> {
                 // 窗口先接收新的显示色彩空间，再在下一帧分配相关绘制缓存。
@@ -91,7 +124,7 @@ internal fun ProvideGlassHdr(window: Window, display: Display?, content: @Compos
             }
             display.registerHdrSdrRatioChangedListener(decor.context.mainExecutor, listener)
             window.colorMode = ActivityInfo.COLOR_MODE_HDR
-            window.desiredHdrHeadroom = GlassHdrHeadroom
+            window.desiredHdrHeadroom = state.requestedHeadroom
             decor.postOnAnimation(refresh)
 
             onDispose {
@@ -101,6 +134,11 @@ internal fun ProvideGlassHdr(window: Window, display: Display?, content: @Compos
                 window.desiredHdrHeadroom = oldHeadroom
                 window.colorMode = oldMode
             }
+        }
+    }
+    LaunchedEffect(window, supported) {
+        if (supported && Build.VERSION.SDK_INT >= 35) {
+            snapshotFlow { state.requestedHeadroom }.collect { window.desiredHdrHeadroom = it }
         }
     }
     CompositionLocalProvider(LocalGlassHdr provides state, content = content)
@@ -116,7 +154,7 @@ internal fun Modifier.glassHdrFadeAndBlur(
     blurDp: () -> Float = { 0f }
 ): Modifier {
     val hdr = LocalGlassHdr.current
-    if (!hdr.enabled) return graphicsLayer { this.alpha = alpha() }.thenBlur(blurDp())
+    if (!hdr.enabled && !hdr.pressAvailable) return graphicsLayer { this.alpha = alpha() }.thenBlur(blurDp())
 
     return drawWithCache {
         // 此状态只在绘制缓存中读取，不在内容的组合/布局中读取。

@@ -77,27 +77,17 @@ fun OverlayMenuHost(
     val menu = state.currentMenu
     val sharedTransitionScope = LocalSharedTransitionScope.current
 
-    // 缓存菜单内容和来源到退出完成，关闭时仍能回到正确的操作胶囊。
+    // 同一份退场快照也供源按钮使用，收回完成前不重新绘制源玻璃。
     val actionMenu = menu as? OverlayMenu.ActionMenu
-    val cachedAction = remember { mutableStateOf<OverlayMenu.ActionMenu?>(null) }
-    if (actionMenu != null) {
-        cachedAction.value = actionMenu
-    }
-
-    // 使用菜单自己的可见性过渡，其他共享元素动画不会让它继续拦截触摸。
-    val visible = actionMenu != null
-    val actionVisibility = remember { MutableTransitionState(false) }
-    actionVisibility.targetState = visible
-    cachedAction.value?.let { presented ->
-        ActionMenuOverlay(
-            menu = presented,
-            visibility = actionVisibility,
-            interactive = visible || !actionVisibility.isIdle,
-            onDismiss = { state.dismiss() }
-        )
-    }
-    LaunchedEffect(actionVisibility.isIdle, visible) {
-        if (actionVisibility.isIdle && !visible) cachedAction.value = null
+    state.presentedAction?.let { presented ->
+        key(presented) {
+            MorphingActionMenuOverlay(
+                menu = presented,
+                visible = actionMenu === presented,
+                onDismiss = state::dismiss,
+                onExitFinished = { state.finishActionExit(presented) }
+            )
+        }
     }
 
     // SongContext 菜单：缓存数据以支持退出动画
@@ -163,83 +153,6 @@ fun OverlayMenuHost(
     }
 }
 
-/**
- * 右上角 Action 菜单
- *
- * 从右上角缩放弹出，点击外部关闭。
- */
-@Composable
-private fun ActionMenuOverlay(
-    menu: OverlayMenu.ActionMenu,
-    visibility: MutableTransitionState<Boolean>,
-    interactive: Boolean,
-    onDismiss: () -> Unit
-) {
-    // MenuPanel：右上角弹出，通过 sharedBounds 与 action 容器共享过渡
-    val sharedTransitionScope = LocalSharedTransitionScope.current
-    with(sharedTransitionScope) {
-        AnimatedVisibility(
-            visibleState = visibility,
-            enter = fadeIn(tween(200)),
-            exit = fadeOut(tween(200))
-        ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val density = LocalDensity.current
-                val safeTop = with(density) { WindowInsets.statusBars.asPaddingValues().calculateTopPadding().toPx() }
-                val margin = with(density) { 12.dp.toPx() }
-                val panelWidth = with(density) { 256.dp.toPx() }
-                val panelHeight = rememberMenuPanelHeightPx(menu.configs)
-                val panelX = (menu.anchorBounds.right - panelWidth)
-                    .coerceIn(margin, (constraints.maxWidth - panelWidth - margin).coerceAtLeast(margin))
-                val panelY = menu.anchorBounds.top
-                    .coerceIn(safeTop, (constraints.maxHeight - panelHeight - margin).coerceAtLeast(safeTop))
-                // scrim：仅在 interactive 状态下拦截触摸
-                if (interactive) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        event.changes.forEach { change ->
-                                            if (!change.isConsumed) {
-                                                change.consume()
-                                                onDismiss()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(panelX.roundToInt(), panelY.roundToInt()) }
-                        .then(
-                            if (interactive) Modifier.pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        // 消费事件，阻止穿透到 scrim
-                                        event.changes.forEach { it.consume() }
-                                    }
-                                }
-                            } else Modifier
-                        )
-                ) {
-                    MenuPanel(
-                        scope = this@AnimatedVisibility,
-                        configs = menu.configs,
-                        sourceKey = menu.sourceKey,
-                        interactive = interactive
-                    )
-                }
-            }
-        }
-    }
-}
 
 /**
  * 歌曲上下文菜单

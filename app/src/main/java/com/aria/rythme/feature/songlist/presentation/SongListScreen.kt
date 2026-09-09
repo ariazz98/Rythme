@@ -10,7 +10,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.R
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
+import com.aria.rythme.ui.component.Action
+import com.aria.rythme.ui.component.TopBarConfig
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.LocalOverlayMenu
@@ -35,9 +36,14 @@ fun SongListScreen(
 
     MainListPage(
         title = stringResource(R.string.title_music_list),
-        routeKey = RythmeRoute.SongList,
+        topBar = TopBarConfig(
+            showBackButton = true,
+            actions = listOf(
+                Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter),
+                Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more)
+            )
+        ),
         search = search,
-        defaultTitleHidden = true,
         headerMode = HeaderMode.COLLAPSED
     ) {
         item {

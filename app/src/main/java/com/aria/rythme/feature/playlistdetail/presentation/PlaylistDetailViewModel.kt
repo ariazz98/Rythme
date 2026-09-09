@@ -6,6 +6,7 @@ import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.model.Playlist
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.PlaylistRepository
+import com.aria.rythme.core.music.data.repository.ListeningOrigin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -63,7 +64,7 @@ class PlaylistDetailViewModel(
     private fun playQueue(queue: List<Song>, first: Song?) {
         if (first == null) return
         viewModelScope.launch {
-            playbackController.play(first, queue)
+            playbackController.play(first, queue, ListeningOrigin("playlist", playlistId))
         }
     }
 }

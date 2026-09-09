@@ -14,8 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.R
 import com.aria.rythme.core.music.data.model.Album
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.AlbumItem
+import com.aria.rythme.ui.component.Action
+import com.aria.rythme.ui.component.secondaryTopBar
 import com.aria.rythme.ui.component.CommonListItem
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.MainGridPage
@@ -39,7 +40,6 @@ fun LibraryFacetListScreen(
 
     MainListPage(
         title = facet.title(),
-        routeKey = facet.listRoute(),
         search = search
     ) {
         itemsIndexed(items, key = { _, item -> item }) { index, item ->
@@ -68,7 +68,10 @@ fun LibraryFacetDetailScreen(
 
     MainGridPage(
         title = value,
-        routeKey = facet.detailRoute(value),
+        topBar = secondaryTopBar(
+            Action.Icon("filter", R.drawable.ic_filter, contentDescription = "筛选（待接入）"),
+            Action.Icon("more", R.drawable.ic_more, contentDescription = "更多（待接入）")
+        ),
         search = search
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -93,13 +96,3 @@ private fun LibraryFacet.title(): String = stringResource(
         LibraryFacet.COMPOSER -> R.string.title_composer
     }
 )
-
-private fun LibraryFacet.listRoute(): RythmeRoute = when (this) {
-    LibraryFacet.GENRE -> RythmeRoute.GenreList
-    LibraryFacet.COMPOSER -> RythmeRoute.ComposerList
-}
-
-private fun LibraryFacet.detailRoute(value: String): RythmeRoute = when (this) {
-    LibraryFacet.GENRE -> RythmeRoute.GenreDetail(value)
-    LibraryFacet.COMPOSER -> RythmeRoute.ComposerDetail(value)
-}

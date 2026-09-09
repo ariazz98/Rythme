@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.job
 
 /**
  * 搜索框的初始显示模式
@@ -47,6 +50,12 @@ class CollapsibleHeaderState(
 
     // 用于松手吸附动画
     private val animatable = Animatable(initialOffset)
+    private var settlingJob: Job? = null
+
+    internal fun cancelSettling() {
+        settlingJob?.cancel()
+        settlingJob = null
+    }
 
     /** 搜索框可见比例 0..1 */
     val searchFraction: Float
@@ -55,6 +64,7 @@ class CollapsibleHeaderState(
     val nestedScrollConnection = object : NestedScrollConnection {
         // 上滑时先折叠搜索框，再让列表滚动
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if (source == NestedScrollSource.UserInput && available.y != 0f) cancelSettling()
             if (available.y >= 0f) return Offset.Zero
             val current = currentOffset
             if (current <= 0f) return Offset.Zero
@@ -85,9 +95,16 @@ class CollapsibleHeaderState(
             val mid = maxOffset / 2f
             val target = if (current < mid) 0f else maxOffset
             if (abs(current - target) > 1f) {
-                animatable.snapTo(current)
-                animatable.animateTo(target) {
-                    currentOffset = value
+                cancelSettling()
+                coroutineScope {
+                    val job = coroutineContext.job
+                    settlingJob = job
+                    try {
+                        animatable.snapTo(current)
+                        animatable.animateTo(target) { currentOffset = value }
+                    } finally {
+                        if (settlingJob === job) settlingJob = null
+                    }
                 }
             }
             return Velocity.Zero
@@ -98,12 +115,12 @@ class CollapsibleHeaderState(
 @Composable
 fun rememberCollapsibleHeaderState(
     mode: HeaderMode,
-    searchHeight: Dp = 56.dp
+    searchHeight: Dp = HeaderSearchLayout.inlineHeight
 ): CollapsibleHeaderState {
     val density = LocalDensity.current
     val searchHeightPx = with(density) { searchHeight.toPx() }
 
-    return remember(mode) {
+    return remember(mode, searchHeightPx) {
         val initialOffset = when (mode) {
             HeaderMode.COLLAPSED -> 0f
             HeaderMode.EXPANDED -> searchHeightPx

@@ -20,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.CommonOperateButton
 import com.aria.rythme.ui.component.HeaderMode
 import com.aria.rythme.ui.component.LocalOverlayMenu
@@ -29,6 +28,9 @@ import com.aria.rythme.ui.component.OverlayMenu
 import com.aria.rythme.ui.component.SongListItem
 import com.aria.rythme.ui.component.buildSongContextMenuConfigs
 import com.aria.rythme.ui.theme.rythmeColors
+import com.aria.rythme.R
+import com.aria.rythme.ui.component.Action
+import com.aria.rythme.ui.component.secondaryTopBar
 
 @Composable
 fun PlaylistDetailScreen(
@@ -40,9 +42,11 @@ fun PlaylistDetailScreen(
     val overlayMenu = LocalOverlayMenu.current
 
     MainListPage(
-        title = playlist?.name,
-        routeKey = RythmeRoute.PlaylistDetail(playlist?.id?.toString() ?: "0"),
-        defaultTitleHidden = true,
+        topBar = secondaryTopBar(
+            Action.Icon("add_songs", R.drawable.ic_add, iconSize = 18.dp, contentDescription = "添加歌曲（待接入）"),
+            Action.Icon("filter", R.drawable.ic_filter, contentDescription = "筛选（待接入）"),
+            Action.Icon("more", R.drawable.ic_more, contentDescription = "更多（待接入）")
+        ),
         headerMode = HeaderMode.HIDDEN
     ) {
         item {
@@ -56,8 +60,8 @@ fun PlaylistDetailScreen(
                     text = playlist?.name ?: "",
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
                     color = MaterialTheme.rythmeColors.textColor,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 

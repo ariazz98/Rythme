@@ -6,6 +6,7 @@ import com.aria.rythme.core.music.controller.PlaybackController
 import com.aria.rythme.core.music.data.model.Album
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.MusicRepository
+import com.aria.rythme.core.music.data.repository.ListeningOrigin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -26,6 +27,7 @@ class AlbumDetailViewModel(
     private val filterComposer: String? = null,
     private val filterGenre: String? = null
 ) : ViewModel() {
+    private val listeningOrigin = ListeningOrigin("album", albumId, filterArtistId, filterComposer, filterGenre)
 
     private val _state = MutableStateFlow(AlbumDetailState())
     val state = _state.asStateFlow()
@@ -37,7 +39,7 @@ class AlbumDetailViewModel(
 
     fun play(song: Song) {
         viewModelScope.launch {
-            playbackController.play(song, _state.value.songs)
+            playbackController.play(song, _state.value.songs, listeningOrigin)
         }
     }
 
@@ -47,7 +49,7 @@ class AlbumDetailViewModel(
 
         val queue = if (shuffle) songs.shuffled() else songs
         viewModelScope.launch {
-            playbackController.play(queue.first(), queue)
+            playbackController.play(queue.first(), queue, listeningOrigin)
         }
     }
 

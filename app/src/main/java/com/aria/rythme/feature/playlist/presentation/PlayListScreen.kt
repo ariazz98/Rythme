@@ -35,10 +35,9 @@ import androidx.compose.ui.unit.sp
 import com.aria.rythme.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.core.music.data.model.Playlist
-import com.aria.rythme.feature.navigationbar.domain.model.RythmeRoute
 import com.aria.rythme.ui.component.Action
 import com.aria.rythme.ui.component.MainListPage
-import com.aria.rythme.ui.component.TopBarConfig
+import com.aria.rythme.ui.component.secondaryTopBar
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.capsule.ContinuousRoundedRectangle
 import org.koin.androidx.compose.koinViewModel
@@ -54,22 +53,21 @@ fun PlayListScreen(
 
     val createDescription = stringResource(R.string.create_playlist)
     val topBarConfig = remember(viewModel, createDescription) {
-        TopBarConfig(
-            auxiliaryActions = listOf(Action.Icon(
+        secondaryTopBar(
+            Action.Icon(
                 actionKey = "add",
                 iconRes = R.drawable.ic_add,
                 iconSize = 18.dp,
                 contentDescription = createDescription,
                 onClick = viewModel::showCreateDialog
-            )),
-            actions = listOf(
-                Action.Avatar(actionKey = "avatar", name = "ARiA")
-            )
+            ),
+            Action.Icon(actionKey = "filter", iconRes = R.drawable.ic_filter, contentDescription = "筛选（待接入）"),
+            Action.Icon(actionKey = "more", iconRes = R.drawable.ic_more, contentDescription = "更多（待接入）")
         )
     }
     MainListPage(
         title = stringResource(R.string.title_play_list),
-        routeKey = RythmeRoute.Playlist,
+        headerMode = com.aria.rythme.ui.component.HeaderMode.HIDDEN,
         topBar = topBarConfig
     ) {
         if (playlists.isEmpty()) {

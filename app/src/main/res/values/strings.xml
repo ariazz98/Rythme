@@ -2,6 +2,7 @@
     <string name="app_name">Rythme</string>
     <string name="title_home">主页</string>
     <string name="title_play_list">歌单</string>
+    <string name="title_pitch">声迹</string>
     <string name="title_library">资料库</string>
     <string name="title_search">搜索</string>
     <string name="title_artist">艺人</string>
@@ -47,6 +48,7 @@
     <string name="no_music_in_queue">队列中无音乐</string>
     <string name="infinite_exhausted">资料库中的所有歌曲都已在播放列表中</string>
     <string name="create_playlist">新建歌单</string>
+    <string name="edit_library">编辑资料库</string>
     <string name="playlist_name_hint">歌单名称</string>
     <string name="cancel">取消</string>
     <string name="create">创建</string>
@@ -54,4 +56,7 @@
     <string name="empty_playlist">还没有歌单，点击右上角创建</string>
     <string name="playlist_song_count">%d 首歌曲</string>
     <string name="media_output_unavailable">当前设备无法打开输出设备选择器</string>
+    <string name="menu_preview_all">全部内容（动画演示）</string>
+    <string name="menu_preview_favorites">喜爱（动画演示）</string>
+    <string name="menu_preview_local">本地下载（动画演示）</string>
 </resources>
