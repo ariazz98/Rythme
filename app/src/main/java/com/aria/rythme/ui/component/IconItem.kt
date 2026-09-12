@@ -1,6 +1,8 @@
 package com.aria.rythme.ui.component
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -39,12 +41,13 @@ fun PlayPauseIcon(
     isPlaying: Boolean,
     size: Dp,
     tint: Color = MaterialTheme.rythmeColors.textColor,
+    playIconRes: Int = R.drawable.ic_play,
+    pauseIconRes: Int = R.drawable.ic_pause,
+    interactionSource: MutableInteractionSource? = null,
+    animationSpec: FiniteAnimationSpec<Float> = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow),
     onClick: () -> Unit
 ) {
-    val springSpec = spring<Float>(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessLow
-    )
+    val springSpec = animationSpec
 
     val playAlpha by animateFloatAsState(
         targetValue = if (isPlaying) 0f else 1f,
@@ -66,12 +69,12 @@ fun PlayPauseIcon(
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .clickable(interactionSource = null, indication = null) {
+            .clickable(interactionSource = interactionSource, indication = null) {
                 onClick()
             }
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_play),
+            painter = painterResource(playIconRes),
             contentDescription = null,
             tint = tint,
             modifier = Modifier
@@ -80,7 +83,7 @@ fun PlayPauseIcon(
                 .alpha(playAlpha)
         )
         Icon(
-            painter = painterResource(R.drawable.ic_pause),
+            painter = painterResource(pauseIconRes),
             contentDescription = null,
             tint = tint,
             modifier = Modifier
@@ -96,6 +99,7 @@ fun NextIcon(
     enable: Boolean = true,
     height: Dp,
     tint: Color = Color.Black,
+    interactionSource: MutableInteractionSource? = null,
     onClick: () -> Unit
 ) {
     val animProgress = remember { Animatable(0f) }
@@ -106,7 +110,7 @@ fun NextIcon(
 
     Row(
         modifier = if (enable) {
-            Modifier.clickable(interactionSource = null, indication = null) {
+            Modifier.clickable(interactionSource = interactionSource, indication = null) {
                 onClick()
                 scope.launch {
                     animProgress.snapTo(0f)
@@ -193,6 +197,7 @@ fun PreviousIcon(
     enable: Boolean = true,
     height: Dp,
     tint: Color = Color.Black,
+    interactionSource: MutableInteractionSource? = null,
     onClick: () -> Unit
 ) {
     val animProgress = remember { Animatable(0f) }
@@ -203,7 +208,7 @@ fun PreviousIcon(
 
     Row(
         modifier = if (enable) {
-            Modifier.clickable(interactionSource = null, indication = null) {
+            Modifier.clickable(interactionSource = interactionSource, indication = null) {
                 onClick()
                 scope.launch {
                     animProgress.snapTo(0f)

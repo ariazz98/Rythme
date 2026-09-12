@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.aria.rythme.core.music.data.model.Song
 
 /**
@@ -27,7 +30,9 @@ sealed interface OverlayMenu {
     data class SongContext(
         val song: Song,
         val anchorBounds: Rect,
-        val configs: List<MenuConfig>
+        val configs: List<MenuConfig>,
+        val sourceIconSize: Dp = 18.dp,
+        val sourceIconTint: Color = Color.Unspecified
     ) : OverlayMenu
 
     /** 歌曲编辑表单 */
@@ -43,11 +48,14 @@ class OverlayMenuState {
     // 源按钮一直交给浮层绘制到收回完成，不能在 dismiss 的同一帧重新露出另一块玻璃。
     internal var presentedAction by mutableStateOf<OverlayMenu.ActionMenu?>(null)
         private set
+    internal var presentedSongContext by mutableStateOf<OverlayMenu.SongContext?>(null)
+        private set
     var currentMenu: OverlayMenu? by mutableStateOf(null)
         private set
 
     fun show(menu: OverlayMenu) {
         if (menu is OverlayMenu.ActionMenu) presentedAction = menu
+        if (menu is OverlayMenu.SongContext) presentedSongContext = menu
         currentMenu = menu
     }
 
@@ -59,8 +67,12 @@ class OverlayMenuState {
         if (currentMenu !== menu && presentedAction === menu) presentedAction = null
     }
 
+    internal fun finishSongExit(menu: OverlayMenu.SongContext) {
+        if (currentMenu !== menu && presentedSongContext === menu) presentedSongContext = null
+    }
+
     val isVisible: Boolean
-        get() = currentMenu != null || presentedAction != null
+        get() = currentMenu != null || presentedAction != null || presentedSongContext != null
 }
 
 val LocalOverlayMenu = compositionLocalOf { OverlayMenuState() }

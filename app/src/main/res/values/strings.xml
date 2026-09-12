@@ -1,4 +1,12 @@
 <resources>
+    <string name="player_queue_from">来自%1$s</string>
+    <string name="player_autoplay_heading">∞ 自动连播</string>
+    <string name="player_autoplay_future">将继续播放资料库中的歌曲</string>
+    <string name="player_autoplay_current">正在自动连播资料库中的歌曲</string>
+    <string name="player_repeat_count">重复播放 %1$d 首歌曲</string>
+    <string name="player_autoplay_disabled">若要继续播放音乐，请打开 ∞ 自动连播。</string>
+    <string name="player_auto_play_enabled">自动播放已开启</string>
+    <string name="player_queue_empty">队列中无音乐。</string>
     <string name="app_name">Rythme</string>
     <string name="title_home">主页</string>
     <string name="title_play_list">歌单</string>
@@ -59,4 +67,11 @@
     <string name="menu_preview_all">全部内容（动画演示）</string>
     <string name="menu_preview_favorites">喜爱（动画演示）</string>
     <string name="menu_preview_local">本地下载（动画演示）</string>
+    <string name="song_menu_favorite">喜爱</string>
+    <string name="song_menu_share">分享</string>
+    <string name="song_menu_add_to_playlist">添加到播放列表</string>
+    <string name="song_menu_play_next">插播</string>
+    <string name="song_menu_play_later">随后播放</string>
+    <string name="song_menu_go_to_album">前往专辑</string>
+    <string name="song_menu_info">歌曲信息</string>
 </resources>

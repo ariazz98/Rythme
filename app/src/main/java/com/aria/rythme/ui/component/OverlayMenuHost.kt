@@ -51,6 +51,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aria.rythme.LocalSharedTransitionScope
 import com.aria.rythme.core.music.data.model.Song
@@ -90,39 +91,24 @@ fun OverlayMenuHost(
         }
     }
 
-    // SongContext 菜单：缓存数据以支持退出动画
+    // 来源图标与菜单共用同一份退场快照，尾滴结束后才交还真实图标。
     val songContextMenu = menu as? OverlayMenu.SongContext
-    val cachedSongContext = remember { mutableStateOf<OverlayMenu.SongContext?>(null) }
-    if (songContextMenu != null) {
-        cachedSongContext.value = songContextMenu
-    }
-    val songContextVisible = songContextMenu != null
-    val songContextData = cachedSongContext.value
-
-    // 共享元素退出完成后再清缓存，不用固定时长猜测动画生命周期。
-    LaunchedEffect(songContextVisible) {
-        if (!songContextVisible && cachedSongContext.value != null) {
-            snapshotFlow { sharedTransitionScope.isTransitionActive }
-                .filter { it }
-                .first()
-            snapshotFlow { sharedTransitionScope.isTransitionActive }
-                .filter { !it }
-                .first()
-            if (state.currentMenu !is OverlayMenu.SongContext) {
-                cachedSongContext.value = null
-            }
-        }
-    }
+    val songContextData = state.presentedSongContext
 
     if (songContextData != null) {
         // key 保证数据变化时重建 composable，避免 SubcomposeLayout 内部状态残留
-        key(songContextData.song.id, songContextData.anchorBounds) {
+        key(songContextData) {
             SongContextMenuOverlay(
                 song = songContextData.song,
                 anchorBounds = songContextData.anchorBounds,
                 configs = songContextData.configs,
-                visible = songContextVisible,
-                onDismiss = { state.dismiss() }
+                sourceIconSize = songContextData.sourceIconSize,
+                sourceIconTint = songContextData.sourceIconTint,
+                visible = songContextMenu === songContextData,
+                onDismiss = { state.dismiss() },
+                onExitFinished = {
+                    state.finishSongExit(songContextData)
+                }
             )
         }
     }
@@ -158,110 +144,29 @@ fun OverlayMenuHost(
  * 歌曲上下文菜单
  *
  * 以锚点（更多按钮）为基准定位，向空间更大的方向展开。
- * 通过 sharedElementWithCallerManagedVisibility 与列表中的更多按钮联动过渡。
+ * 与顶部共用轮廓渲染，但来源为裸图标，残余玻璃最终消失。
  */
 @Composable
 private fun SongContextMenuOverlay(
     song: Song,
     anchorBounds: Rect,
     configs: List<MenuConfig>,
+    sourceIconSize: Dp,
+    sourceIconTint: Color,
     visible: Boolean,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onExitFinished: () -> Unit
 ) {
-    val density = LocalDensity.current
-    val sharedTransitionScope = LocalSharedTransitionScope.current
-    val panelHeightPx = rememberMenuPanelHeightPx(configs)
-    val panelWidthPx = with(density) { 256.dp.toPx() }
-    val marginPx = with(density) { 12.dp.toPx() }
-
-    // 安全区域（状态栏 + 导航栏）
-    val statusBarPx = with(density) {
-        WindowInsets.statusBars.asPaddingValues().calculateTopPadding().toPx()
+    val presentation = remember(song.id, anchorBounds, configs) {
+        OverlayMenu.ActionMenu(
+            sourceKey = "songMore_${song.id}",
+            anchorBounds = anchorBounds,
+            configs = configs
+        )
     }
-    val navBarPx = with(density) {
-        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().toPx()
-    }
-
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val containerWidth = constraints.maxWidth.toFloat()
-        val containerHeight = constraints.maxHeight.toFloat()
-
-        // 计算展开方向和位置
-        val safeTop = statusBarPx + marginPx
-        val safeBottom = containerHeight - navBarPx - marginPx
-        val spaceAbove = (anchorBounds.top - safeTop).coerceAtLeast(0f)
-        val spaceBelow = (safeBottom - anchorBounds.bottom).coerceAtLeast(0f)
-        val expandDown = spaceBelow >= panelHeightPx || spaceBelow >= spaceAbove
-
-        // 垂直定位：向下展开以 icon 顶部为锚，向上展开以 icon 底部为锚，盖住 icon
-        val panelTop = run {
-            val idealTop = if (expandDown) anchorBounds.top else (anchorBounds.bottom - panelHeightPx)
-            idealTop.coerceIn(safeTop, (safeBottom - panelHeightPx).coerceAtLeast(safeTop))
-        }
-
-        // 水平定位：面板右边缘对齐 icon 右边缘
-        val panelLeft = run {
-            (anchorBounds.right - panelWidthPx)
-                .coerceIn(marginPx, (containerWidth - marginPx - panelWidthPx).coerceAtLeast(marginPx))
-        }
-
-        // scrim：淡入淡出，点击关闭
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(tween(200)),
-            exit = fadeOut(tween(150))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                event.changes.forEach { change ->
-                                    if (!change.isConsumed) {
-                                        change.consume()
-                                        onDismiss()
-                                    }
-                                }
-                            }
-                        }
-                    }
-            )
-        }
-
-        // 定位的面板：通过 sharedElement 与列表 icon 联动
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(panelLeft.toInt(), panelTop.toInt()) }
-                .then(
-                    if (visible) Modifier.pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                awaitPointerEvent().changes.forEach { it.consume() }
-                            }
-                        }
-                    } else Modifier
-                )
-        ) {
-            with(sharedTransitionScope) {
-                AnchoredMenuPanel(
-                    configs = configs,
-                    interactive = visible,
-                    anchor = if (expandDown) PanelAnchor.TopEnd else PanelAnchor.BottomEnd,
-                    columnModifier = Modifier.sharedElementWithCallerManagedVisibility(
-                        sharedContentState = rememberSharedContentState(
-                            key = "songMore_${song.id}"
-                        ),
-                        visible = visible,
-                        boundsTransform = BoundsTransform { _, _ ->
-                            spring(dampingRatio = 0.55f, stiffness = 250f)
-                        }
-                    )
-                )
-            }
-        }
-    }
+    MorphingActionMenuOverlay(presentation, visible, onDismiss, onExitFinished,
+        allowUpward = true, panelWidth = 256f, panelCorner = 48f, sourceSurface = MenuSourceSurface.Icon,
+        sourceIconSize = sourceIconSize, sourceIconTint = sourceIconTint)
 }
 
 /**

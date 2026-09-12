@@ -5,34 +5,108 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ActionMenuMotionTest {
-    @Test fun closingDoesNotReplayTheOpeningOvershoot() {
-        val source=Rect(256f,60f,360f,105f)
-        val target=Rect(110f,60f,360f,373f)
-        for(step in 0..100) {
-            val g=ActionMenuMotion.closingGeometry(source,target,step/100f,34f,.25f)
-            assertTrue(g.body.height <= target.height+.001f)
-        }
-        val early=ActionMenuMotion.closingGeometry(source,target,100f/300f,34f,.25f)
-        assertTrue(early.body.width < target.width*.6f)
-        val middle=ActionMenuMotion.closingGeometry(source,target,167f/300f,34f,.25f)
-        assertEquals(source.top,middle.body.top,.001f)
-        assertTrue(middle.distance(source.center.x,source.center.y)<0f)
-        assertTrue(middle.distance(source.left+source.width*.25f,source.center.y)<0f)
-        assertTrue(middle.distance(source.left+source.width*.75f,source.center.y)<0f)
-    }
-    @Test fun shortAndTallMenusBothShrinkWithoutAnInitialHeightRebound() {
-        for(height in listOf(181f,313f,650f)) {
-            val source=Rect(256f,60f,360f,105f)
-            val target=Rect(110f,60f,360f,60f+height)
-            var previous=height
-            for(step in 0..300) {
-                val g=ActionMenuMotion.closingGeometry(source,target,step/300f,34f,.25f)
-                assertTrue(g.body.height<=previous+.001f)
-                assertTrue(g.body.width>0f && g.topCorner>0f)
-                previous=g.body.height
+    @Test fun dismissStartsAtActualSnapshotAndReturnsToSourceWithoutAnEndpointJump() {
+        for (surface in MenuSourceSurface.entries) for (upward in listOf(false,true))
+            for (width in listOf(21f,45f,104f)) for(height in listOf(100f,313f,650f)) {
+            val source=Rect(350f-width,80f,350f,125f)
+            val target=Rect(100f,80f,350f,80f+height)
+            for(open in listOf(.02f,.12f,.3f,.7f,1f)) {
+                val start=ActionMenuMotion.openingGeometry(source,target,open,34f,.5f,upward)
+                fun at(p:Float)=ActionMenuMotion.dismissGeometry(start,source,target,p,surface,upward)
+                assertEquals(start,at(0f))
+                assertEquals(source,at(1f).body)
+                assertTrue((at(.00001f).body.center-start.body.center).getDistance()<.1f)
+                assertTrue((at(.99999f).body.center-source.center).getDistance()<.1f)
+                for(step in 0..100) {
+                    val g=at(step/100f)
+                    assertTrue(g.body.width>0f && g.body.height>0f)
+                    assertTrue(g.distance(g.body.center.x,g.body.center.y).isFinite())
+                    assertTrue(g.neck in 0f..0.31f)
+                }
             }
         }
     }
+    @Test fun onlyIconGlassFadesAndItsTransparentTailOutlivesTheContent() {
+        assertEquals(1f, ActionMenuMotion.dismissalAlpha(0f,MenuSourceSurface.Icon), 0f)
+        assertEquals(1f, ActionMenuMotion.dismissalAlpha(.7f,MenuSourceSurface.Icon), 0f)
+        assertEquals(0f, ActionMenuMotion.dismissalAlpha(1f,MenuSourceSurface.Icon), 0f)
+        val values = (0..100).map { ActionMenuMotion.dismissalAlpha(it / 100f,MenuSourceSurface.Icon) }
+        assertTrue(values.zipWithNext().all { (a, b) -> a >= b })
+        assertTrue((0..100).all { ActionMenuMotion.dismissalAlpha(it/100f,MenuSourceSurface.Glass)==1f })
+    }
+    @Test fun openingWidthReversesBeforeTopAndRightEdgeStaysAnchored() {
+        val source = Rect(300f, 60f, 350f, 105f)
+        for (height in listOf(181f, 313f, 650f)) {
+            val target = Rect(100f, 60f, 350f, 60f + height)
+            val early=ActionMenuMotion.geometry(source,target,.4f,34f).body
+            val late=ActionMenuMotion.geometry(source,target,.54f,34f).body
+            assertTrue(early.width>target.width && early.width>late.width)
+            assertTrue(late.top<target.top && late.top<early.top)
+            for(step in 30..100) assertEquals(target.right,
+                ActionMenuMotion.geometry(source,target,step/100f,34f).body.right,.001f)
+            assertEquals(target, ActionMenuMotion.geometry(source, target, 1f, 34f).body)
+        }
+    }
+
+    @Test fun glassSourceOvershootsUpwardThenReturnsAfterTheTailHasRetracted() {
+        val source=Rect(246f,60f,350f,105f)
+        val target=Rect(100f,60f,350f,373f)
+        val start=MenuMorphGeometry(target,34f)
+        fun at(ms:Float)=ActionMenuMotion.dismissGeometry(start,source,target,ms/480f,MenuSourceSurface.Glass)
+        val recovered=at(260f)
+        assertEquals(0f,recovered.neck,.001f)
+        assertTrue(recovered.body.top<source.top-4f)
+        assertTrue(recovered.body.width<source.width)
+        assertTrue(at(360f).body.top>recovered.body.top)
+        assertEquals(source,at(480f).body)
+        assertTrue(at(150f).neck>.1f)
+    }
+
+    @Test fun upwardClosingMirrorsTheEntireNeckNotOnlyItsBoundingBox() {
+        val source=Rect(246f,60f,350f,105f)
+        val target=Rect(100f,60f,350f,373f)
+        fun flip(r:Rect)=Rect(r.left,-r.bottom,r.right,-r.top)
+        for(step in 1..99) {
+            val down=ActionMenuMotion.dismissGeometry(MenuMorphGeometry(target,34f),source,target,step/100f,MenuSourceSurface.Glass)
+            val up=ActionMenuMotion.dismissGeometry(MenuMorphGeometry(flip(target),34f,flipped=true),flip(source),flip(target),step/100f,MenuSourceSurface.Glass,true)
+            assertEquals(flip(down.body),up.body)
+            for(x in listOf(180f,270f,330f)) for(y in listOf(60f,90f,130f,220f))
+                assertEquals(down.distance(x,y),up.distance(x,-y),.001f)
+        }
+    }
+
+    @Test fun shortInterruptedOpeningDoesNotGrowIntoAFullMenuOnDismiss() {
+        val source=Rect(246f,60f,350f,105f)
+        val target=Rect(100f,60f,350f,710f)
+        val start=ActionMenuMotion.geometry(source,target,.02f,34f)
+        for(step in 0..100) {
+            val g=ActionMenuMotion.dismissGeometry(start,source,target,step/100f,MenuSourceSurface.Glass)
+            assertTrue(g.body.height<source.height*1.1f)
+            assertTrue(g.body.width<=source.width+.01f)
+        }
+    }
+
+    @Test fun sourceGlyphReturnsWhileTailIsStillVisibleAndMaterialHasCleared() {
+        for(surface in MenuSourceSurface.entries) {
+            val p=190f/ActionMenuMotion.dismissMillis(surface)
+            assertEquals(1f,ActionMenuMotion.closingSourceAlpha(p,surface),.001f)
+            assertEquals(1f,ActionMenuMotion.dismissalAlpha(p,surface),.001f)
+            assertEquals(0f,ActionMenuMotion.closingMaterialProgress(p,surface),.001f)
+        }
+    }
+    @Test fun upwardPresentationHasExactEndpointsAndFiniteIntermediateShapes() {
+        val source = Rect(300f, 600f, 350f, 645f)
+        val target = Rect(100f, 332f, 350f, 645f)
+        assertEquals(source, ActionMenuMotion.openingGeometry(source, target, 0f, 34f, .5f, true).body)
+        assertEquals(target, ActionMenuMotion.openingGeometry(source, target, 1f, 34f, .5f, true).body)
+        for (step in 0..100) {
+            val g = ActionMenuMotion.openingGeometry(source, target, step / 100f, 34f, .5f, true)
+            assertTrue(g.body.width > 0 && g.body.height > 0)
+            assertTrue(g.distance(g.body.center.x, g.body.center.y).isFinite())
+        }
+    }
+
+
     @Test fun openingContractsTheWholeCapsuleBeforeGrowing() {
         val source=Rect(256f,60f,360f,105f)
         val target=Rect(110f,60f,360f,373f)
@@ -53,69 +127,12 @@ class ActionMenuMotionTest {
         assertEquals(.75f, ActionMenuMotion.openingFoldFraction(2, 0), 0f)
         assertEquals(.5f, ActionMenuMotion.openingFoldFraction(0, -1), 0f)
     }
-    @Test fun closingFoldDoesNotInheritTheOppositeButtonRule() {
-        assertEquals(.5f, ActionMenuMotion.ClosingFoldFraction, 0f)
-        for (pressedIndex in 0..1) {
-            assertNotEquals(ActionMenuMotion.openingFoldFraction(2, pressedIndex),
-                ActionMenuMotion.ClosingFoldFraction)
-        }
-    }
-    @Test fun closingConvergesAtTheWholeCapsuleCenterForEverySourceSize() {
-        for (width in listOf(45f, 104f, 160f)) for (height in listOf(181f, 313f, 650f)) {
-            val source = Rect(360f - width, 60f, 360f, 105f)
-            val target = Rect(110f, 60f, 360f, 60f + height)
-            for (ms in listOf(167f, 200f, 233f, 270f, 300f)) {
-                val frame = ActionMenuMotion.closeFromSnapshot(
-                    MenuMorphGeometry(target, 34f), source, target, ms / 300f,
-                    ActionMenuMotion.ClosingFoldFraction)
-                assertEquals(source.center.x, frame.body.center.x, .001f)
-                assertEquals(0f, frame.skew, .001f)
-            }
-        }
-    }
-    @Test fun dismissalStartsExactlyAtTheRenderedFrameThroughoutOpening() {
-        val source=Rect(256f,60f,360f,105f)
-        for(height in listOf(181f,313f,650f)) for(ms in listOf(0f,17f,50f,100f,200f,350f,499f,500f)) {
-            val target=Rect(110f,60f,360f,60f+height)
-            val start=ActionMenuMotion.geometry(source,target,ms/500f,34f,.75f)
-            assertEquals(start,ActionMenuMotion.closeFromSnapshot(start,source,target,0f,.25f))
-            assertEquals(MenuMorphGeometry(source,source.height/2f),
-                ActionMenuMotion.closeFromSnapshot(start,source,target,1f,.25f))
-        }
-    }
-    @Test fun earlyAndLateDismissalsHaveNoEndpointOrFirstFrameGeometryJump() {
-        val source=Rect(256f,60f,360f,105f)
-        val target=Rect(110f,60f,360f,241f)
-        for(ms in listOf(17f,80f,200f,350f,499f,500f)) {
-            val start=ActionMenuMotion.geometry(source,target,ms/500f,34f,.75f)
-            var previous=start
-            for(step in 1..300) {
-                val frame=ActionMenuMotion.closeFromSnapshot(start,source,target,step/300f,.25f)
-                assertTrue(frame.body.width>0f && frame.body.height>0f)
-                assertTrue(kotlin.math.abs(frame.body.left-previous.body.left)<4f)
-                assertTrue(kotlin.math.abs(frame.body.bottom-previous.body.bottom)<4f)
-                assertTrue(frame.distance(frame.body.center.x,frame.body.center.y).isFinite())
-                previous=frame
-            }
-        }
-    }
-    @Test fun aSmallInterruptedDropDoesNotExpandIntoTheFullMenu() {
-        val source=Rect(256f,60f,360f,105f)
-        val target=Rect(110f,60f,360f,373f)
-        val start=ActionMenuMotion.geometry(source,target,17f/500f,34f,.75f)
-        for(step in 0..100) {
-            val frame=ActionMenuMotion.closeFromSnapshot(start,source,target,step/100f,.25f)
-            assertTrue(frame.body.height<=maxOf(start.body.height,source.height)+.01f)
-        }
-    }
-    @Test fun anOpeningTailDismissalKeepsTheNormalClosingTrajectory() {
-        val source=Rect(256f,60f,360f,105f)
-        val target=Rect(110f,60f,360f,241f)
-        val start=ActionMenuMotion.geometry(source,target,.7f,34f,.75f)
-        val middle=ActionMenuMotion.closeFromSnapshot(start,source,target,.5f,.25f)
-        assertTrue(middle.body.height>source.height*1.2f)
-        assertEquals(300,ActionMenuMotion.CloseMillis)
-    }
+
+
+
+
+
+
     @Test fun endpointsAreExactlyTheWholeSourceCapsuleAndFinalMenu() {
         for (width in listOf(45f, 104f, 160f)) {
             val source = Rect(360f - width, 60f, 360f, 105f)

@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -116,7 +117,7 @@ fun SongListItem(
     var iconBounds by remember { mutableStateOf(Rect.Zero) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val isSongContextActive =
-        (LocalOverlayMenu.current.currentMenu as? OverlayMenu.SongContext)?.song?.id == song.id
+        LocalOverlayMenu.current.presentedSongContext?.song?.id == song.id
 
     Column {
         Row(
@@ -157,12 +158,7 @@ fun SongListItem(
                 Box(
                     modifier = Modifier
                         .size(21.dp)
-                        .sharedElementWithCallerManagedVisibility(
-                            sharedContentState = rememberSharedContentState(
-                                key = "songMore_${song.id}"
-                            ),
-                            visible = !isSongContextActive
-                        )
+                        .graphicsLayer { alpha = if (isSongContextActive) 0f else 1f }
                         .onGloballyPositioned { iconBounds = it.boundsInWindow() }
                         .clickable(interactionSource = null, indication = null) {
                             onMoreClick(iconBounds)
@@ -319,7 +315,7 @@ fun IndexedListItem(
     var iconBounds by remember { mutableStateOf(Rect.Zero) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val isSongContextActive =
-        (LocalOverlayMenu.current.currentMenu as? OverlayMenu.SongContext)?.song?.id == song.id
+        LocalOverlayMenu.current.presentedSongContext?.song?.id == song.id
 
     Column {
         Row(
@@ -364,12 +360,7 @@ fun IndexedListItem(
                 Box(
                     modifier = Modifier
                         .size(21.dp)
-                        .sharedElementWithCallerManagedVisibility(
-                            sharedContentState = rememberSharedContentState(
-                                key = "songMore_${song.id}"
-                            ),
-                            visible = !isSongContextActive
-                        )
+                        .graphicsLayer { alpha = if (isSongContextActive) 0f else 1f }
                         .onGloballyPositioned { iconBounds = it.boundsInWindow() }
                         .clickable(interactionSource = null, indication = null) {
                             onMoreClick(iconBounds)
@@ -406,91 +397,42 @@ fun rememberTrackNumberWidth(songs: List<Song>): Dp {
 
 
 @Composable
-fun HistoryListItem(
-    song: Song
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CoverItem(
-            size = 48.dp,
-            corner = 6.dp,
-            song = song,
-            defaultBgColor = MaterialTheme.rythmeColors.coverBg,
-            defaultIconColor = MaterialTheme.rythmeColors.coverIcon
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = Color.White
-            )
-            Text(
-                text = song.artist,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = Color(0x66FFFFFF)
-            )
-        }
-    }
+fun HistoryListItem(song: Song, referenceScale: Float = 1f) {
+    PlayerQueueRow(song, referenceScale = referenceScale)
 }
 
 @Composable
-fun PlayListItem(
-    song: Song,
-    onClick: () -> Unit,
-    dragModifier: Modifier = Modifier
-) {
+fun PlayListItem(song: Song, onClick: () -> Unit, dragModifier: Modifier? = null, referenceScale: Float = 1f) {
+    PlayerQueueRow(song, onClick, dragModifier, referenceScale)
+}
+
+/** 历史与待播列表共享密度；不同的点击/排序能力仍显式传入。 */
+@Composable
+private fun PlayerQueueRow(song: Song, onClick: (() -> Unit)? = null, dragModifier: Modifier? = null, referenceScale: Float = 1f) {
+    val scale = referenceScale
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 5.dp * scale),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CoverItem(
-            size = 48.dp,
-            corner = 6.dp,
-            song = song,
-            defaultBgColor = MaterialTheme.rythmeColors.coverBg,
-            defaultIconColor = MaterialTheme.rythmeColors.coverIcon
+            size = 44.dp * scale, corner = 5.dp * scale, song = song,
+            defaultBgColor = Color(0xFF606063), defaultIconColor = Color(0xFF737376)
         )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = Color.White
-            )
-            Text(
-                text = song.artist,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = Color(0x66FFFFFF)
+        Spacer(Modifier.width(12.dp * scale))
+        Column(Modifier.weight(1f)) {
+            Text(song.title, fontSize = (16f * scale).sp, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, color = Color.White)
+            Text(song.artist, fontSize = (13f * scale).sp, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, color = Color(0x66FFFFFF))
+        }
+        if (dragModifier != null) {
+            Icon(
+                painterResource(R.drawable.ic_drag), contentDescription = "调整播放顺序",
+                tint = Color.White.copy(alpha = .25f),
+                modifier = Modifier.size(32.dp * scale).then(dragModifier).padding(7.dp * scale)
             )
         }
-
-        Icon(
-            painter = painterResource(R.drawable.ic_drag),
-            contentDescription = null,
-            tint = Color(0x66FFFFFF),
-            modifier = Modifier
-                .size(18.dp)
-                .then(dragModifier)
-        )
     }
 }

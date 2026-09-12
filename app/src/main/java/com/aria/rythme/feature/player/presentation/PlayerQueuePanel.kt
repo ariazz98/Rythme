@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -60,6 +61,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
@@ -71,6 +74,7 @@ import com.aria.rythme.core.music.domain.model.RepeatMode
 import com.aria.rythme.ui.component.HistoryListItem
 import com.aria.rythme.ui.component.PlayListItem
 import com.aria.rythme.ui.component.PlaylistPanelState
+import com.aria.rythme.ui.component.PlayerListScrollbar
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.capsule.ContinuousCapsule
@@ -99,15 +103,24 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
     screenDragOffsetY: MutableFloatState,
     dismissThreshold: Float,
     velocityThreshold: Float,
-    onDismiss: () -> Unit,
+    onDismiss: (Float) -> Unit,
     onListScrolling: (Boolean) -> Unit,
     onCoverClick: () -> Unit,
-    controlsSlide: Float = 0f
+    controlsSlide: Float = 0f,
+    bodyTransitionModifier: Modifier = Modifier,
+    externalHeader: CompactPanelHeaderGeometry? = null
 ) {
     val panelState = remember { PlaylistPanelState() }
+    val density = LocalDensity.current
+    val referenceScale = PlayerLayoutMetrics.scale(LocalWindowInfo.current.containerDpSize.width.value)
 
     // ── 列表切换偏移 ──
     var switchOffset by remember { mutableFloatStateOf(0f) }
+    val headerCollapse = panelState.headerCollapseOffset
+    SideEffect {
+        externalHeader?.collapsePx = headerCollapse
+        externalHeader?.historyOffsetPx = switchOffset
+    }
 
     // ── 主列表状态 ──
     val mainListState = rememberLazyListState()
@@ -116,14 +129,28 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
     val historyListState = rememberLazyListState()
 
     val hasHistory = state.playHistory.isNotEmpty()
+    var historyRowHeight by remember(density, referenceScale) {
+        mutableFloatStateOf(with(density) { (54.dp * referenceScale).toPx() })
+    }
+    val historyHeadingHeight = with(density) { (44.dp * referenceScale).toPx() }
+    SideEffect {
+        panelState.historyContentHeightPx = if (hasHistory)
+            historyHeadingHeight + historyRowHeight * state.playHistory.size else 0f
+        // 数据变空时归还当前歌曲页，不调用清除历史或修改队列。
+        if (!hasHistory) switchOffset = 0f
+    }
+    LaunchedEffect(switchOffset <= 0f, state.playHistory.firstOrNull()?.id) {
+        if (hasHistory && switchOffset <= 0f) historyListState.scrollToItem(0)
+    }
 
     // ── 拖拽状态 ──
-    var draggedIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var draggedEntryId by remember { mutableStateOf<String?>(null) }
+    var draggedTop by remember { mutableFloatStateOf(0f) }
+    var pendingMoveIndex by remember { mutableStateOf<Int?>(null) }
 
     // 拖拽排序时隐藏 Controls，松手恢复
-    LaunchedEffect(draggedIndex) {
-        onListScrolling(draggedIndex != null)
+    LaunchedEffect(draggedEntryId) {
+        onListScrolling(draggedEntryId != null)
     }
 
     // ── 主列表 NestedScrollConnection ──
@@ -178,7 +205,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
 
                 // 2. 然后 history/dismiss
                 if (hasHistory) {
-                    val contentHeight = panelState.contentHeightPx
+                    val contentHeight = panelState.historyExtentPx
                     if (contentHeight > 0f) {
                         switchOffset = (switchOffset + remaining).coerceIn(0f, contentHeight)
                     }
@@ -194,7 +221,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 // 处理 dismiss offset
                 if (screenDragOffsetY.floatValue > 0f) {
                     if (screenDragOffsetY.floatValue > dismissThreshold || available.y > velocityThreshold) {
-                        onDismiss()
+                        onDismiss(available.y)
                     } else {
                         animate(screenDragOffsetY.floatValue, 0f) { value, _ ->
                             screenDragOffsetY.floatValue = value
@@ -204,7 +231,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 }
                 // 处理 switchOffset
                 if (switchOffset > 0f) {
-                    val contentHeight = panelState.contentHeightPx
+                    val contentHeight = panelState.historyExtentPx
                     val target = if (switchOffset > panelState.switchThresholdPx || available.y > velocityThreshold) {
                         contentHeight
                     } else {
@@ -239,7 +266,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source != NestedScrollSource.UserInput) return Offset.Zero
-                val contentHeight = panelState.contentHeightPx
+                val contentHeight = panelState.historyExtentPx
                 // switchOffset < contentHeight 时，向下滑动优先恢复 switchOffset
                 if (available.y > 0 && switchOffset < contentHeight) {
                     val oldOffset = switchOffset
@@ -262,7 +289,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 source: NestedScrollSource
             ): Offset {
                 if (source != NestedScrollSource.UserInput) return Offset.Zero
-                val contentHeight = panelState.contentHeightPx
+                val contentHeight = panelState.historyExtentPx
                 if (available.y < 0) {
                     // 列表在底部，剩余向上 delta → 减小 switchOffset（切换回主列表）
                     val oldOffset = switchOffset
@@ -282,7 +309,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 // 处理 dismiss offset
                 if (screenDragOffsetY.floatValue > 0f) {
                     if (screenDragOffsetY.floatValue > dismissThreshold || available.y > velocityThreshold) {
-                        onDismiss()
+                        onDismiss(available.y)
                     } else {
                         animate(screenDragOffsetY.floatValue, 0f) { value, _ ->
                             screenDragOffsetY.floatValue = value
@@ -291,7 +318,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                     return available
                 }
                 // 处理 switchOffset
-                val contentHeight = panelState.contentHeightPx
+                val contentHeight = panelState.historyExtentPx
                 if (switchOffset > 0f && switchOffset < contentHeight) {
                     val target = if (switchOffset > panelState.switchThresholdPx || available.y > velocityThreshold) {
                         contentHeight
@@ -320,20 +347,61 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
     } else {
         emptyList()
     }
-    val autoplayEntries = state.queue.autoplayEntries
-    val showInfinite = state.isInfinitePlayEnabled && state.repeatMode == RepeatMode.OFF
+    val autoplayEntries = state.queue.entries.drop(maxOf(upcomingOffset, orderedEnd))
+    val showInfinite = state.isInfinitePlayEnabled &&
+        (state.repeatMode == RepeatMode.OFF || state.isPlayingInfiniteExtension)
+    val separateAutoplaySection = showInfinite && upcomingOrdered.isNotEmpty()
+    val onlyAutoplayUpcoming = showInfinite && upcomingOrdered.isEmpty()
+    val showAutoplayHint = state.queue.currentEntry != null && upcomingOrdered.isEmpty() &&
+        !showInfinite && (state.isPlayingInfiniteExtension || state.repeatMode == RepeatMode.OFF)
 
-    // 主列表中的固定索引偏移（NowPlaying 和 ActionButtons 已移出 LazyColumn）
-    // index 0: upcoming_header
-    // index 1 ~ 1+N-1: upcoming items
-    val upcomingStartLazy = 1
-    val extStartLazy = upcomingStartLazy + upcomingOrdered.size + (if (showInfinite) 1 else 0)
+    // 两个分区共享同一套排序手势，条目身份和可移动范围不依赖标题数量。
+    val dragSection = if (upcomingOrdered.any { it.id == draggedEntryId })
+        upcomingOrdered else autoplayEntries
+    val dragSectionIds = dragSection.map { it.id }
+    val currentDragSectionIds by rememberUpdatedState(dragSectionIds)
+    LaunchedEffect(upcomingOrdered.size, autoplayEntries.size, state.queue.currentEntry?.id) {
+        draggedEntryId = null
+        pendingMoveIndex = null
+    }
+    val moveDragged by rememberUpdatedState<(Float) -> Unit>({ delta ->
+        val id = draggedEntryId
+        val info = mainListState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.key == id }
+        if (id != null && item != null) {
+            // 视觉位置始终跟手；仅下方的候选落位限制在原分区。
+            draggedTop += delta
+            if (pendingMoveIndex == item.index) pendingMoveIndex = null
+            if (pendingMoveIndex == null) {
+                val center = draggedTop + item.size / 2f
+                val target = info.visibleItemsInfo.firstOrNull { candidate ->
+                    candidate.key in dragSectionIds && candidate.key != id &&
+                        ((candidate.index > item.index && center > candidate.offset + candidate.size / 2f) ||
+                         (candidate.index < item.index && center < candidate.offset + candidate.size / 2f))
+                }
+                if (target != null) {
+                    pendingMoveIndex = target.index
+                    onReorderQueue(id, target.key as String)
+                }
+            }
+        }
+    })
+    fun startDrag(id: String) {
+        val item = mainListState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } ?: return
+        draggedTop = item.offset.toFloat()
+        pendingMoveIndex = null
+        draggedEntryId = id
+    }
+    fun endDrag() {
+        draggedEntryId = null
+        pendingMoveIndex = null
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(
-                top = innerPadding.calculateTopPadding() + 20.dp,
+                top = innerPadding.calculateTopPadding() + (PlayerLayoutMetrics.QueueTopGap * referenceScale).dp,
                 bottom = innerPadding.calculateBottomPadding() * (1f - controlsSlide)
             )
             .clip(RectangleShape)
@@ -366,45 +434,37 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 panelState.contentHeightPx = size.height.toFloat()
             }
     ) {
-        // ── 拖拽自动滚动 ──
-        LaunchedEffect(draggedIndex) {
-            if (draggedIndex == null) return@LaunchedEffect
-            while (draggedIndex != null) {
-                val dragged = draggedIndex ?: break
-                val lazyIndex = upcomingStartLazy + dragged
-                val draggedItem = mainListState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.index == lazyIndex }
-                if (draggedItem != null) {
-                    val viewportStart = mainListState.layoutInfo.viewportStartOffset
-                    val viewportEnd = mainListState.layoutInfo.viewportEndOffset
-                    val viewportSize = viewportEnd - viewportStart
-                    val draggedTop = draggedItem.offset + dragOffsetY.toInt()
-                    val draggedBottom = draggedTop + draggedItem.size
-                    val edgeZone = (viewportSize * 0.15f).coerceAtLeast(draggedItem.size.toFloat())
-
-                    val scrollSpeed = when {
-                        draggedBottom > viewportEnd - edgeZone -> {
-                            val ratio = ((draggedBottom - (viewportEnd - edgeZone)) / edgeZone).coerceIn(0f, 1f)
-                            ratio * ratio * 15f
-                        }
-                        draggedTop < viewportStart + edgeZone -> {
-                            val ratio = (((viewportStart + edgeZone) - draggedTop) / edgeZone).coerceIn(0f, 1f)
-                            -(ratio * ratio * 15f)
-                        }
+        // 自动滚动只在所属分区还有未露出的条目时继续，不能把拖动项带到另一分区。
+        LaunchedEffect(draggedEntryId) {
+            while (draggedEntryId != null) {
+                val info = mainListState.layoutInfo
+                val item = info.visibleItemsInfo.firstOrNull { it.key == draggedEntryId }
+                if (item != null) {
+                    val first = info.visibleItemsInfo.firstOrNull { it.key == currentDragSectionIds.firstOrNull() }
+                    val last = info.visibleItemsInfo.firstOrNull { it.key == currentDragSectionIds.lastOrNull() }
+                    val edge = maxOf(item.size.toFloat(), (info.viewportEndOffset - info.viewportStartOffset) * .15f)
+                    val speed = when {
+                        draggedTop + item.size > info.viewportEndOffset - edge &&
+                            (last == null || last.offset + last.size > info.viewportEndOffset) -> {
+                                val ratio = ((draggedTop + item.size - (info.viewportEndOffset - edge)) / edge).coerceIn(0f, 1f)
+                                ratio * ratio * 15f
+                            }
+                        draggedTop < info.viewportStartOffset + edge &&
+                            (first == null || first.offset < info.viewportStartOffset) -> {
+                                val ratio = ((info.viewportStartOffset + edge - draggedTop) / edge).coerceIn(0f, 1f)
+                                -ratio * ratio * 15f
+                            }
                         else -> 0f
                     }
-
-                    if (scrollSpeed != 0f) {
-                        val consumed = mainListState.dispatchRawDelta(scrollSpeed)
-                        dragOffsetY += consumed
-                    }
+                    if (speed != 0f) mainListState.dispatchRawDelta(speed)
+                    moveDragged(0f)
                 }
                 delay(16L)
             }
         }
 
         // ════════════════════════════════════════
-        // 历史列表（translationY = switchOffset - contentHeight）
+        // 弹性位移仍由原 switchOffset 驱动；历史从最近条目向上揭露，标题不随整页飞入。
         // ════════════════════════════════════════
         if (hasHistory) {
             HistoryList(
@@ -413,11 +473,12 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 stickyBackdrop = stickyBackdrop,
                 nestedScrollConnection = historyNestedScrollConnection,
                 onClear = onClearHistory,
+                revealInProgress = mainListState.isScrollInProgress,
+                onRowHeight = { historyRowHeight = maxOf(historyRowHeight, it) },
                 modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        translationY = switchOffset - panelState.contentHeightPx
-                    }
+                    .fillMaxWidth()
+                    .height(with(density) { switchOffset.coerceIn(0f, panelState.contentHeightPx).toDp() })
+                    .then(bodyTransitionModifier)
             )
         }
 
@@ -441,7 +502,7 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                     orientation = Orientation.Vertical,
                     onDragStopped = { velocity ->
                         if (screenDragOffsetY.floatValue > dismissThreshold || velocity > velocityThreshold) {
-                            onDismiss()
+                            onDismiss(velocity)
                         } else {
                             scope.launch {
                                 animate(screenDragOffsetY.floatValue, 0f) { value, _ ->
@@ -467,27 +528,36 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                             }
                         }
                 ) {
-                    CompactNowPlayingHeader(
+                    if (externalHeader != null) {
+                        androidx.compose.foundation.layout.Spacer(Modifier.height(with(density) {
+                            if (externalHeader.heightPx > 0f) externalHeader.heightPx.toDp()
+                            else ((PlayerLayoutMetrics.CompactCoverSize +
+                                2 * PlayerLayoutMetrics.CompactVerticalPadding) * referenceScale).dp
+                        }))
+                    } else CompactNowPlayingHeader(
                         state = state,
                         playerVisible = playerVisible,
                         animatedContentScope = animatedContentScope,
                         onCoverClick = onCoverClick,
                         onFavoriteClick = onFavoriteClick,
-                        onMoreClick = onMoreClick
+                        onMoreClick = onMoreClick,
+                        referenceScale = referenceScale
                     )
                 }
 
+                Box(bodyTransitionModifier) {
                     ActionButtonsRow(
                         state = state,
                         onToggleShuffle = onToggleShuffle,
                         onToggleRepeat = onToggleRepeat,
                         onToggleInfinitePlay = onToggleInfinitePlay,
                         onToggleCrossfade = onToggleCrossfade
-                )
+                    )
+                }
             }
 
             // ── 列表区域 ──
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.weight(1f).then(bodyTransitionModifier)) {
                 LazyColumn(
                     state = mainListState,
                     modifier = Modifier
@@ -497,7 +567,18 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                 ) {
                     // upcoming_header（stickyHeader 原生吸顶）
                     stickyHeader(key = "upcoming_header") {
-                        Column(
+                        if (state.queue.entries.isEmpty()) {
+                            Box(
+                                Modifier.fillMaxWidth().height(160.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.player_queue_empty),
+                                    fontSize = 16.sp,
+                                    color = Color.White.copy(alpha = .4f)
+                                )
+                            }
+                        } else Column(
                             modifier = Modifier
                                 .drawBackdrop(
                                     backdrop = stickyBackdrop,
@@ -519,28 +600,45 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                                 )
                                 .fillMaxWidth()
                         ) {
-                            Text(
+                            if (!showAutoplayHint) Text(
                                 text = stringResource(R.string.continue_play),
-                                fontSize = 16.sp,
+                                fontSize = (17f * referenceScale).sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp * referenceScale)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            val subtitle = when {
+                                onlyAutoplayUpcoming -> stringResource(R.string.player_autoplay_current)
+                                !showAutoplayHint && state.queueSourceTitle != null ->
+                                    stringResource(R.string.player_queue_from, state.queueSourceTitle)
+                                else -> null
+                            }
+                            if (subtitle != null) {
+                                Text(
+                                    text = subtitle,
+                                    fontSize = (13f * referenceScale).sp,
+                                    color = Color.White.copy(alpha = .65f),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 32.dp * referenceScale)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp * referenceScale))
                         }
                     }
 
                     // ── 歌单待播列表 ──
                     itemsIndexed(upcomingOrdered, key = { _, entry -> entry.id }) { index, entry ->
-                        val isDragged = draggedIndex == index
-                        val currentIndex by rememberUpdatedState(index)
+                        val isDragged = draggedEntryId == entry.id
+
                         Box(
                             modifier = Modifier
                                 .then(if (!isDragged) Modifier.animateItem() else Modifier)
-                                .padding(horizontal = 32.dp)
+                                .padding(horizontal = 32.dp * referenceScale)
                                 .zIndex(if (isDragged) 1f else 0f)
                                 .graphicsLayer {
-                                    translationY = if (isDragged) dragOffsetY else 0f
+                                    translationY = if (isDragged) draggedTop -
+                                        (mainListState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == entry.id }?.offset ?: draggedTop.toInt()) else 0f
                                 }
                                 .then(if (isDragged) {
                                     Modifier.drawBackdrop(
@@ -554,49 +652,14 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                         ) {
                             PlayListItem(
                                 entry.song,
+                                referenceScale = referenceScale,
                                 onClick = { onSelectQueueEntry(entry.id) },
-                                dragModifier = Modifier.pointerInput(Unit) {
+                                dragModifier = if (upcomingOrdered.size < 2) null else Modifier.pointerInput(entry.id) {
                                     detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            draggedIndex = currentIndex
-                                            dragOffsetY = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOffsetY += dragAmount.y
-
-                                            val dragged = draggedIndex ?: return@detectDragGesturesAfterLongPress
-                                            val lazyIndex = upcomingStartLazy + dragged
-                                            val draggedItem = mainListState.layoutInfo.visibleItemsInfo
-                                                .firstOrNull { it.index == lazyIndex } ?: return@detectDragGesturesAfterLongPress
-                                            val draggedCenter = draggedItem.offset + draggedItem.size / 2 + dragOffsetY.toInt()
-
-                                            mainListState.layoutInfo.visibleItemsInfo.forEach { item ->
-                                                val itemLocalIndex = item.index - upcomingStartLazy
-                                                if (itemLocalIndex < 0 || itemLocalIndex >= upcomingOrdered.size || itemLocalIndex == dragged) return@forEach
-                                                val itemCenter = item.offset + item.size / 2
-                                                if ((dragged < itemLocalIndex && draggedCenter > itemCenter) ||
-                                                    (dragged > itemLocalIndex && draggedCenter < itemCenter)
-                                                ) {
-                                                    onReorderQueue(
-                                                        upcomingOrdered[dragged].id,
-                                                        upcomingOrdered[itemLocalIndex].id
-                                                    )
-                                                    draggedIndex = itemLocalIndex
-                                                    val sizeDiff = item.size - draggedItem.size
-                                                    dragOffsetY += if (dragged < itemLocalIndex) -item.size.toFloat() + sizeDiff else item.size.toFloat() - sizeDiff
-                                                    return@forEach
-                                                }
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            draggedIndex = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggedIndex = null
-                                            dragOffsetY = 0f
-                                        }
+                                        onDragStart = { startDrag(entry.id) },
+                                        onDrag = { change, amount -> change.consume(); moveDragged(amount.y) },
+                                        onDragEnd = { endDrag() },
+                                        onDragCancel = { endDrag() }
                                     )
                                 }
                             )
@@ -605,11 +668,11 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
 
                     // ── Infinite 扩展列表 ──
                     if (showInfinite) {
-                        item {
+                        if (separateAutoplaySection) item {
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
-                        stickyHeader(key = "infinite_header") {
+                        if (separateAutoplaySection) stickyHeader(key = "infinite_header") {
                             Column(
                                 modifier = Modifier
                                     .drawBackdrop(
@@ -633,38 +696,39 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                                     .fillMaxWidth()
                             ) {
                                 Text(
-                                    text = stringResource(R.string.infinite_extension),
-                                    fontSize = 16.sp,
+                                    text = stringResource(R.string.player_autoplay_heading),
+                                    fontSize = (17f * referenceScale).sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 32.dp)
+                                    modifier = Modifier.padding(horizontal = 32.dp * referenceScale)
                                 )
                                 Text(
                                     text = stringResource(
                                         if (autoplayEntries.isEmpty()) R.string.infinite_exhausted
-                                        else R.string.auto_play
+                                        else R.string.player_autoplay_future
                                     ),
-                                    fontSize = 14.sp,
-                                    color = Color(0x66FFFFFF),
-                                    modifier = Modifier.padding(horizontal = 32.dp)
+                                    fontSize = (13f * referenceScale).sp,
+                                    color = Color.White.copy(alpha = .65f),
+                                    modifier = Modifier.padding(horizontal = 32.dp * referenceScale)
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(8.dp * referenceScale))
                             }
                         }
 
                         if (autoplayEntries.isNotEmpty()) {
                             itemsIndexed(autoplayEntries, key = { _, entry -> entry.id }) { index, entry ->
-                                val extDragTag = index + upcomingOrdered.size + 1
-                                val currentIndex by rememberUpdatedState(index)
+                                val isDragged = draggedEntryId == entry.id
+
                                 Box(
                                     modifier = Modifier
-                                        .then(if (draggedIndex != extDragTag) Modifier.animateItem() else Modifier)
-                                        .padding(horizontal = 32.dp)
-                                        .zIndex(if (draggedIndex == extDragTag) 1f else 0f)
+                                        .then(if (!isDragged) Modifier.animateItem() else Modifier)
+                                        .padding(horizontal = 32.dp * referenceScale)
+                                        .zIndex(if (isDragged) 1f else 0f)
                                         .graphicsLayer {
-                                            translationY = if (draggedIndex == extDragTag) dragOffsetY else 0f
+                                            translationY = if (isDragged) draggedTop -
+                                                (mainListState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == entry.id }?.offset ?: draggedTop.toInt()) else 0f
                                         }
-                                        .then(if (draggedIndex == extDragTag) {
+                                        .then(if (isDragged) {
                                             Modifier.drawBackdrop(
                                                 backdrop = stickyBackdrop,
                                                 shape = { RectangleShape },
@@ -676,50 +740,14 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                                 ) {
                                     PlayListItem(
                                         entry.song,
+                                        referenceScale = referenceScale,
                                         onClick = { onSelectQueueEntry(entry.id) },
-                                        dragModifier = Modifier.pointerInput(Unit) {
+                                        dragModifier = if (autoplayEntries.size < 2) null else Modifier.pointerInput(entry.id) {
                                             detectDragGesturesAfterLongPress(
-                                                onDragStart = {
-                                                    draggedIndex = currentIndex + upcomingOrdered.size + 1
-                                                    dragOffsetY = 0f
-                                                },
-                                                onDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    dragOffsetY += dragAmount.y
-
-                                                    val dragTag = draggedIndex ?: return@detectDragGesturesAfterLongPress
-                                                    val dragLocalIdx = dragTag - upcomingOrdered.size - 1
-                                                    val lazyIndex = extStartLazy + dragLocalIdx
-                                                    val draggedItem = mainListState.layoutInfo.visibleItemsInfo
-                                                        .firstOrNull { it.index == lazyIndex } ?: return@detectDragGesturesAfterLongPress
-                                                    val draggedCenter = draggedItem.offset + draggedItem.size / 2 + dragOffsetY.toInt()
-
-                                                    mainListState.layoutInfo.visibleItemsInfo.forEach { item ->
-                                                        val itemExtIdx = item.index - extStartLazy
-                                                        if (itemExtIdx < 0 || itemExtIdx >= autoplayEntries.size || itemExtIdx == dragLocalIdx) return@forEach
-                                                        val itemCenter = item.offset + item.size / 2
-                                                        if ((dragLocalIdx < itemExtIdx && draggedCenter > itemCenter) ||
-                                                            (dragLocalIdx > itemExtIdx && draggedCenter < itemCenter)
-                                                        ) {
-                                                            onReorderQueue(
-                                                                autoplayEntries[dragLocalIdx].id,
-                                                                autoplayEntries[itemExtIdx].id
-                                                            )
-                                                            draggedIndex = itemExtIdx + upcomingOrdered.size + 1
-                                                            val sizeDiff = item.size - draggedItem.size
-                                                            dragOffsetY += if (dragLocalIdx < itemExtIdx) -item.size.toFloat() + sizeDiff else item.size.toFloat() - sizeDiff
-                                                            return@forEach
-                                                        }
-                                                    }
-                                                },
-                                                onDragEnd = {
-                                                    draggedIndex = null
-                                                    dragOffsetY = 0f
-                                                },
-                                                onDragCancel = {
-                                                    draggedIndex = null
-                                                    dragOffsetY = 0f
-                                                }
+                                                onDragStart = { startDrag(entry.id) },
+                                                onDrag = { change, amount -> change.consume(); moveDragged(amount.y) },
+                                                onDragEnd = { endDrag() },
+                                                onDragCancel = { endDrag() }
                                             )
                                         }
                                     )
@@ -728,11 +756,31 @@ internal fun SharedTransitionScope.QueueHistoryPanel(
                         }
                     }
 
+                    if (!state.isPlayingInfiniteExtension && state.repeatMode == RepeatMode.ALL) {
+                        item(key = "repeat_footer") {
+                            Text(stringResource(R.string.player_repeat_count, state.queue.orderedEntryCount),
+                                color = Color.White.copy(alpha = .65f),
+                                fontSize = (13f * referenceScale).sp,
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                    if (showAutoplayHint) {
+                        item(key = "autoplay_disabled") {
+                            Text(stringResource(R.string.player_autoplay_disabled),
+                                color = Color.White.copy(alpha = .65f),
+                                fontSize = (15f * referenceScale).sp,
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 32.dp * referenceScale)
+                                    .padding(top = 80.dp * referenceScale),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
                     item {
                         Spacer(modifier = Modifier.height(32.dp))
                     }
                 }
-
+                PlayerListScrollbar(mainListState, modifier = Modifier.fillMaxSize())
             }
         }
     }
@@ -749,10 +797,11 @@ private fun ActionButtonsRow(
     onToggleInfinitePlay: () -> Unit,
     onToggleCrossfade: () -> Unit
 ) {
+    val scale = PlayerLayoutMetrics.scale(LocalWindowInfo.current.containerDpSize.width.value)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 8.dp),
+            .padding(horizontal = 32.dp * scale, vertical = 8.dp * scale),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -796,7 +845,7 @@ private fun ActionButtonsRow(
 
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(8.dp * scale))
 }
 
 /**
@@ -809,100 +858,51 @@ private fun HistoryList(
     stickyBackdrop: Backdrop,
     nestedScrollConnection: NestedScrollConnection,
     onClear: () -> Unit,
+    revealInProgress: Boolean,
+    onRowHeight: (Float) -> Unit,
     modifier: Modifier
 ) {
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .nestedScroll(nestedScrollConnection)
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                // 顶部渐隐
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        1f to Color.Black,
-                        startY = 0f,
-                        endY = 16.dp.toPx()
-                    ),
-                    blendMode = BlendMode.DstIn
-                )
-                // 底部渐隐
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        0f to Color.Black,
-                        1f to Color.Transparent,
-                        startY = size.height - 32.dp.toPx(),
-                        endY = size.height
-                    ),
-                    blendMode = BlendMode.DstIn
-                )
-            },
-        overscrollEffect = null
-    ) {
-        stickyHeader(key = "history_header") {
-            Column(
-                modifier = Modifier
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                    .drawBackdrop(
-                        backdrop = stickyBackdrop,
-                        shape = { RectangleShape },
-                        effects = {},
-                        highlight = null,
-                        shadow = null,
-                        onDrawFront = {
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    0f to Color.Black,
-                                    1f to Color.Transparent,
-                                    startY = size.height - 16.dp.toPx(),
-                                    endY = size.height
-                                ),
-                                blendMode = BlendMode.DstIn
-                            )
-                        }
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.play_history),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
-                        modifier = Modifier.align(Alignment.CenterStart)
-                    )
-
-                    Text(
-                        text = stringResource(R.string.play_history_clear),
-                        fontSize = 14.sp,
-                        color = Color(0x66FFFFFF),
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .clickable(
-                                interactionSource = null,
-                                indication = null,
-                                onClick = onClear
-                            )
-                    )
+    val scale = PlayerLayoutMetrics.scale(LocalWindowInfo.current.containerDpSize.width.value)
+    val headingHeight = 44.dp * scale
+    Box(modifier.clip(RectangleShape)) {
+        // playHistory 本身按最近优先保存；倒序布局使最新一条紧邻下方当前歌曲。
+        LazyColumn(
+            state = listState,
+            reverseLayout = true,
+            modifier = Modifier.fillMaxSize().padding(top = headingHeight)
+                .nestedScroll(nestedScrollConnection),
+            overscrollEffect = null
+        ) {
+            items(state.playHistory, key = { "h_${it.id}" }) { entry ->
+                Box(Modifier.padding(horizontal = 32.dp * scale)
+                    .onSizeChanged { onRowHeight(it.height.toFloat()) }) {
+                    HistoryListItem(entry.song, referenceScale = scale)
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
-
-        items(state.playHistory, key = { "h_${it.id}" }) { song ->
-            Box(modifier = Modifier.padding(horizontal = 32.dp)) {
-                HistoryListItem(song)
-            }
+        Box(
+            Modifier.fillMaxWidth().height(headingHeight)
+                .drawBackdrop(
+                    backdrop = stickyBackdrop,
+                    shape = { RectangleShape },
+                    effects = {},
+                    highlight = null,
+                    shadow = null
+                )
+                .padding(horizontal = 32.dp * scale),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(stringResource(R.string.play_history), fontSize = (14f * scale).sp,
+                fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text(
+                stringResource(R.string.play_history_clear),
+                fontSize = (14f * scale).sp, color = Color(0x66FFFFFF),
+                modifier = Modifier.align(Alignment.CenterEnd)
+                    .clickable(interactionSource = null, indication = null, onClick = onClear)
+            )
         }
-
-        item {
-            Spacer(modifier = Modifier.height(32.dp))
-        }
+        PlayerListScrollbar(listState, reverse = true, activeOverride = revealInProgress,
+            modifier = Modifier.fillMaxSize().padding(top = headingHeight))
     }
 }
 
@@ -919,6 +919,7 @@ private fun ActionButton(
     active: Boolean,
     onClick: () -> Unit
 ) {
+    val scale = PlayerLayoutMetrics.scale(LocalWindowInfo.current.containerDpSize.width.value)
     val bgColor = when {
         !enabled -> Color(0x1AFFFFFF)
         active -> Color(0x80FFFFFF)
@@ -928,8 +929,8 @@ private fun ActionButton(
 
     Box(
         modifier = Modifier
-            .width(70.dp)
-            .height(36.dp)
+            .width(70.dp * scale)
+            .height(36.dp * scale)
             .then(
                 if (active && enabled) {
                     Modifier
@@ -962,7 +963,7 @@ private fun ActionButton(
             painter = painterResource(icon),
             contentDescription = "",
             tint = tintColor,
-            modifier = Modifier.size(iconSize)
+            modifier = Modifier.size(iconSize * scale)
         )
     }
 }

@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,6 +94,8 @@ fun BottomNavigationBar(
     val tabHeight = lerp(BottomBarMetrics.CompactHeight.dp, BottomBarMetrics.ExpandedTabHeight.dp, tabExpandFraction)
     val miniHeight = lerp(BottomBarMetrics.CompactHeight.dp, BottomBarMetrics.ExpandedMiniHeight.dp, expandFraction)
     val geometry = BottomBarGeometry(tabHeight.value, miniHeight.value, miniPositionFraction)
+    val preparationScale = 1f - (1f - BottomBarMetrics.CompactScale) * preparationProgress
+    val density = LocalDensity.current
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Column(
@@ -107,14 +111,6 @@ fun BottomNavigationBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(geometry.height.dp)
-                    .graphicsLayer {
-                        // 折叠完成仍保留缩放及两侧留白；只有重新展开才恢复正常比例。
-                        val scale = 1f - (1f - BottomBarMetrics.CompactScale) * preparationProgress
-                        scaleX = scale
-                        scaleY = scale
-                        // 围绕固定的 Tab 中线缩放，两种高度不再把圆心额外向下推。
-                        transformOrigin = TransformOrigin(0.5f, geometry.scalePivotY)
-                    }
             ) {
                 val compactMiniWidth = (availableWidth - (2f * (BottomBarMetrics.CompactHeight + BottomBarMetrics.CompactGap)).dp)
                     .coerceAtLeast(120.dp)
@@ -140,18 +136,25 @@ fun BottomNavigationBar(
                     modifier = Modifier
                         .offset(y = geometry.tabTop.dp)
                         .fillMaxWidth()
+                        .graphicsLayer {
+                            scaleX = preparationScale
+                            scaleY = preparationScale
+                        }
                 )
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = geometry.miniTop.dp)
-                        .height(miniHeight),
+                        .offset(y = (geometry.tabCenterY +
+                            (geometry.miniTop - geometry.tabCenterY) * preparationScale).dp)
+                        .height(miniHeight * preparationScale),
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.animation.AnimatedVisibility(
                         // 允许展开时短暂超出目标宽度，并始终以同一个中心向两侧形变。
-                        modifier = Modifier.requiredWidth(miniPlayerWidth.dp).height(miniHeight),
+                        // 共享边界使用真实显示尺寸，而不是外层 graphicsLayer 缩放前的尺寸。
+                        modifier = Modifier.requiredWidth(miniPlayerWidth.dp * preparationScale)
+                            .height(miniHeight * preparationScale),
                         visible = !playerVisible,
                         enter = fadeIn(),
                         exit = fadeOut()
@@ -164,9 +167,15 @@ fun BottomNavigationBar(
                                     .sharedBounds(
                                         sharedContentState = rememberSharedContentState(key = "playerContainer"),
                                         animatedVisibilityScope = animatedVisibilityScope,
+                                        boundsTransform = com.aria.rythme.feature.player.presentation.playerOverlayBounds(),
                                         resizeMode = ResizeMode.RemeasureToBounds
                                     )
                             ) {
+                                // 在测量阶段落实内容比例，不再靠父图层缩放。
+                                // 封面自己的共享边界因此也是最终像素尺寸，退出 overlay 时无二次缩放。
+                                CompositionLocalProvider(LocalDensity provides Density(
+                                    density.density * preparationScale, density.fontScale
+                                )) {
                                 MiniPlayer(
                                     modifier = Modifier.fillMaxSize(),
                                     song = playerState.currentSong,
@@ -184,6 +193,7 @@ fun BottomNavigationBar(
                                     onNextClick = viewModel::next,
                                     expansionFraction = expandFraction
                                 )
+                                }
                             }
                         }
                     }

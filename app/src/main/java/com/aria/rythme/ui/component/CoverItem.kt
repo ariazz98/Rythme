@@ -14,6 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -35,7 +39,8 @@ fun CoverItem(
     song: Song?,
     defaultBgColor: Color,
     defaultIconColor: Color,
-    onBitmapReady: ((Bitmap?) -> Unit)? = null
+    onBitmapReady: ((Bitmap?) -> Unit)? = null,
+    cachePlaceholderForTransition: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -48,7 +53,19 @@ fun CoverItem(
             painter = painterResource(R.drawable.ic_music),
             contentDescription = "",
             tint = defaultIconColor,
-            modifier = Modifier.size(size / 2)
+            // 缓存尺寸不跟随共享边界逐帧变化；显示尺寸仍严格为封面的一半。
+            // 192dp 覆盖当前最大封面的图标尺寸，避免过渡时反复重建矢量位图。
+            modifier = Modifier.fillMaxSize(.5f).then(if (cachePlaceholderForTransition) Modifier.layout { measurable, constraints ->
+                val cacheSize = 192.dp.roundToPx()
+                val icon = measurable.measure(Constraints.fixed(cacheSize, cacheSize))
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    icon.placeWithLayer(0, 0) {
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        scaleX = constraints.maxWidth.toFloat() / cacheSize
+                        scaleY = constraints.maxHeight.toFloat() / cacheSize
+                    }
+                }
+            } else Modifier)
         )
 
         val context = LocalContext.current

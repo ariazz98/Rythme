@@ -5,10 +5,12 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import kotlin.math.*
 
-/** 09-05 原片的归一化轨迹；开/关各自拟合，页面只提供源/目标边界。 */
+/** 09-05 / 09-11 连续帧约束下的近似轨迹；不是 Apple 内部动画参数。 */
+internal enum class MenuSourceSurface { Glass, Icon }
+
 internal object ActionMenuMotion {
     const val OpenMillis = 500
-    const val CloseMillis = 300
+    fun dismissMillis(surface: MenuSourceSurface) = if (surface == MenuSourceSurface.Glass) 480 else 320
     const val Width = 250f
     const val Corner = 34f
 
@@ -44,85 +46,90 @@ internal object ActionMenuMotion {
         return if (remaining.isEmpty()) .5f else remaining.map { (it+.5f)/count }.average().toFloat()
     }
 
-    /** 关闭统一向整组胶囊中心收聚，不继承展开时“未点击图标”的位置。 */
-    const val ClosingFoldFraction = .5f
-
-    /**
-     * 关闭时以实际绘制轮廓为起点。已铺开的菜单沿原关闭轨迹收回；还很小的表面
-     * 连续过渡至源胶囊，不先放大成完整菜单，也不把展开轨迹压到 160ms 倒放。
-     */
-    fun closeFromSnapshot(
-        start: MenuMorphGeometry, source: Rect, target: Rect,
-        fraction: Float, closingFold: Float
-    ): MenuMorphGeometry {
-        val t = fraction.coerceIn(0f, 1f)
-        if (t == 0f) return start
-        val end = MenuMorphGeometry(source, source.height / 2f)
-        if (t == 1f) return end
-        val carry = 1f - smooth(t, 0f, .3f)
-        val path = closingGeometry(source, start.body, t, start.bodyCorner, closingFold).let {
-            it.copy(
-                topCorner = it.topCorner + (start.topCorner - start.bodyCorner) * carry,
-                skew = it.skew + start.skew * carry,
-                neck = it.neck + start.neck * carry,
-                headScale = it.headScale + (start.headScale - 1f) * carry,
-                headDepth = mix(start.headDepth, it.headDepth, smooth(t, 0f, .15f))
-            )
-        }
-        val expansion = ((start.body.height - source.height) /
-            (target.height - source.height).coerceAtLeast(1f)).coerceIn(0f, 1f)
-        return start.interpolate(end, smooth(t, 0f, 1f))
-            .interpolate(path, smooth(expansion, 0f, .8f))
-    }
-
     fun geometry(source: Rect, target: Rect, progress: Float, corner: Float, foldFraction: Float = .5f): MenuMorphGeometry {
         val ms=progress.coerceIn(0f,1f)*OpenMillis
         if (ms == 0f) return MenuMorphGeometry(source,source.height/2f)
         if (ms == OpenMillis.toFloat()) return MenuMorphGeometry(target,min(corner,target.minSide/2f))
         val compactWidth=source.width*(.8f-.25f*(source.width/source.height-1f).coerceIn(0f,1f))
         val growth=curve(ms,0f to 0f,17f to 0f,33f to .16f,50f to .33f,100f to .73f,
-            150f to .94f,200f to 1.012f,250f to 1.01f,350f to 1.002f,500f to 1f)
+            150f to .98f,200f to 1f,500f to 1f)
         val width=if(ms<17f) curve(ms,0f to source.width,17f to compactWidth)
-            else compactWidth+(target.width-compactWidth)*growth
-        val height=curve(ms,0f to source.height,17f to source.height*1.03f,
-            33f to mix(source.height,target.height,.18f),50f to mix(source.height,target.height,.35f),
-            100f to target.height*.74f,150f to target.height*.93f,200f to target.height*1.03f,
-            250f to target.height*1.02f,350f to target.height*1.003f,500f to target.height)
+            else curve(ms,17f to compactWidth,33f to mix(compactWidth,target.width,.16f),
+                50f to mix(compactWidth,target.width,.33f),100f to mix(compactWidth,target.width,.73f),
+                150f to target.width*.98f,200f to target.width*1.026f,270f to target.width*1.014f,
+                350f to target.width*1.002f,450f to target.width,500f to target.width)
         val foldX=source.left+source.width*foldFraction
-        val cx=curve(ms,0f to source.center.x,17f to foldX,50f to mix(foldX,target.center.x,.35f),
-            100f to mix(foldX,target.center.x,.73f),150f to mix(foldX,target.center.x,.94f),
-            200f to target.center.x,500f to target.center.x)
-        val top=target.top+source.height*curve(ms,0f to 0f,17f to .10f,33f to .65f,
-            50f to .75f,100f to .35f,150f to .12f,200f to 0f,500f to 0f)
+        // 横向先回正，上边缘稍后转向；不围绕固定中心同时缩放整张菜单。
+        val right=curve(ms,0f to source.right,17f to foldX+compactWidth/2f,
+            100f to mix(foldX+compactWidth/2f,target.right,.92f),150f to target.right,500f to target.right)
+        val lift=min(target.height*.009f,source.height*.22f)
+        val top=mix(source.top,target.top,growth)+source.height*curve(ms,0f to 0f,17f to .10f,33f to .65f,
+            50f to .75f,100f to .35f,150f to .12f,215f to 0f,500f to 0f)-
+            lift*curve(ms,0f to 0f,215f to 0f,270f to 1f,350f to .3f,450f to 0f,500f to 0f)
+        val bottom=curve(ms,0f to source.bottom,17f to source.bottom+source.height*.13f,
+            50f to mix(source.bottom,target.bottom,.38f),100f to mix(source.bottom,target.bottom,.78f),
+            150f to target.bottom,180f to target.bottom+target.height*.045f,
+            270f to target.bottom+target.height*.01f,350f to target.bottom,500f to target.bottom)
+        val height=(bottom-top).coerceAtLeast(source.height*.5f)
         val radius=mix(min(width,height)/2f,min(corner,min(width,height)/2f),smooth(ms,100f,240f))
         val skew=(foldFraction-.5f)*2f*source.height*.5f*curve(ms,0f to 0f,17f to 1f,50f to .6f,150f to 0f,500f to 0f)
-        return MenuMorphGeometry(Rect(cx-width/2f,top,cx+width/2f,top+height),radius,skew=skew)
+        return MenuMorphGeometry(Rect(right-width,top,right,top+height),radius,skew=skew)
     }
 
-    /** 关闭前段直接收拢，不穿过展开末尾的过冲；头部在中段回到源按钮位置。 */
-    fun closingGeometry(source: Rect,target: Rect,fraction: Float,corner: Float,foldFraction: Float = .5f): MenuMorphGeometry {
-        val ms=fraction.coerceIn(0f,1f)*CloseMillis
-        if(ms==0f) return MenuMorphGeometry(target,min(corner,target.minSide/2f))
-        if(ms==CloseMillis.toFloat()) return MenuMorphGeometry(source,source.height/2f)
-        val width=curve(ms,0f to target.width,33f to target.width*.88f,67f to target.width*.70f,
-            100f to target.width*.53f,133f to target.width*.37f,167f to source.height*1.75f,
-            200f to source.height*1.2f,233f to source.height,270f to source.width,300f to source.width)
-        val height=curve(ms,0f to target.height,33f to target.height*.83f,67f to target.height*.65f,
-            100f to mix(source.height,target.height,.36f),133f to mix(source.height,target.height,.28f),
-            167f to mix(source.height,target.height,.18f),200f to mix(source.height,target.height,.09f),233f to source.height*1.06f,
-            270f to source.height,300f to source.height)
-        val foldX=source.left+source.width*foldFraction
-        val move=curve(ms,0f to 0f,33f to .23f,67f to .45f,100f to .7f,133f to .94f,167f to 1f,300f to 1f)
-        val cx=mix(target.center.x,foldX,move)+(source.center.x-foldX)*smooth(ms,200f,270f)
-        val top=source.top+source.height*curve(ms,0f to ((target.top-source.top)/source.height),
-            33f to 1f,67f to 1.1f,100f to .7f,133f to 0f,300f to 0f)
-        val radius=mix(min(corner,min(width,height)/2f),min(width,height)/2f,smooth(ms,0f,90f))
-        val head=smooth(ms,85f,133f)*(1f-smooth(ms,233f,270f))
-        return MenuMorphGeometry(Rect(cx-width/2f,top,cx+width/2f,top+height),radius,
-            topCorner=mix(radius,source.height/2f,smooth(ms,35f,133f)),
-            skew=(source.center.x-cx)*(head+.25f*(1f-head)*smooth(ms,20f,65f)),
-            neck=.28f*smooth(ms,90f,150f)*(1f-smooth(ms,200f,270f)),
-            headScale=mix(1f,max(1f,source.width/width),head), headDepth=source.height/height)
+    /** 以实际轮廓开始，玻璃/裸图标仅决定终态和收尾时钟，不依赖菜单项数量或业务页。 */
+    fun dismissGeometry(start: MenuMorphGeometry, source: Rect, target: Rect, progress: Float,
+                        surface: MenuSourceSurface, upward: Boolean = false): MenuMorphGeometry {
+        val p = progress.coerceIn(0f, 1f)
+        if (p == 0f) return start
+        if (upward) return dismissGeometry(start.mirrored(), mirror(source), mirror(target), p, surface).mirrored()
+        val end=MenuMorphGeometry(source,source.minSide/2f)
+        if (p == 1f) return end
+        val ms=p*dismissMillis(surface)
+        val glass=surface==MenuSourceSurface.Glass
+        // 主体约 260ms 收完；顶部胶囊继续用约 220ms 消化向上的越位。
+        val finish=if(glass) 480f else 320f
+        val sw=source.width;val sh=source.height
+        val width=curve(ms,0f to start.body.width,33f to mix(sw,start.body.width,.88f),
+            67f to mix(sw,start.body.width,.65f),100f to mix(sw,start.body.width,.44f),
+            150f to max(sh, start.body.width*.26f),200f to max(sh,sw*.66f),
+            260f to sw*.95f,finish to sw)
+        val height=curve(ms,0f to start.body.height,33f to mix(sh,start.body.height,.83f),
+            67f to mix(sh,start.body.height,.60f),100f to mix(sh,start.body.height,.39f),
+            150f to mix(sh,start.body.height,.22f),200f to mix(sh,start.body.height,.08f),
+            260f to sh*.97f,finish to sh)
+        val move=curve(ms,0f to 0f,33f to .18f,67f to .4f,100f to .65f,150f to .92f,200f to 1f,finish to 1f)
+        val cx=mix(start.body.center.x,source.center.x,move)
+        val top=mix(start.body.top,source.top,smooth(ms,0f,140f))+sh*curve(ms,
+            0f to 0f,33f to .8f,67f to 1f,100f to .6f,150f to -.06f,
+            210f to (if(glass) -.13f else -.08f),260f to (if(glass) -.12f else -.04f),finish to 0f)
+        val radius=mix(min(start.bodyCorner,min(width,height)/2f),min(width,height)/2f,smooth(ms,0f,90f))
+        val head=smooth(ms,85f,150f)*(1f-smooth(ms,220f,260f))
+        val carry=1f-smooth(ms,0f,90f)
+        val path=MenuMorphGeometry(Rect(cx-width/2f,top,cx+width/2f,top+height),radius,
+            topCorner=min(min(width,height)/2f,mix(radius,sh/2f,smooth(ms,35f,150f)))+
+                (start.topCorner-start.bodyCorner)*carry,
+            skew=(source.center.x-cx)*head+start.skew*carry,
+            neck=.30f*smooth(ms,80f,155f)*(1f-smooth(ms,200f,260f))+start.neck*carry,
+            headScale=mix(1f,max(1f,sw/width),head)+(start.headScale-1f)*carry,
+            headDepth=mix(start.headDepth,(sh/height).coerceAtMost(1f),smooth(ms,0f,85f)))
+        // 展开初段被打断时不制造一张完整菜单或额外大液滴。
+        val expansion=((start.body.height-sh)/(target.height-sh).coerceAtLeast(1f)).coerceIn(0f,1f)
+        return start.interpolate(end,smooth(p,0f,1f)).interpolate(path,smooth(expansion,0f,.8f))
+    }
+
+    fun dismissalAlpha(progress: Float, surface: MenuSourceSurface) =
+        if(surface==MenuSourceSurface.Glass) 1f else 1f-smooth(progress,.72f,1f)
+
+    fun closingSourceAlpha(progress: Float, surface: MenuSourceSurface) =
+        smooth(progress*dismissMillis(surface),110f,190f)
+
+    fun closingMaterialProgress(progress: Float, surface: MenuSourceSurface) =
+        1f-smooth(progress*dismissMillis(surface),0f,140f)
+
+    fun openingGeometry(source: Rect, target: Rect, progress: Float, corner: Float, fold: Float, upward: Boolean): MenuMorphGeometry {
+        if (!upward) return geometry(source, target, progress, corner, fold)
+        val g = geometry(mirror(source), mirror(target), progress, corner, fold)
+        return g.mirrored()
     }
 
     fun targetBounds(source: Rect,width: Float,height: Float,screenWidth: Float,screenHeight: Float,
@@ -137,26 +144,30 @@ internal object ActionMenuMotion {
 
 private val Rect.minSide get() = min(width,height)
 private fun mix(a: Float,b: Float,t: Float) = a+(b-a)*t
+private fun mirror(rect: Rect) = Rect(rect.left,-rect.bottom,rect.right,-rect.top)
 
 /** 单一连续表面：上下圆角、偏斜和颈部作用于同一轮廓，不并置两个胶囊。 */
 internal data class MenuMorphGeometry(
     val body: Rect,val bodyCorner: Float,
     val topCorner: Float = bodyCorner,val skew: Float = 0f,
-    val neck: Float = 0f,val headScale: Float = 1f,val headDepth: Float = 0f
+    val neck: Float = 0f,val headScale: Float = 1f,val headDepth: Float = 0f,
+    val flipped: Boolean = false
 ) {
+    fun mirrored() = copy(body=mirror(body),flipped=!flipped)
     fun translated(offset: Offset) = copy(body=body.translate(offset))
     fun interpolate(other: MenuMorphGeometry, t: Float) = MenuMorphGeometry(
         Rect(mix(body.left, other.body.left, t), mix(body.top, other.body.top, t),
             mix(body.right, other.body.right, t), mix(body.bottom, other.body.bottom, t)),
         mix(bodyCorner, other.bodyCorner, t), mix(topCorner, other.topCorner, t),
         mix(skew, other.skew, t), mix(neck, other.neck, t),
-        mix(headScale, other.headScale, t), mix(headDepth, other.headDepth, t)
+        mix(headScale, other.headScale, t), mix(headDepth, other.headDepth, t), flipped
     )
     private fun headWeight(v: Float) = 1f-ActionMenuMotion.smooth(v,headDepth*.55f,min(headDepth+.25f,1f))
     private fun widthScale(v: Float) = 1f+(headScale-1f)*headWeight(v)-
         neck*exp(-((v-min(headDepth+.12f,.8f))/.12f).pow(2))
     private fun shift(v: Float) = skew*if(headDepth>0f) headWeight(v) else (1f-v).pow(2)
-    fun distance(x: Float,y: Float): Float {
+    fun distance(x: Float,screenY: Float): Float {
+        val y=if(flipped) body.top+body.bottom-screenY else screenY
         val v=((y-body.top)/body.height).coerceIn(0f,1f)
         val localX=(x-body.center.x-shift(v))/widthScale(v)
         val r=if(y<body.center.y) topCorner else bodyCorner
@@ -173,7 +184,8 @@ internal data class MenuMorphGeometry(
             val edge=max(r-min(y-body.top,body.bottom-y),0f)
             val half=body.width/2f-r+sqrt(max(r*r-edge*edge,0f))
             val x=body.center.x+shift(v)+side*half*widthScale(v)
-            if(side<0f && j==0) moveTo(x,y) else lineTo(x,y)
+            val screenY=if(flipped) body.top+body.bottom-y else y
+            if(side<0f && j==0) moveTo(x,screenY) else lineTo(x,screenY)
         }
         close()
     }
@@ -184,7 +196,9 @@ uniform float4 body;
 uniform float2 corners;
 uniform float3 warp;
 uniform float headDepth;
+uniform float flipped;
 float2 unwarp(float2 p) {
+    if(flipped>0.5) p.y=body.y+body.w-p.y;
     float v=clamp((p.y-body.y)/(body.w-body.y),0.0,1.0);
     float head=1.0-smoothstep(headDepth*0.55,min(headDepth+0.25,1.0),v);
     float s=1.0+(warp.z-1.0)*head-warp.y*exp(-pow((v-min(headDepth+0.12,0.8))/0.12,2.0));
@@ -193,7 +207,7 @@ float2 unwarp(float2 p) {
 }
 float distanceField(float2 p) {
     float2 local=unwarp(p);
-    float radius=p.y<(body.y+body.w)*0.5?corners.x:corners.y;
+    float radius=local.y<(body.y+body.w)*0.5?corners.x:corners.y;
     float2 q=abs(local-(body.xy+body.zw)*0.5)-(body.zw-body.xy)*0.5+radius;
     return length(max(q,0.0))+min(max(q.x,q.y),0.0)-radius;
 }
@@ -211,6 +225,8 @@ half4 main(float2 p) {
     float depth=max(-distanceField(p),0.0);
     float edge=clamp(1.0-depth/max(lens.x,0.001),0.0,1.0);
     float displacement=(1.0-sqrt(max(1.0-edge*edge,0.0)))*lens.y;
+    // 内部零位移时不计算四次距离采样的法线，采样坐标保持不变。
+    if (displacement == 0.0) return content.eval(p);
     return content.eval(p-displacement*normalAt(p));
 }
 """
@@ -223,7 +239,10 @@ half4 main(float2 p) {
     float depth=max(-distanceField(p),0.0);
     float edge=clamp(1.0-depth/max(lens.x,0.001),0.0,1.0);
     float displacement=(1.0-sqrt(max(1.0-edge*edge,0.0)))*lens.y;
-    float2 local=unwarp(p-displacement*normalAt(p));
+    float2 refracted=p;
+    if (displacement != 0.0) refracted-=displacement*normalAt(p);
+    float2 local=unwarp(refracted);
+    if(flipped>0.5) local.y=body.y+body.w-local.y;
     float2 uv=(local-body.xy)/(body.zw-body.xy);
     // 内容随表面流入，但不把全部行强行等比塞进早期的小滴。
     float2 mapped=destination.xy+uv*(destination.zw-destination.xy);

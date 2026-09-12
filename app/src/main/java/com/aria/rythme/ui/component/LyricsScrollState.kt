@@ -6,84 +6,119 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlin.math.abs
 
-/**
- * 歌词滚动模式
- */
 sealed interface LyricsScrollMode {
-    /** 自动跟踪当前行 */
     data object AutoFollow : LyricsScrollMode
-
-    /** 用户手动滚动中 */
     data object ManualScrolling : LyricsScrollMode
-
-    /** 手动滚动结束，等待恢复自动跟踪 */
-    data class WaitingToResume(
-        val followResumeTimeMs: Long,  // 恢复自动跟踪的时间（3s）
-        val clearModeEndTimeMs: Long   // 恢复模糊效果的时间（5s）
-    ) : LyricsScrollMode
+    data object WaitingToResume : LyricsScrollMode
+    data object ReturningToFollow : LyricsScrollMode
 }
 
-/**
- * 歌词滚动状态机
- *
- * 三态：AutoFollow → ManualScrolling → WaitingToResume → AutoFollow
- *
- * 替代原来的 isManualScrolling、isClearMode、isProgrammaticScroll、
- * autoFollowResumeJob、clearModeResumeJob 五个独立状态。
- */
+/** 位置只由四个阶段管理；模糊由阶段推导，控制区和跟随共用最后操作时间。 */
 @Stable
 class LyricsScrollState {
     var mode by mutableStateOf<LyricsScrollMode>(LyricsScrollMode.AutoFollow)
         private set
+    var isTouching by mutableStateOf(false)
+        private set
+    var isLyricsTouching by mutableStateOf(false)
+        private set
+    var browsingAtTouchStart = false
+        private set
+    private var returningFromSelection by mutableStateOf(false)
+    private var touchClearsBlur by mutableStateOf(true)
+    val isTouchClarityDeferred get() = isLyricsTouching && !touchClearsBlur
+    var lastInteractionEndMs by mutableStateOf(0L)
+        private set
 
-    /** 自动跟踪中 */
-    val isAutoFollow: Boolean get() = mode is LyricsScrollMode.AutoFollow
+    val isAutoFollow get() = mode == LyricsScrollMode.AutoFollow
+    val isClearMode get() = (isLyricsTouching && touchClearsBlur) || (!isAutoFollow && !returningFromSelection)
+    val canFollow get() = !isTouching && !isLyricsTouching &&
+        (isAutoFollow || mode == LyricsScrollMode.ReturningToFollow)
 
-    /** 清晰模式（非自动跟踪时关闭模糊和 alpha） */
-    val isClearMode: Boolean get() = mode !is LyricsScrollMode.AutoFollow
+    // 与全播放器的空闲计时分开：按播放按钮不应使歌词清晰。
+    fun onLyricsTouchDown(clearOnPress: Boolean = true) {
+        if (!isLyricsTouching) {
+            browsingAtTouchStart = isClearMode
+            touchClearsBlur = clearOnPress
+        }
+        isLyricsTouching = true
+    }
+    fun allowLyricsTouchClarity() { if (isLyricsTouching) touchClearsBlur = true }
+    fun onLyricsTouchReleased() { isLyricsTouching = false }
 
-    /** 标记程序触发的滚动，用于区分用户手动滚动 */
-    var isProgrammaticScroll by mutableStateOf(false)
-        internal set
-
-    /** 用户开始手动滚动 */
+    fun onTouchDown() { isTouching = true }
+    fun onTouchReleased(nowMs: Long) {
+        isTouching = false
+        lastInteractionEndMs = nowMs
+    }
     fun onUserScrollStart() {
+        returningFromSelection = false
         mode = LyricsScrollMode.ManualScrolling
     }
-
-    /** 用户停止滚动，进入等待恢复状态 */
     fun onUserScrollStop(nowMs: Long) {
-        mode = LyricsScrollMode.WaitingToResume(
-            followResumeTimeMs = nowMs + AUTO_FOLLOW_RESUME_DELAY,
-            clearModeEndTimeMs = nowMs + CLEAR_MODE_RESUME_DELAY
-        )
-    }
-
-    /** 用户点击歌词行，立即恢复自动跟踪 */
-    fun onLyricLineClicked() {
-        mode = LyricsScrollMode.AutoFollow
-    }
-
-    /** 歌词行变更时，如果处于等待状态则恢复（模糊恢复） */
-    fun onLyricIndexChanged() {
-        if (mode is LyricsScrollMode.WaitingToResume) {
-            mode = LyricsScrollMode.AutoFollow
+        if (mode == LyricsScrollMode.ManualScrolling) {
+            mode = LyricsScrollMode.WaitingToResume
+            lastInteractionEndMs = nowMs
         }
     }
+    fun onPlaybackChanged(isPlaying: Boolean, nowMs: Long) {
+        lastInteractionEndMs = nowMs
+        if (!isPlaying && mode == LyricsScrollMode.ReturningToFollow && !returningFromSelection) {
+            mode = LyricsScrollMode.WaitingToResume
+        }
+    }
+    fun onLyricLineClicked() {
+        returningFromSelection = true
+        mode = LyricsScrollMode.ReturningToFollow
+    }
+    fun onResumeTimerFired(nowMs: Long, isPlaying: Boolean) {
+        if (mode == LyricsScrollMode.WaitingToResume && !isTouching && !isLyricsTouching && isPlaying &&
+            nowMs - lastInteractionEndMs >= AUTO_FOLLOW_RESUME_DELAY) {
+            returningFromSelection = false
+            mode = LyricsScrollMode.ReturningToFollow
+        }
+    }
+    fun onFollowAnimationFinished() {
+        if (mode == LyricsScrollMode.ReturningToFollow && !isTouching && !isLyricsTouching) mode = LyricsScrollMode.AutoFollow
+    }
+    fun canAutoHideControls(nowMs: Long, isPlaying: Boolean): Boolean =
+        isPlaying && isAutoFollow && !isTouching && !isLyricsTouching &&
+            nowMs - lastInteractionEndMs >= CONTROLS_HIDE_DELAY
 
-    /** 恢复计时器到期 */
-    fun onResumeTimerFired() {
+    fun reset(nowMs: Long) {
         mode = LyricsScrollMode.AutoFollow
+        isTouching = false
+        isLyricsTouching = false
+        browsingAtTouchStart = false
+        returningFromSelection = false
+        lastInteractionEndMs = nowMs
+        touchClearsBlur = true
     }
 
     companion object {
         const val AUTO_FOLLOW_RESUME_DELAY = 3000L
-        const val CLEAR_MODE_RESUME_DELAY = 5000L
+        const val CONTROLS_HIDE_DELAY = 4000L
     }
 }
 
-@Composable
-fun rememberLyricsScrollState(): LyricsScrollState {
-    return remember { LyricsScrollState() }
+/** 距离按歌词句而非视觉换行计算；浏览态允许直接选择任意句。 */
+internal fun canSelectLyric(relativeIndex: Int, browsingBeforePress: Boolean): Boolean =
+    browsingBeforePress || relativeIndex in -3..3
+
+/** NestedScroll 的屏幕坐标速度；只在真实用户手势的 fling 起点调用，不累计跟手位移。 */
+internal fun lyricsFlingControlsVisibility(
+    velocityY: Float,
+    minimumVelocity: Float,
+    canScrollEarlier: Boolean,
+    canScrollLater: Boolean
+): Boolean? = when {
+    !velocityY.isFinite() || velocityY == 0f || abs(velocityY) < minimumVelocity -> null
+    velocityY > 0f && canScrollEarlier -> true
+    velocityY < 0f && canScrollLater -> false
+    else -> null
 }
+
+@Composable
+fun rememberLyricsScrollState(): LyricsScrollState = remember { LyricsScrollState() }

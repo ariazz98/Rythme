@@ -9,6 +9,18 @@ import kotlin.math.sqrt
 
 class GlassLightingTest {
     @Test
+    fun glowBandPreservesOriginalWidthAndStraddlesTheContour() {
+        assertEquals(1.4f, GlassGlowStrokeWidthDp, 0f)
+        for (dark in listOf(false, true)) {
+            val rim = glassLightingProfile(dark).rimWidth.value
+            val half = GlassGlowStrokeWidthDp / 2f
+            // 遮罩绘制保留外侧 half-rim 和内侧 half+rim，合计仍为原来的 1.4dp。
+            assertTrue(rim > 0f && rim < half)
+            assertEquals(GlassGlowStrokeWidthDp, (half - rim) + (half + rim), 0.00001f)
+        }
+    }
+
+    @Test
     fun pressLightingIsOffAtRestAndCappedAtFourPercent() {
         assertEquals(0f, glassPressLightAlpha(0f), 0f)
         assertEquals(0.04f, glassPressLightAlpha(1f), 0f)

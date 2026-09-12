@@ -10,19 +10,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -84,6 +87,8 @@ private val DarkGlassLighting = GlassLightingProfile(
     glowAlpha = 0.22f
 )
 
+internal const val GlassGlowStrokeWidthDp = 1.4f
+
 internal fun glassLightingProfile(darkTheme: Boolean): GlassLightingProfile =
     if (darkTheme) DarkGlassLighting else LightGlassLighting
 
@@ -118,6 +123,7 @@ internal fun BoxScope.GlassBackdropSurface(
     shape: () -> Shape,
     effects: BackdropEffectScope.() -> Unit,
     hdr: Boolean = true,
+    drawEnabled: () -> Boolean = { true },
     lightingAlpha: () -> Float = { 1f },
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     shadow: Shadow? = GlassSurfaceShadow,
@@ -133,7 +139,9 @@ internal fun BoxScope.GlassBackdropSurface(
     val state = LocalGlassHdr.current
     val useHdr = hdr && (state.enabled || (pressHdr && state.pressAvailable))
     key(useHdr, if (useHdr) state.generation else 0) {
-        Box(Modifier.matchParentSize().drawGlassBackdrop(
+        Box(Modifier.matchParentSize().drawWithContent {
+            if (drawEnabled()) drawContent()
+        }.drawGlassBackdrop(
             backdrop = backdrop,
             shape = shape,
             effects = effects,
@@ -174,6 +182,29 @@ internal fun Modifier.drawGlassBackdrop(
     // 跟随实际 RythmeTheme，而不是直接读系统开关，主题预览或覆盖也保持一致。
     val profile = glassLightingProfile(MaterialTheme.rythmeColors.surface.luminance() < 0.5f)
     val directionShader = remember { RuntimeShader(GlassDirectionShader) }
+    // 生命周期跟随玻璃节点，而不是每次轮廓变化都释放、重新申请离屏层。
+    // HDR 色彩空间变化仍由外层 key 负责重建，避免沿用旧色彩空间的缓存。
+    val glow = rememberGraphicsLayer()
+    val rimPaint = remember {
+        AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+            style = AndroidPaint.Style.STROKE
+            strokeJoin = AndroidPaint.Join.ROUND
+        }
+    }
+    val bodyStops = remember {
+        Array(97) { index ->
+            val depth = index / 96f
+            depth to Color.Black.copy(alpha = glassBodyReflectionAlpha(depth))
+        }
+    }
+    val rimStops = remember(profile) {
+        Array(65) { index ->
+            val depth = index / 64f
+            val vertical = abs(2f * depth - 1f)
+            depth to Color.Black.copy(alpha = profile.rimTopAlpha +
+                (profile.rimSideAlpha - profile.rimTopAlpha) * (1f - vertical * vertical))
+        }
+    }
     return drawBackdrop(
         backdrop = backdrop,
         shape = shape,
@@ -198,14 +229,12 @@ internal fun Modifier.drawGlassBackdrop(
         }
         val rimWidth = profile.rimWidth.toPx().coerceAtMost(size.minDimension / 4f)
         val edgeWidth = profile.coreWidth.toPx().coerceAtMost(size.minDimension / 4f)
-        // 从真实轮廓减掉暗边的覆盖区，得到白光内沿。不缩放形状，也不猜超椭圆的内圆角。
+        // 在绘制时用原轮廓减去描边带，避免动画每帧进行昂贵的 Path.combine 差集。
+        // 路径、内沿距离仍来自真实轮廓，不缩放形状或猜测内圆角。
         val rimBand = Path()
-        AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-            style = AndroidPaint.Style.STROKE
+        rimPaint.apply {
             strokeWidth = 2f * rimWidth
-            strokeJoin = AndroidPaint.Join.ROUND
         }.getFillPath(path.asAndroidPath(), rimBand.asAndroidPath())
-        val innerPath = Path.combine(PathOperation.Difference, path, rimBand)
 
         // 圆角几何只用于估算高光方向；绘制与裁剪始终使用上面的真实 Path。
         val maxRadius = size.minDimension / 2f
@@ -236,31 +265,30 @@ internal fun Modifier.drawGlassBackdrop(
         // 光照不是跟着大菜单的整个高度拉长：平面内部不应出现一大片灰色腰带。
         val lightingHeight = size.height.coerceAtMost(64.dp.toPx())
         val bodyReflection = bodyReflectionBrush?.invoke() ?: Brush.verticalGradient(
-            *Array(97) { index ->
-                val depth = index / 96f
-                depth to Color.Black.copy(alpha = glassBodyReflectionAlpha(depth))
-            },
+            *bodyStops,
             endY = lightingHeight
         )
         // 圆形按钮的侧面暗边比上下重；等强度细线会丢掉玻璃转折处的厚度线索。
         val rim = Brush.verticalGradient(
-            *Array(65) { index ->
-                val depth = index / 64f
-                val vertical = abs(2f * depth - 1f)
-                depth to Color.Black.copy(
-                    alpha = profile.rimTopAlpha +
-                        (profile.rimSideAlpha - profile.rimTopAlpha) * (1f - vertical * vertical)
-                )
-            },
+            *rimStops,
             endY = size.height
         )
         val blurRadius = 2.2.dp.toPx().coerceAtMost(size.minDimension / 8f)
+        val glowHalfWidth = (GlassGlowStrokeWidthDp / 2f).dp.toPx()
+        // 原柔光线以 rimWidth 为中心，宽度为 1.4dp；保留其向轮廓外伸出的部分。
+        // 当前明/暗材质的 rimWidth 均小于半线宽，此约束由 GlassLightingTest 覆盖。
+        val glowBoundary = Path().also { boundary ->
+            rimPaint.style = AndroidPaint.Style.FILL_AND_STROKE
+            rimPaint.strokeWidth = 2f * (glowHalfWidth - rimWidth).coerceAtLeast(0f)
+            rimPaint.getFillPath(path.asAndroidPath(), boundary.asAndroidPath())
+            rimPaint.style = AndroidPaint.Style.STROKE
+        }
         val padding = ceil(blurRadius * 3f)
         val glowSize = IntSize(
             ceil(size.width + padding * 2f).toInt(),
             ceil(size.height + padding * 2f).toInt()
         )
-        val glow = obtainGraphicsLayer().apply {
+        glow.apply {
             renderEffect = BlurEffect(
                 radiusX = blurRadius,
                 radiusY = blurRadius,
@@ -268,12 +296,10 @@ internal fun Modifier.drawGlassBackdrop(
             )
             record(size = glowSize) {
                 translate(padding, padding) {
-                    drawPath(
-                        innerPath,
-                        reflection,
-                        alpha = profile.glowAlpha,
-                        style = Stroke(width = 1.4.dp.toPx())
-                    )
+                    clipPath(glowBoundary) {
+                        drawPath(path, reflection, alpha = profile.glowAlpha,
+                            style = Stroke(2f * (rimWidth + glowHalfWidth), join = StrokeJoin.Round))
+                    }
                 }
             }
         }
@@ -290,16 +316,13 @@ internal fun Modifier.drawGlassBackdrop(
                 clipPath(path) { drawRect(Color.White, alpha = pressAlpha) }
             }
             if (alpha > 0f) {
-                clipPath(innerPath) {
-                    // 普通透明合成保留灰阶余量，避免 Plus 在白底形成一条截白的内边界。
-                    glow.alpha = alpha
-                    translate(-padding, -padding) { drawLayer(glow) }
-                    drawPath(
-                        innerPath,
-                        reflection,
-                        alpha = alpha * profile.coreAlpha,
-                        style = Stroke(2f * edgeWidth)
-                    )
+                clipPath(path) {
+                    clipPath(rimBand, clipOp = ClipOp.Difference) {
+                        glow.alpha = alpha
+                        translate(-padding, -padding) { drawLayer(glow) }
+                        drawPath(path, reflection, alpha = alpha * profile.coreAlpha,
+                            style = Stroke(2f * (rimWidth + edgeWidth), join = StrokeJoin.Round))
+                    }
                 }
             }
             // 只缓存光照，不缓存内容；文字、图标与它们原有的动画每帧正常绘制。

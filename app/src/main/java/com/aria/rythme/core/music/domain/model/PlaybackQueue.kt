@@ -3,6 +3,10 @@ package com.aria.rythme.core.music.domain.model
 import com.aria.rythme.core.music.data.model.Song
 import java.util.UUID
 
+/** 重建同一条目的媒体列表不产生历史，真正的单曲循环则产生新记录。 */
+internal fun shouldRecordPlaybackHistory(previousId: String?, nextId: String?, repeated: Boolean): Boolean =
+    previousId != null && (previousId != nextId || repeated)
+
 /**
  * 一次具体的入队记录。
  *

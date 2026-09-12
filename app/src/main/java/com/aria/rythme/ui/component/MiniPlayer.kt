@@ -105,10 +105,16 @@ fun MiniPlayer(
 
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val playerVisible = LocalPlayerVisible.current
+    val surfaceOpacity = com.aria.rythme.feature.player.presentation.LocalPlayerSurfaceOpaque.current
+    val overlayProgress = com.aria.rythme.feature.player.presentation.LocalPlayerOverlayProgress.current
+    val overlayShape = com.aria.rythme.feature.player.presentation.rememberPlayerContainerShape()
+    val transitioning = playerVisible || overlayProgress > 0f
+    val drawSourceGlass = com.aria.rythme.feature.player.presentation.shouldDrawMiniPlayerGlass(
+        playerVisible, com.aria.rythme.feature.player.presentation.LocalPlayerSurfaceOpaque.current.value)
     var artistOverflows by remember { mutableStateOf(false) }
 
     val pressLayer: GraphicsLayerScope.() -> Unit = {
-        val progress = pressAnimation.value
+        val progress = if (transitioning) 0f else pressAnimation.value
         val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
         scaleX = scale
         scaleY = scale
@@ -118,9 +124,14 @@ fun MiniPlayer(
         BottomBarMetrics.CompactHeight.dp, BottomBarMetrics.ExpandedMiniHeight.dp, expansionFraction
     )
     Box(modifier = modifier.fillMaxWidth().height(surfaceHeight)) {
-        GlassBackdropSurface(
+        if (drawSourceGlass) GlassBackdropSurface(
+            // 收起首帧背景仍完全不透明：先完成组合，实际需要透出玻璃时才生成材质。
+            // 在绘制阶段直接读动画值，不用延时，也不使整行文字逐帧重组。
+            drawEnabled = { surfaceOpacity.animation?.value != 1f },
             backdrop = backdrop,
-            shape = { ContinuousCapsule },
+            // 用户确认过渡过程不需要阴影；静止胶囊继续使用原材质。
+            shadow = if (transitioning) null else GlassSurfaceShadow,
+            shape = { if (transitioning) overlayShape else ContinuousCapsule },
             effects = {
                 vibrancy()
                 blur(4f.dp.toPx())
@@ -134,7 +145,7 @@ fun MiniPlayer(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(pressLayer)
-                .clip(ContinuousCapsule)
+                .clip(if (transitioning) overlayShape else ContinuousCapsule)
                 .pointerInput(scope) {
                     awaitEachGesture {
                         // requireUnconsumed = false：接受已被 clickable 消费的 DOWN 事件，
@@ -156,19 +167,21 @@ fun MiniPlayer(
 
             with(sharedTransitionScope) {
                 CoverItem(
+                    cachePlaceholderForTransition = true,
                     modifier = Modifier
                         .padding(start = 16.dp)
                         .sharedElementWithCallerManagedVisibility(
                             sharedContentState = rememberSharedContentState(
                                 key = "playerArtworkOverlay_$sharedIdentity"
                             ),
-                            visible = !playerVisible
+                            visible = !playerVisible,
+                            boundsTransform = com.aria.rythme.feature.player.presentation.playerOverlayBounds()
                         ),
                     size = androidx.compose.ui.unit.lerp(32.dp, 30.dp, expansionFraction),
                     corner = 6.dp,
                     song = song,
-                    defaultBgColor = MaterialTheme.rythmeColors.miniCoverBg,
-                    defaultIconColor = MaterialTheme.rythmeColors.miniCoverIcon
+                    defaultBgColor = com.aria.rythme.feature.player.presentation.playerCoverBackground(),
+                    defaultIconColor = com.aria.rythme.feature.player.presentation.playerCoverIcon()
                 )
             }
 
@@ -176,12 +189,11 @@ fun MiniPlayer(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .sharedElementWithCallerManagedVisibility(
-                            sharedContentState = rememberSharedContentState(
-                                key = "playerInfoOverlay_$sharedIdentity"
-                            ),
-                            visible = !playerVisible
-                        )
+                        .graphicsLayer {
+                            // 文字不再飞入全屏标题；随小播放器退场，目标文字跟随控制区。
+                            alpha = 1f - com.aria.rythme.feature.player.presentation.PlayerOverlayMotion
+                                .contentAlpha(overlayProgress, playerVisible)
+                        }
                 ) {
                     Text(
                         text = song?.title ?: stringResource(R.string.not_play),
@@ -226,7 +238,11 @@ fun MiniPlayer(
                             onTextLayout = { artistOverflows = it.didOverflowWidth },
                             modifier = Modifier
                                 .padding(start = 8.dp)
-                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .graphicsLayer {
+                                    // 只有确实绘制渐隐遮罩时才需要离屏隔离。
+                                    compositingStrategy = if (artistOverflows)
+                                        CompositingStrategy.Offscreen else CompositingStrategy.Auto
+                                }
                                 .drawWithContent {
                                     drawContent()
                                     if (artistOverflows) drawRect(

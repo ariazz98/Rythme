@@ -12,5 +12,6 @@ class PlayerStateTest {
         assertEquals("empty", state.currentQueueEntryIdentity)
         assertFalse(state.canPlayPrevious)
         assertFalse(state.canPlayNext)
+        assertFalse(state.canShowLyrics)
     }
 }

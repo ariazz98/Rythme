@@ -79,7 +79,8 @@ val playerModule = module {
         PlayerViewModel(
             playbackController = get(),
             musicRepository = get(),
-            lyricsRepository = get()
+            lyricsRepository = get(),
+            playlistRepository = get()
         )
     }
 }

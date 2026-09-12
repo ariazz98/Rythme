@@ -83,12 +83,7 @@ class HomeViewModel(
     fun resume() = runPlayback {
         // 点击时重新读取，不能用页面首次出现时捕获的播放位置覆盖后台新位置。
         val point = history.history.first().resume ?: error("暂时没有可继续的收听记录")
-        val available = music.getAllSongsOnce().associateBy { it.id }
-        val index = restoredQueueIndex(point.queueIds, point.queueIndex, available.keys)
-            ?: error("上次播放的歌曲已不在曲库中")
-        val queue = point.queueIds.mapNotNull(available::get)
-        val song = queue[index]
-        playback.play(song, queue, point.origin, point.positionMs.coerceAtMost(song.duration.coerceAtLeast(0)), index)
+        playback.restore(point, music.getAllSongsOnce())
     }
 
     private fun runPlayback(action: suspend () -> Unit) {

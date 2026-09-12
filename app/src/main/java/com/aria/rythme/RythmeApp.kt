@@ -14,6 +14,9 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import com.aria.rythme.feature.player.presentation.PlayerOverlayMotion
+import com.aria.rythme.feature.player.presentation.LocalPlayerOverlayProgress
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -113,6 +116,13 @@ fun RythmeApp() {
     val activity = LocalActivity.current
     // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
     var playerVisible by remember { mutableStateOf(false) }
+    val playerDismissMotion = remember { mutableStateOf(com.aria.rythme.feature.player.presentation.PlayerDismissMotion()) }
+    val playerOverlayProgress by animateFloatAsState(
+        if (playerVisible) 1f else 0f,
+        tween(if (playerVisible) PlayerOverlayMotion.ExpandMs else playerDismissMotion.value.durationMs,
+            easing = if (playerVisible) PlayerOverlayMotion.ExpandEasing else playerDismissMotion.value.easing),
+        label = "playerOverlayMaterial"
+    )
     val overlayMenuState = remember { OverlayMenuState() }
     val topBarState = rememberTopBarState()
     LaunchedEffect(navigationState.topLevelRoute, navigationState.currentRoute) {
@@ -128,11 +138,15 @@ fun RythmeApp() {
         }
     )
     val backdrop = rememberLayerBackdrop()
+    val playerSurfaceOpaque = remember { com.aria.rythme.feature.player.presentation.PlayerSurfaceOpacity() }
 
     SharedTransitionLayout {
         CompositionLocalProvider(
             LocalSharedTransitionScope provides this@SharedTransitionLayout,
             LocalPlayerVisible provides playerVisible,
+            LocalPlayerOverlayProgress provides playerOverlayProgress,
+            com.aria.rythme.feature.player.presentation.LocalPlayerDismissMotion provides playerDismissMotion,
+            com.aria.rythme.feature.player.presentation.LocalPlayerSurfaceOpaque provides playerSurfaceOpaque,
             LocalOverlayMenu provides overlayMenuState,
             LocalBackdrop provides backdrop,
             LocalBottomBarState provides bottomBarState

@@ -21,13 +21,40 @@ data class ListeningOrigin(
 )
 
 data class ListeningRecord(val songId: Long, val origin: ListeningOrigin, val playedAt: Long)
+/** 分区与原始顺序按入队位置保存，同曲重复入队也能分别恢复。 */
+data class ResumeQueueState(
+    val orderedCount: Int,
+    val sourceOrder: List<Int>,
+    val shuffle: Boolean = false,
+    val repeat: String = "OFF",
+    val autoplay: Boolean = false,
+    val crossfade: Boolean = false
+)
 data class ResumePoint(
     val songId: Long,
     val positionMs: Long,
     val queueIds: List<Long>,
     val queueIndex: Int,
-    val origin: ListeningOrigin
+    val origin: ListeningOrigin,
+    val queueState: ResumeQueueState? = null
 )
+
+internal fun ResumePoint.withAvailableSongs(available: Set<Long>): ResumePoint? {
+    if (queueIds.getOrNull(queueIndex) != songId || songId !in available) return null
+    val kept = queueIds.indices.filter { queueIds[it] in available }
+    val positions = kept.withIndex().associate { it.value to it.index }
+    val metadata = queueState?.let { saved ->
+        val boundary = saved.orderedCount.coerceIn(0, queueIds.size)
+        val orderedIndices = (0 until boundary).toList()
+        val source = saved.sourceOrder.takeIf { it.sorted() == orderedIndices } ?: orderedIndices
+        saved.copy(orderedCount = kept.count { it < boundary },
+            sourceOrder = source.mapNotNull(positions::get))
+    }
+    return copy(queueIds = kept.map(queueIds::get), queueIndex = positions.getValue(queueIndex),
+        queueState = metadata,
+        // 旧快照没有分区信息，保留歌曲，但不能继续声称全部来自旧专辑。
+        origin = if (metadata == null) ListeningOrigin() else origin)
+}
 data class ListeningHistory(val recent: List<ListeningRecord> = emptyList(), val resume: ResumePoint? = null)
 
 internal fun rememberListening(recent: List<ListeningRecord>, record: ListeningRecord): List<ListeningRecord> =
@@ -68,7 +95,13 @@ class ListeningHistoryRepository(context: Context) {
         } })
         history.resume?.let { point -> put("resume", JSONObject().put("song", point.songId)
             .put("position", point.positionMs.coerceAtLeast(0)).put("queue", JSONArray(point.queueIds))
-            .put("index", point.queueIndex).put("origin", point.origin.json())) }
+            .put("index", point.queueIndex).put("origin", point.origin.json())
+            .apply { point.queueState?.let { state ->
+                put("queueState", JSONObject().put("orderedCount", state.orderedCount)
+                    .put("sourceOrder", JSONArray(state.sourceOrder))
+                    .put("shuffle", state.shuffle).put("repeat", state.repeat)
+                    .put("autoplay", state.autoplay).put("crossfade", state.crossfade))
+            } }) }
     }.toString()
 
     private fun decode(value: String?): ListeningHistory {
@@ -83,7 +116,14 @@ class ListeningHistoryRepository(context: Context) {
                 resume = json.optJSONObject("resume")?.let { point ->
                     val queue = point.getJSONArray("queue")
                     ResumePoint(point.getLong("song"), point.optLong("position").coerceAtLeast(0),
-                        List(queue.length()) { queue.getLong(it) }, point.optInt("index"), origin(point.getJSONObject("origin")))
+                        List(queue.length()) { queue.getLong(it) }, point.optInt("index"), origin(point.getJSONObject("origin")),
+                        point.optJSONObject("queueState")?.let { state ->
+                            val source = state.optJSONArray("sourceOrder") ?: JSONArray()
+                            ResumeQueueState(state.getInt("orderedCount"),
+                                List(source.length()) { source.getInt(it) },
+                                state.optBoolean("shuffle"), state.optString("repeat", "OFF"),
+                                state.optBoolean("autoplay"), state.optBoolean("crossfade"))
+                        })
                 }
             )
         } catch (_: org.json.JSONException) { ListeningHistory() }

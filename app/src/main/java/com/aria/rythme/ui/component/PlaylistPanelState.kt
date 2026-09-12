@@ -16,8 +16,14 @@ class PlaylistPanelState {
     /** 容器总高度（像素），用于切换阈值计算 */
     var contentHeightPx by mutableFloatStateOf(0f)
 
-    /** 切换阈值：50% 内容高度 */
-    val switchThresholdPx: Float get() = contentHeightPx * 0.5f
+    /** 历史标题 + 实际行高；未测量时沿用原来的整屏范围。 */
+    var historyContentHeightPx by mutableFloatStateOf(Float.POSITIVE_INFINITY)
+
+    val historyExtentPx: Float
+        get() = minOf(contentHeightPx, historyContentHeightPx).coerceAtLeast(0f)
+
+    /** 弹性切换的半程阈值不变；仅短历史按用户要求使用实际内容高度。 */
+    val switchThresholdPx: Float get() = historyExtentPx * 0.5f
 
     /** 头部折叠偏移（0 = 完全展开, nowPlayingHeightPx = 完全折叠） */
     var headerCollapseOffset by mutableFloatStateOf(0f)

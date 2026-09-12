@@ -9,6 +9,8 @@ import com.aria.rythme.core.music.data.model.LyricsStatus
 import com.aria.rythme.core.music.data.model.Song
 import com.aria.rythme.core.music.data.repository.LyricsRepository
 import com.aria.rythme.core.music.data.repository.MusicRepository
+import com.aria.rythme.core.music.data.repository.PlaylistRepository
+import kotlinx.coroutines.flow.combine
 import com.aria.rythme.core.utils.RythmeLogger
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -29,7 +31,8 @@ import kotlinx.coroutines.launch
 class PlayerViewModel(
     private val playbackController: PlaybackController,
     private val musicRepository: MusicRepository,
-    private val lyricsRepository: LyricsRepository
+    private val lyricsRepository: LyricsRepository,
+    private val playlistRepository: PlaylistRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PlayerState())
@@ -49,6 +52,15 @@ class PlayerViewModel(
 
     init {
         observePlaybackState()
+        combine(playbackController.queueOrigin, musicRepository.getAllAlbums(),
+            playlistRepository.getAllPlaylists()) { origin, albums, playlists ->
+            when (origin.kind) {
+                "album" -> albums.firstOrNull { it.id == origin.id }?.title
+                "playlist" -> playlists.firstOrNull { it.id == origin.id }?.name
+                else -> null
+            }
+        }.onEach { title -> updateState { it.copy(queueSourceTitle = title) } }
+            .launchIn(viewModelScope)
     }
 
     fun togglePlayPause() {
@@ -79,7 +91,7 @@ class PlayerViewModel(
 
     fun seekTo(position: Long) {
         playbackController.seekTo(position)
-        updateState { it.copy(currentPosition = position) }
+        updateState { it.copy(currentPosition = position, positionDiscontinuity = it.positionDiscontinuity + 1) }
     }
 
     fun toggleRepeatMode() {
@@ -160,8 +172,10 @@ class PlayerViewModel(
 
         val timeMs = lines[index].startTimeMs
         playbackController.seekTo(timeMs)
+        playbackController.play()
         updateState {
-            it.copy(currentPosition = timeMs, currentLyricIndex = index)
+            it.copy(currentPosition = timeMs, currentLyricIndex = index,
+                positionDiscontinuity = it.positionDiscontinuity + 1)
         }
     }
 
@@ -175,8 +189,13 @@ class PlayerViewModel(
 
         playbackController.queue
             .onEach { queue ->
-                updateState { it.copy(queue = queue) }
                 val song = queue.currentEntry?.song
+                updateState {
+                    val changed = it.queue.currentEntry?.id != queue.currentEntry?.id
+                    it.copy(queue = queue,
+                        currentPosition = if (changed) 0L else it.currentPosition,
+                        duration = if (changed) song?.duration?.coerceAtLeast(0L) ?: 0L else it.duration)
+                }
                 if (song == null) {
                     updateLyrics(null, LyricsStatus.IDLE)
                     lastLyricsSongId = null
@@ -184,6 +203,22 @@ class PlayerViewModel(
                     loadLyrics(song)
                 }
                 observeFavorite(song?.id)
+            }
+            .launchIn(viewModelScope)
+
+        // 播放时仍轮询平滑推进；暂停切歌、seek 和媒体就绪事件也必须刷新 UI。
+        playbackController.currentPosition
+            .onEach { position ->
+                updateState { it.copy(currentPosition = position.coerceAtLeast(0L),
+                    positionDiscontinuity = it.positionDiscontinuity + 1) }
+                updateCurrentLyricIndex(position)
+            }
+            .launchIn(viewModelScope)
+
+        playbackController.duration
+            .onEach { duration ->
+                updateState { it.copy(duration = duration.takeIf { value -> value > 0L }
+                    ?: it.currentSong?.duration?.coerceAtLeast(0L) ?: 0L) }
             }
             .launchIn(viewModelScope)
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,8 +22,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.*
 import com.aria.rythme.LocalBackdrop
+import com.aria.rythme.R
 import com.aria.rythme.ui.theme.rythmeColors
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
@@ -39,7 +42,13 @@ internal fun MorphingActionMenuOverlay(
     menu: OverlayMenu.ActionMenu,
     visible: Boolean,
     onDismiss: () -> Unit,
-    onExitFinished: () -> Unit
+    onExitFinished: () -> Unit,
+    allowUpward: Boolean = false,
+    panelWidth: Float = ActionMenuMotion.Width,
+    panelCorner: Float = ActionMenuMotion.Corner,
+    sourceSurface: MenuSourceSurface = MenuSourceSurface.Glass,
+    sourceIconSize: Dp = 18.dp,
+    sourceIconTint: Color = Color.Unspecified
 ) {
     val progress = remember { Animatable(0f) }
     val sourceAlpha = remember { Animatable(1f) }
@@ -48,9 +57,12 @@ internal fun MorphingActionMenuOverlay(
     val sourceScale = remember { Animatable(menu.sourceScale) }
     val closeProgress = remember { Animatable(0f) }
     var closeStart by remember { mutableStateOf<MenuMorphGeometry?>(null) }
+    var reopenStart by remember { mutableStateOf<MenuMorphGeometry?>(null) }
+    var closeDrag by remember { mutableStateOf<MenuPanelTransform?>(null) }
     var closeSurfaceStart by remember { mutableFloatStateOf(0f) }
     val surfaceProgress by remember {
-        derivedStateOf { if (closeStart == null) progress.value else closeSurfaceStart * (1f - closeProgress.value) }
+        derivedStateOf { if (closeStart == null) progress.value else closeSurfaceStart *
+            ActionMenuMotion.closingMaterialProgress(closeProgress.value, sourceSurface) }
     }
     val density = LocalDensity.current
     val referenceDensity = Density(density.density * menu.referenceScale, density.fontScale)
@@ -69,7 +81,11 @@ internal fun MorphingActionMenuOverlay(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val safeTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding().value * density.density
         val safeBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().value * density.density
-        val target = ActionMenuMotion.targetBounds(menu.anchorBounds, ActionMenuMotion.Width * unit, naturalHeight,
+        val height = min(naturalHeight, (constraints.maxHeight - safeTop - safeBottom - 12f * unit).coerceAtLeast(1f))
+        val spaceBelow = constraints.maxHeight - safeBottom - menu.anchorBounds.bottom
+        val upward = allowUpward && spaceBelow < height && menu.anchorBounds.top - safeTop > spaceBelow
+        val placementAnchor = if (upward) menu.anchorBounds.translate(Offset(0f, menu.anchorBounds.height - height)) else menu.anchorBounds
+        val target = ActionMenuMotion.targetBounds(placementAnchor, panelWidth * unit, naturalHeight,
             constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), safeTop, safeBottom, 12f * unit)
         val source = menu.anchorBounds.let {
             val half = Offset(it.width, it.height) * (sourceScale.value / 2f)
@@ -81,9 +97,12 @@ internal fun MorphingActionMenuOverlay(
         val fold = ActionMenuMotion.openingFoldFraction(menu.sourceActions.size,
             menu.sourceActions.indexOfFirst { it.key == menu.pressedActionKey })
         val renderedGeometry = closeStart?.let {
-            ActionMenuMotion.closeFromSnapshot(it, source, target, closeProgress.value,
-                ActionMenuMotion.ClosingFoldFraction)
-        } ?: ActionMenuMotion.geometry(source, target, progress.value, ActionMenuMotion.Corner * unit, fold)
+            ActionMenuMotion.dismissGeometry(it, menu.anchorBounds, target, closeProgress.value, sourceSurface, upward)
+        } ?: ActionMenuMotion.openingGeometry(source, target, progress.value, panelCorner * unit, fold, upward).let { next ->
+            reopenStart?.interpolate(next, ActionMenuMotion.smooth(progress.value, 0f, .35f)) ?: next
+        }
+        val dragTransform = menuPanelTransform(interaction.dragX.value, interaction.dragY.value,
+            target.size, unit, if (upward) PanelAnchor.BottomEnd else PanelAnchor.TopEnd)
         val geometry = renderedGeometry.translated(-canvas.topLeft)
         val currentGeometry by rememberUpdatedState(geometry)
         LaunchedEffect(visible) {
@@ -91,18 +110,22 @@ internal fun MorphingActionMenuOverlay(
                 // 先保存当前轮廓与材质，再启动独立关闭时钟；第一帧不会换成完整菜单。
                 closeStart = renderedGeometry
                 closeSurfaceStart = progress.value
+                closeDrag = dragTransform
                 closeProgress.snapTo(0f)
+            } else if (closeStart != null) {
+                reopenStart = renderedGeometry
+                progress.snapTo(0f)
+                closeStart = null
             }
             coroutineScope {
                 launch { sourceScale.animateTo(1f, tween(120)) }
-                launch { sourceAlpha.animateTo(if (visible) 0f else 1f,
-                    if (visible) tween(25) else tween(100, delayMillis = 105)) }
+                launch { if (visible) sourceAlpha.animateTo(0f, tween(25)) }
                 launch { contentAlpha.animateTo(if (visible) 1f else 0f,
-                    if (visible) tween(100, delayMillis = 20) else tween(60)) }
+                    if (visible) tween(100, delayMillis = 20) else tween(110)) }
                 launch { contentBlur.animateTo(if (visible) 0f else 6f,
-                    if (visible) tween(140, delayMillis = 20) else tween(60)) }
+                    if (visible) tween(140, delayMillis = 20) else tween(100)) }
                 if (visible) progress.animateTo(1f, tween(ActionMenuMotion.OpenMillis, easing = LinearEasing))
-                else closeProgress.animateTo(1f, tween(ActionMenuMotion.CloseMillis, easing = LinearEasing))
+                else closeProgress.animateTo(1f, tween(ActionMenuMotion.dismissMillis(sourceSurface), easing = LinearEasing))
             }
             if (!visible) onExitFinished()
         }
@@ -119,9 +142,9 @@ internal fun MorphingActionMenuOverlay(
         Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null) { if (visible) onDismiss() })
         val settled = progress.value >= .9999f && visible
         val panelLayer: GraphicsLayerScope.() -> Unit = {
-            val transform = menuPanelTransform(interaction.dragX.value, interaction.dragY.value,
-                target.size, unit, PanelAnchor.TopEnd)
-            val amount = ActionMenuMotion.smooth(surfaceProgress, .65f, 1f)
+            val transform = closeDrag.takeIf { closeStart != null } ?: dragTransform
+            val amount = if (closeStart == null) ActionMenuMotion.smooth(surfaceProgress, .65f, 1f)
+                else ActionMenuMotion.smooth(closeSurfaceStart, .65f, 1f) * (1f-ActionMenuMotion.smooth(closeProgress.value,0f,.55f))
             transformOrigin = TransformOrigin(
                 (target.center.x - canvas.left) / canvas.width,
                 (target.center.y - canvas.top) / canvas.height)
@@ -129,6 +152,7 @@ internal fun MorphingActionMenuOverlay(
             translationY = transform.y * amount
             scaleX = 1f + (transform.scaleX - 1f) * amount
             scaleY = 1f + (transform.scaleY - 1f) * amount
+            alpha = if (closeStart == null) 1f else ActionMenuMotion.dismissalAlpha(closeProgress.value, sourceSurface)
         }
         Box(Modifier.offset { IntOffset(canvas.left.roundToInt(), canvas.top.roundToInt()) }
             .requiredSize((canvas.width / density.density).dp, (canvas.height / density.density).dp)) {
@@ -155,6 +179,7 @@ internal fun MorphingActionMenuOverlay(
                             setFloatUniform("corners", g.topCorner, g.bodyCorner)
                             setFloatUniform("warp", g.skew, g.neck, g.headScale)
                             setFloatUniform("headDepth", g.headDepth)
+                            setFloatUniform("flipped", if(g.flipped) 1f else 0f)
                             setFloatUniform("lens", min(24f * unit, min(g.body.width, g.body.height) / 2f), 32f * unit)
                         }
                         padding = 0f
@@ -186,25 +211,38 @@ internal fun MorphingActionMenuOverlay(
                     })) {
                     CompositionLocalProvider(LocalDensity provides referenceDensity) {
                         MenuPanelContent(backdrop, menu.configs, interactive = settled,
+                            anchor = if (upward) PanelAnchor.BottomEnd else PanelAnchor.TopEnd,
                             columnModifier = Modifier.offset {
                                 IntOffset((target.left - canvas.left).roundToInt(), (target.top - canvas.top).roundToInt())
                             }, panelWidth = (target.width / unit).dp,
-                            panelShape = RoundedCornerShape(ActionMenuMotion.Corner.dp), drawSurface = false,
+                            panelShape = RoundedCornerShape(panelCorner.dp), drawSurface = false,
                             interaction = interaction, deformContent = false,
                             contentViewport = if (naturalHeight > target.height + .5f)
                                 Modifier.heightIn(max = (target.height / unit).dp).verticalScroll(scrollState)
                             else Modifier)
                     }
                 }
-                if (sourceAlpha.value > .001f) Box(Modifier.matchParentSize().clip(shape)) { Row(
-                    Modifier.offset { IntOffset((menu.anchorBounds.left - canvas.left).roundToInt(), (menu.anchorBounds.top - canvas.top).roundToInt()) }
+                val glyphAlpha = if(closeStart == null) sourceAlpha.value else max(sourceAlpha.value,
+                    ActionMenuMotion.closingSourceAlpha(closeProgress.value, sourceSurface))
+                val glyphScale = if(closeStart == null) sourceScale.value else
+                    (renderedGeometry.body.width*renderedGeometry.headScale/menu.anchorBounds.width).coerceIn(.85f,1f)
+                val glyphTop = if(closeStart == null) menu.anchorBounds.top else
+                    if(upward) renderedGeometry.body.bottom-menu.anchorBounds.height else renderedGeometry.body.top
+                if (glyphAlpha > .001f) Box(Modifier.matchParentSize()
+                    .then(if(closeStart == null) Modifier.clip(shape) else Modifier)) { Row(
+                    Modifier.offset { IntOffset((menu.anchorBounds.left - canvas.left).roundToInt(), (glyphTop - canvas.top).roundToInt()) }
                         .requiredSize((menu.anchorBounds.width / density.density).dp, (menu.anchorBounds.height / density.density).dp)
-                        .graphicsLayer { scaleX = sourceScale.value; scaleY = sourceScale.value }
-                        .glassHdrFadeAndBlur(alpha = { sourceAlpha.value }, blurDp = {
-                            if (closeStart != null) 4f*menu.referenceScale*(1f-ActionMenuMotion.smooth(closeProgress.value,.28f,.55f)) else 0f
+                        .graphicsLayer { scaleX = glyphScale; scaleY = glyphScale }
+                        .glassHdrFadeAndBlur(alpha = { glyphAlpha }, blurDp = {
+                            if (closeStart != null) 4f*menu.referenceScale*(1f-ActionMenuMotion.closingSourceAlpha(closeProgress.value,sourceSurface)) else 0f
                         }),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if(sourceSurface == MenuSourceSurface.Icon) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+                        Icon(painterResource(R.drawable.ic_more),contentDescription=null,
+                            tint=sourceIconTint.takeOrElse { MaterialTheme.rythmeColors.textColor },
+                            modifier=Modifier.size(sourceIconSize))
+                    }
                     menu.sourceActions.forEachIndexed { index, action ->
                         val pressedAlpha = TopBarPressMotion.iconTargetAlpha(true, dark = hdr.darkTheme)
                         Box(Modifier.graphicsLayer {
@@ -240,4 +278,5 @@ private fun RuntimeShader.configure(geometry: MenuMorphGeometry) {
     setFloatUniform("corners", geometry.topCorner, geometry.bodyCorner)
     setFloatUniform("warp", geometry.skew, geometry.neck, geometry.headScale)
     setFloatUniform("headDepth", geometry.headDepth)
+    setFloatUniform("flipped", if(geometry.flipped) 1f else 0f)
 }
