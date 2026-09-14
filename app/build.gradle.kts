@@ -92,7 +92,7 @@ dependencies {
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.29.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
 
     implementation(libs.backdrop)
     implementation(libs.capsule)
