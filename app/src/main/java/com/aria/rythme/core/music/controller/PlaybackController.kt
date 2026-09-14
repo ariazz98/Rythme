@@ -1,5 +1,11 @@
 package com.aria.rythme.core.music.controller
 
+import android.os.Bundle
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -147,6 +153,8 @@ class PlaybackController(private val context: Context, private val listeningHist
     // 当前位置
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
+    private val _positionDiscontinuity = MutableStateFlow(0L)
+    val positionDiscontinuity: StateFlow<Long> = _positionDiscontinuity.asStateFlow()
 
     // 总时长
     private val _duration = MutableStateFlow(0L)
@@ -436,6 +444,37 @@ class PlaybackController(private val context: Context, private val listeningHist
         } else {
             controller.play()
         }
+    }
+
+    private val _practiceSeeks = MutableStateFlow(0L)
+    val practiceSeeks = _practiceSeeks.asStateFlow()
+    private val _practiceEnds = MutableStateFlow(0L)
+    val practiceEnds = _practiceEnds.asStateFlow()
+
+    /** 保留队列、循环和随机偏好，仅在练习期间禁止跨过媒体条目末尾。 */
+    suspend fun preparePractice(songId: Long, positionMs: Long) {
+        awaitInitialization()
+        val controller = checkNotNull(mediaController) { "播放器尚未就绪" }
+        val index = _queue.value.entries.indexOfFirst { it.song.id == songId }
+        check(index >= 0 && index < controller.mediaItemCount) { "参考歌曲已不在播放队列，请重新选择歌曲参考" }
+        controller.pause()
+        val future = controller.sendCustomCommand(SessionCommand(MusicPlaybackService.PRACTICE_COMMAND, Bundle.EMPTY),
+            Bundle().apply { putBoolean("enabled", true) })
+        suspendCancellableCoroutine<Unit> { continuation ->
+            future.addListener({
+                if (continuation.isActive) try {
+                    check(future.get().resultCode == SessionResult.RESULT_SUCCESS) { "无法启用练习播放" }
+                    continuation.resume(Unit)
+                } catch (error: Exception) { continuation.resumeWithException(error) }
+            }, MoreExecutors.directExecutor())
+        }
+        controller.seekTo(index, positionMs.coerceAtLeast(0))
+        controller.prepare()
+    }
+
+    fun releasePractice() {
+        mediaController?.sendCustomCommand(SessionCommand(MusicPlaybackService.PRACTICE_COMMAND, Bundle.EMPTY),
+            Bundle().apply { putBoolean("enabled", false) })
     }
 
     /**
@@ -958,12 +997,21 @@ class PlaybackController(private val context: Context, private val listeningHist
             }
         }
 
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                _practiceEnds.value += 1
+            }
+        }
+
         override fun onPositionDiscontinuity(
             oldPosition: Player.PositionInfo,
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
+            if (com.aria.rythme.BuildConfig.DEBUG) android.util.Log.d("PitchPractice", "discontinuity reason=$reason old=${oldPosition.positionMs} new=${newPosition.positionMs}")
             _currentPosition.value = newPosition.positionMs
+            _positionDiscontinuity.value += 1
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) _practiceSeeks.value += 1
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {

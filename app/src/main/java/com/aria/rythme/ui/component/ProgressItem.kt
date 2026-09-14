@@ -131,12 +131,13 @@ internal fun sliderDragProgress(start: Float, delta: Float, width: Float): Float
         (start + delta / width).coerceIn(0f, 1f) else start.coerceIn(0f, 1f)
 
 @Composable
-private fun PlayerSliderTrack(
+internal fun PlayerSliderTrack(
     progress: Float,
     modifier: Modifier = Modifier.fillMaxWidth(),
     enabled: Boolean = true,
     horizontalPadding: Dp = 0.dp,
     pressedPadding: Dp = horizontalPadding,
+    trackColor: Color = Color.White,
     onProgressChange: (Float) -> Unit,
     onProgressChangeFinished: (Float) -> Unit,
     onDragStateChange: (Boolean) -> Unit
@@ -194,9 +195,9 @@ private fun PlayerSliderTrack(
         contentAlignment = Alignment.Center
     ) {
         Canvas(Modifier.fillMaxWidth().padding(horizontal = padding).height(height).clip(ContinuousCapsule)) {
-            drawRect(Color.White.copy(alpha = if (dragging || !enabled) .3f else .25f))
+            drawRect(trackColor.copy(alpha = if (dragging || !enabled) .3f else .25f))
             drawRect(
-                Color.White.copy(alpha = if (dragging) 1f else .65f),
+                trackColor.copy(alpha = if (dragging) 1f else .65f),
                 topLeft = Offset.Zero,
                 size = Size(size.width * value.coerceIn(0f, 1f), size.height)
             )

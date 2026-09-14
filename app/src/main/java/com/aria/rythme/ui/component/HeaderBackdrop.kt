@@ -47,7 +47,7 @@ internal fun BackdropEffectScope.headerProgressiveBlur() {
     }
 }
 
-internal fun DrawScope.drawHeaderBackdropSurface(surface: Color) {
+internal fun DrawScope.drawHeaderBackdropSurface(surface: Color, showDivider: Boolean = true) {
     drawRect(Brush.verticalGradient(
         *Array(17) { index ->
             val depth = index / 16f
@@ -55,6 +55,7 @@ internal fun DrawScope.drawHeaderBackdropSurface(surface: Color) {
         },
         endY = size.height
     ))
+    if (!showDivider) return
     // 一物理像素的分隔，不加投影；跟随外层 Header 的可见进度一起退出。
     val line = if (surface.luminance() < .5f) Color.White.copy(alpha = .16f)
         else Color.Black.copy(alpha = .12f)

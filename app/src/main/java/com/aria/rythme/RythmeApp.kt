@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -116,6 +117,9 @@ fun RythmeApp() {
     val activity = LocalActivity.current
     // Player 以浮层方式叠加，Scaffold 始终存活不被销毁
     var playerVisible by remember { mutableStateOf(false) }
+    var profileVisible by remember { mutableStateOf(false) }
+    var practiceVisible by remember { mutableStateOf(false) }
+    var modelConfigurationRequired by remember { mutableStateOf(false) }
     val playerDismissMotion = remember { mutableStateOf(com.aria.rythme.feature.player.presentation.PlayerDismissMotion()) }
     val playerOverlayProgress by animateFloatAsState(
         if (playerVisible) 1f else 0f,
@@ -158,6 +162,11 @@ fun RythmeApp() {
                     navigationState = navigationState,
                     navigator = navigator,
                     openPlayer = { playerVisible = true },
+                    openProfile = { modelConfigurationRequired = false; profileVisible = true },
+                    configureModels = { modelConfigurationRequired = true; profileVisible = true },
+                    profileVisible = profileVisible || practiceVisible,
+                    practiceVisible = practiceVisible,
+                    openPractice = { playerVisible = false; practiceVisible = true },
                     onBack = {
                         if (overlayMenuState.isVisible) {
                             overlayMenuState.dismiss()
@@ -179,6 +188,16 @@ fun RythmeApp() {
                     overlayMenuState.dismiss()
                 }
                 PlayerScreen(onBack = { playerVisible = false })
+                if (practiceVisible) com.aria.rythme.feature.pitch.presentation.SongPracticeOverlay(
+                    onDismiss = { practiceVisible = false },
+                    onConfigureModels = { modelConfigurationRequired = true; profileVisible = true },
+                    configurationVisible = profileVisible)
+                if (profileVisible) {
+                    val settings = koinInject<com.aria.rythme.core.music.data.settings.AppSettingsRepository>()
+                    val displayName by settings.displayName.collectAsStateWithLifecycle("未设置昵称")
+                    val avatarPath by settings.avatarPath.collectAsStateWithLifecycle(null)
+                    com.aria.rythme.ui.component.ProfileSheet(displayName = displayName, avatarPath = avatarPath, onSaveProfile = settings::updateProfile, configurationRequired = modelConfigurationRequired, onDismiss = { profileVisible = false })
+                }
                 OverlayMenuHost(
                     state = overlayMenuState,
                     onSaveSong = musicRepository::updateSong
@@ -195,24 +214,32 @@ private fun SharedTransitionScope.ScaffoldNavigation(
     navigationState: NavigationState,
     navigator: Navigator,
     openPlayer: () -> Unit,
+    openProfile: () -> Unit,
+    configureModels: () -> Unit,
+    profileVisible: Boolean,
+    practiceVisible: Boolean,
+    openPractice: () -> Unit,
     onBack: () -> Unit
 ) {
     val settings = org.koin.compose.koinInject<com.aria.rythme.core.music.data.settings.AppSettingsRepository>()
-    val profileName by settings.displayName.collectAsStateWithLifecycle("ARiA")
+    val profileName by settings.displayName.collectAsStateWithLifecycle("未设置昵称")
+    val profileAvatar by settings.avatarPath.collectAsStateWithLifecycle(null)
     val targetHeader = topBarState.find(navigationState.topLevelRoute, navigationState.currentRoute)
     var previousHeader by remember { mutableStateOf<TopBarEntry?>(null) }
     SideEffect { if (targetHeader != null) previousHeader = targetHeader }
     // 新 entry 首次提交前保留上一画面，禁止旧页面回调；不先绘制一套兜底按钮。
     val header = targetHeader ?: previousHeader
     Scaffold(
-        modifier = Modifier,
+        modifier = if (profileVisible) Modifier.clearAndSetSemantics { } else Modifier,
         topBar = {
             if (header != null) RythmeHeader(
                 entry = header,
                 profileName = profileName,
+                profileAvatar = profileAvatar,
                 enabled = targetHeader != null,
                 skipAnimation = navigationState.operation == NavigationOperation.TabSwitch,
-                onBackClick = { navigator.goBack() }
+                onBackClick = { navigator.goBack() },
+                onAvatarClick = openProfile
             ) else Box(Modifier.statusBarsPadding().fillMaxWidth().height(HeaderLayout.toolbar))
         },
         bottomBar = {
@@ -311,7 +338,11 @@ private fun SharedTransitionScope.ScaffoldNavigation(
                                 onSettingsClick = { navigator.navigate(RythmeRoute.Settings) }
                             ) }
                             entry<RythmeRoute.Settings> { com.aria.rythme.feature.settings.SettingsScreen() }
-                            entry<RythmeRoute.Pitch> { com.aria.rythme.feature.pitch.presentation.PitchScreen() }
+                            entry<RythmeRoute.Pitch> { com.aria.rythme.feature.pitch.presentation.PitchScreen(
+                                isActive = navigationState.topLevelRoute == RythmeRoute.Pitch && !LocalPlayerVisible.current && !practiceVisible,
+                                onConfigureModels = configureModels,
+                                onOpenSongPractice = openPractice
+                            ) }
                             entry<RythmeRoute.Playlist> {
                                 PlayListScreen(
                                     onPlaylistClick = { id ->

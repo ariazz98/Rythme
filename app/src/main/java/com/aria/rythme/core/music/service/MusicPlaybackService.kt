@@ -19,6 +19,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
@@ -179,7 +181,38 @@ class MusicPlaybackService : MediaSessionService() {
         }
     }
 
-    private class MediaSessionCallback : MediaSession.Callback {
+    private inner class MediaSessionCallback : MediaSession.Callback {
+        private var practiceOwner: MediaSession.ControllerInfo? = null
+
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val result = super.onConnect(session, controller)
+            if (controller.packageName != packageName) return result
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(result.availableSessionCommands.buildUpon()
+                    .add(SessionCommand(PRACTICE_COMMAND, Bundle.EMPTY)).build()).build()
+        }
+
+        override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
+            if (customCommand.customAction != PRACTICE_COMMAND || controller.packageName != packageName)
+                return super.onCustomCommand(session, controller, customCommand, args)
+            val enabled = args.getBoolean("enabled")
+            if (enabled) practiceOwner = controller
+            if (enabled || practiceOwner == controller) {
+                // 在音频引擎边界暂停，不能靠 UI 轮询在下一首已经发声后补救。
+                exoPlayer?.pauseAtEndOfMediaItems = enabled
+                if (!enabled) practiceOwner = null
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+
+        override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            if (practiceOwner == controller) {
+                exoPlayer?.pauseAtEndOfMediaItems = false
+                practiceOwner = null
+            }
+        }
+
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -208,6 +241,7 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     companion object {
+        const val PRACTICE_COMMAND = "com.aria.rythme.PRACTICE_BOUNDARY"
         private const val TAG = "MusicPlaybackService"
         private const val CHANNEL_ID = "music_playback_channel"
         private const val NOTIFICATION_ID = 1

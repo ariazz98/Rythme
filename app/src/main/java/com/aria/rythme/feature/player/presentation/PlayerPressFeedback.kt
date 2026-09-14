@@ -23,13 +23,14 @@ internal fun PlayerPressFeedback(
     size: Dp,
     haloSize: Dp = size,
     modifier: Modifier = Modifier,
+    haloColor: Color = Color.White,
     content: @Composable BoxScope.(MutableInteractionSource) -> Unit
 ) {
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
     val amount by animateFloatAsState(if (pressed) 1f else 0f, tween(if (pressed) 80 else 220))
     Box(modifier.size(size).drawBehind {
-        drawCircle(Color.White.copy(alpha = .1f * amount), radius = haloSize.toPx() / 2f)
+        drawCircle(haloColor.copy(alpha = .1f * amount), radius = haloSize.toPx() / 2f)
     }, contentAlignment = Alignment.Center) {
         Box(Modifier.graphicsLayer {
             scaleX = 1f - .55f * amount

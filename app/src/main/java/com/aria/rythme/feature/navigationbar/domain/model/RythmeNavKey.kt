@@ -119,3 +119,7 @@ val ALL_TOP_LEVEL_ROUTES = setOf(
     RythmeRoute.Library,
     RythmeRoute.Search
 )
+
+/** 歌曲轨迹独立页面栈，不加入首页底栏。 */
+@Serializable
+internal enum class SongPracticeRoute : NavKey { Library, Picker, Detail }

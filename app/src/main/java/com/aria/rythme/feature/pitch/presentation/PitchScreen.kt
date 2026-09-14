@@ -1,118 +1,131 @@
 package com.aria.rythme.feature.pitch.presentation
 
-import androidx.compose.foundation.Canvas
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.Dp
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.withResumed
+import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aria.rythme.LocalInnerPadding
 import com.aria.rythme.R
-import com.aria.rythme.ui.component.Action
-import com.aria.rythme.ui.component.MainListPage
-import com.aria.rythme.ui.component.TopBarConfig
+import com.aria.rythme.ui.component.*
 import com.aria.rythme.ui.theme.rythmeColors
-import com.kyant.capsule.ContinuousRoundedRectangle
+import org.koin.compose.viewmodel.koinViewModel
 
-/** 当前阶段仅呈现布局，不申请录音权限、不启用麦克风，也不伪造检测数据。 */
+/** 根页面使用固定画布；纵向手势只移动音阶，不驱动全局底栏收起。 */
 @Composable
-fun PitchScreen() {
-    val colors = MaterialTheme.rythmeColors
-    val density = LocalDensity.current
-    val insets = LocalInnerPadding.current
-    val availableHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } -
-        insets.calculateTopPadding() - insets.calculateBottomPadding()
-    // 优先让监听区域位于首屏，较矮窗口仍可滚动，不把控制区压在 MiniPlayer 后面。
-    val chartHeight = (availableHeight - 390.dp).coerceIn(150.dp, 260.dp)
-    MainListPage(
-        title = stringResource(R.string.title_pitch),
-        topBar = TopBarConfig(
-            auxiliaryActions = listOf(Action.Icon("pitch_settings", R.drawable.ic_filter, contentDescription = "测量设置（待接入）")),
+fun PitchScreen(isActive: Boolean = true, onConfigureModels: () -> Unit, onOpenSongPractice: () -> Unit, viewModel: PitchViewModel = koinViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    val active by rememberUpdatedState(isActive)
+    val scope = rememberCoroutineScope()
+    var denied by rememberSaveable { mutableStateOf(false) }
+    var discard by remember { mutableStateOf(false) }
+    var settingsInfo by rememberSaveable { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.message) { message = state.message }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        denied = !granted
+        if (granted) scope.launch {
+            owner.lifecycle.withResumed { if (active) viewModel.start() }
+        }
+        else if (!granted) viewModel.permissionDenied()
+    }
+    fun beginRecording() {
+        if (!active || !owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            denied = false
+            viewModel.start()
+        } else permission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    DisposableEffect(owner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) viewModel.onInactive()
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer); viewModel.onInactive() }
+    }
+    LaunchedEffect(isActive) { if (!isActive) viewModel.onInactive() }
+    val title = stringResource(R.string.title_pitch)
+    val entry = LocalTopBarEntry.current
+    rememberPageHeader(
+        title,
+        TopBarConfig(
+            auxiliaryActions = listOf(Action.Icon("song_practice", R.drawable.ic_song_practice, iconSize = 26.dp,
+                contentDescription = "打开歌曲轨迹", onClick = onOpenSongPractice)),
             actions = listOf(Action.Avatar("avatar", name = "ARiA"))
+        ),
+        HeaderMode.HIDDEN, rememberPageSearchState(), hasSearch = false
+    )
+    SideEffect {
+        entry.scroll.atTop = true
+        entry.scroll.firstVisibleItemIndex = 0
+        entry.scroll.firstVisibleItemScrollOffsetDp = 0f
+    }
+    val colors = MaterialTheme.rythmeColors
+    Column(Modifier.fillMaxSize().background(colors.surface).padding(LocalInnerPadding.current)) {
+        PitchCanvas(
+            state = state,
+            freeModeControls = true,
+            enabled = isActive && !state.stopping && !state.preparing,
+            onPrimary = {
+                when (state.phase) {
+                    PitchPhase.Idle, PitchPhase.Paused, PitchPhase.Finished -> beginRecording()
+                    PitchPhase.Recording -> viewModel.pause()
+                }
+            },
+            onStop = viewModel::stop,
+            onReset = { if (state.frames.isEmpty()) viewModel.clearHistory() else { discard = true } },
+            modifier = Modifier.weight(1f).fillMaxWidth()
         )
-    ) {
-        item {
-            Column(Modifier.padding(horizontal = 21.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("观察声音的轨迹", fontSize = 15.sp, color = colors.subTitleColor)
-                    Text("布局预览", fontSize = 11.sp, color = colors.primary,
-                        modifier = Modifier.clip(ContinuousRoundedRectangle(8.dp)).background(colors.primary.copy(alpha = 0.08f)).padding(horizontal = 9.dp, vertical = 5.dp))
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    PitchReading("当前音名", "—", "音名 / 八度")
-                    PitchReading("基频", "—", "Hz")
-                    PitchReading("音准偏差", "—", "cents")
-                }
-                Row(Modifier.fillMaxWidth().clip(ContinuousRoundedRectangle(12.dp)).background(colors.coverBg).padding(4.dp)) {
-                    Box(Modifier.weight(1f).clip(ContinuousRoundedRectangle(9.dp)).background(colors.surface).padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                        Text("自由观察", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textColor)
-                    }
-                    Box(Modifier.weight(1f).padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                        Text("目标音对照", fontSize = 14.sp, color = colors.subTitleColor)
-                    }
-                }
-                EmptyPitchChart(chartHeight)
-                Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth().height(50.dp),
-                    colors = ButtonDefaults.buttonColors(disabledContainerColor = colors.primary.copy(alpha = 0.10f), disabledContentColor = colors.primary.copy(alpha = 0.55f))) {
-                    Icon(painterResource(R.drawable.ic_mic), null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("开始监听", fontSize = 16.sp)
-                }
-                Text("麦克风尚未接入。本轮只预览页面布局，不采集或保存声音。", fontSize = 12.sp, color = colors.subTitleColor)
-            }
-        }
     }
-}
-
-@Composable
-private fun PitchReading(label: String, value: String, unit: String) {
-    val colors = MaterialTheme.rythmeColors
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(label, fontSize = 12.sp, color = colors.subTitleColor)
-        Text(value, fontSize = 36.sp, fontWeight = FontWeight.Light, color = colors.textColor)
-        Text(unit, fontSize = 11.sp, color = colors.subTitleColor)
-    }
-}
-
-@Composable
-private fun EmptyPitchChart(height: Dp) {
-    val colors = MaterialTheme.rythmeColors
-    Column {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("音高轨迹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.textColor)
-            Text("C3 — C5", fontSize = 12.sp, color = colors.subTitleColor)
-        }
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().height(height).clip(ContinuousRoundedRectangle(18.dp)).background(colors.coverBg.copy(alpha = 0.42f))) {
-            Canvas(Modifier.fillMaxSize().padding(start = 36.dp, end = 12.dp, top = 20.dp, bottom = 20.dp)) {
-                for (index in 0..24) {
-                    val y = size.height * index / 24f
-                    drawLine(colors.subTitleColor.copy(alpha = if (index % 12 == 0) 0.20f else 0.07f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-                }
-                for (index in 0..6) {
-                    val x = size.width * index / 6f
-                    drawLine(colors.subTitleColor.copy(alpha = 0.07f), Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
-                }
-            }
-            Column(Modifier.fillMaxHeight().padding(start = 9.dp, top = 14.dp, bottom = 14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                listOf("C5", "C4", "C3").forEach { Text(it, fontSize = 10.sp, color = colors.subTitleColor) }
-            }
-            Column(Modifier.align(Alignment.Center).background(colors.surface.copy(alpha = 0.92f), ContinuousRoundedRectangle(12.dp)).padding(horizontal = 20.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("尚无音高输入", fontSize = 14.sp, color = colors.textColor)
-                Text("监听接入后，在这里显示实时曲线", fontSize = 11.sp, color = colors.subTitleColor)
-            }
-        }
-        Text("时间 →", modifier = Modifier.align(Alignment.End).padding(top = 5.dp), fontSize = 11.sp, color = colors.subTitleColor)
+    if (discard) GlassAlertDialog(
+        onDismissRequest = { discard = false },
+        title = { Text("清空轨迹？") },
+        text = { Text("当前轨迹将被清空，监听会停止。") },
+        confirmButton = { GlassDialogButton(onClick = {
+            discard = false
+            viewModel.clearHistory()
+        }) { Text("清空") } },
+        dismissButton = { GlassDialogButton(primary = false, onClick = { discard = false }) { Text("取消") } }
+    )
+    if (settingsInfo) AlertDialog(
+        onDismissRequest = { settingsInfo = false },
+        title = { Text("测量信息") },
+        text = { Text("基准音：A4 = 440 Hz\n检测范围：55–1000 Hz\n音准偏差：相对最近音名\n本地单音检测，不保存录音") },
+        confirmButton = { TextButton(onClick = { settingsInfo = false }) { Text("完成") } }
+    )
+    message?.let { text ->
+        AlertDialog(
+            onDismissRequest = { message = null; viewModel.dismissMessage() },
+            text = { Text(text) },
+            confirmButton = {
+                TextButton(onClick = {
+                    message = null
+                    viewModel.dismissMessage()
+                    if (denied) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        "package:${context.packageName}".toUri()))
+                }) { Text(if (denied) "权限设置" else "知道了") }
+            },
+            dismissButton = { if (denied) TextButton(onClick = { message = null; viewModel.dismissMessage() }) { Text("取消") } }
+        )
     }
 }

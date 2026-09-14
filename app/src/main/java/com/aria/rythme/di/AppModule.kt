@@ -35,6 +35,17 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val playModule = module {
+    single { com.aria.rythme.feature.pitch.data.ParsedMelodyStore(java.io.File(androidContext().filesDir, "parsed-melodies")) }
+    viewModel { com.aria.rythme.feature.pitch.presentation.SongPracticeViewModel(androidContext(), get(), get(), get(), get()) }
+    single { com.aria.rythme.feature.pitch.data.MelodyCurveCache(java.io.File(androidContext().cacheDir, "melody-curves")) }
+    single { com.aria.rythme.feature.pitch.data.SongMelodyAnalyzer(androidContext(), get(), get()) }
+    single { com.aria.rythme.feature.pitch.data.SongMelodyManager(androidContext(), get(), get(), get()) }
+    single { com.aria.rythme.feature.pitch.data.MelodyModelStore(
+        java.io.File(androidContext().noBackupFilesDir, "melody-models"), get()) }
+    single { com.aria.rythme.feature.pitch.data.MelodyModelManager(androidContext(), get()) }
+    viewModel { com.aria.rythme.feature.pitch.presentation.MelodyModelViewModel(get()) }
+    viewModel { com.aria.rythme.feature.pitch.presentation.PitchViewModel(
+        com.aria.rythme.feature.pitch.data.MicrophonePitchSource(androidContext()), get()) }
     viewModel { com.aria.rythme.feature.home.presentation.HomeViewModel(get(), get(), get(), get()) }
     viewModel { com.aria.rythme.feature.settings.SettingsViewModel(get(), get()) }
     single { com.aria.rythme.core.music.data.repository.ListeningHistoryRepository(androidContext()) }

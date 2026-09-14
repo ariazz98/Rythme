@@ -2,6 +2,7 @@ package com.aria.rythme.ui.component
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -119,41 +120,14 @@ fun SongListItem(
     val isSongContextActive =
         LocalOverlayMenu.current.presentedSongContext?.song?.id == song.id
 
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 4.dp, horizontal = horizontalPadding),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CoverItem(
-                size = 48.dp,
-                corner = 6.dp,
-                song = song,
+    SongListRow(
+        title = song.title, subtitle = song.artist,
+        showDivider = showDivider, horizontalPadding = horizontalPadding, onClick = onClick,
+        cover = {
+            CoverItem(size = 48.dp, corner = 6.dp, song = song,
                 defaultBgColor = MaterialTheme.rythmeColors.coverBg,
-                defaultIconColor = MaterialTheme.rythmeColors.coverIcon
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = song.title,
-                    fontSize = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.rythmeColors.textColor
-                )
-                Text(
-                    text = song.artist,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.rythmeColors.subTitleColor
-                )
-            }
-
+                defaultIconColor = MaterialTheme.rythmeColors.coverIcon)
+        }, trailing = {
             with(sharedTransitionScope) {
                 Box(
                     modifier = Modifier
@@ -174,15 +148,41 @@ fun SongListItem(
                 }
             }
         }
+    )
+}
 
-        // 分割线
-        if (showDivider) {
-            HorizontalDivider(
-                modifier = Modifier.padding(start = horizontalPadding + 59.dp, end = horizontalPadding),
-                thickness = DividerDefaults.Thickness,
-                color = MaterialTheme.rythmeColors.weakColor
-            )
+/** 资料库和歌曲轨迹共享歌曲行的尺寸、文字层级、点击反馈及分隔线。 */
+@Composable
+internal fun SongListRow(
+    title: String,
+    subtitle: String,
+    showDivider: Boolean = true,
+    horizontalPadding: Dp = 21.dp,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    cover: @Composable () -> Unit,
+    trailing: @Composable () -> Unit
+) {
+    Column {
+        Row(Modifier.fillMaxWidth()
+            .then(if (onLongClick == null) Modifier.clickable(enabled = enabled, onClick = onClick)
+                else Modifier.combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick))
+            .padding(vertical = 4.dp, horizontal = horizontalPadding),
+            verticalAlignment = Alignment.CenterVertically) {
+            cover()
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.rythmeColors.textColor)
+                Text(subtitle, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.rythmeColors.subTitleColor)
+            }
+            trailing()
         }
+        if (showDivider) HorizontalDivider(
+            modifier = Modifier.padding(start = horizontalPadding + 59.dp, end = horizontalPadding),
+            thickness = DividerDefaults.Thickness, color = MaterialTheme.rythmeColors.weakColor)
     }
 }
 

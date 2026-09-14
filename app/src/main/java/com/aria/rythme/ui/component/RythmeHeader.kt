@@ -34,14 +34,16 @@ internal fun RythmeHeader(
     profileName: String,
     enabled: Boolean = true,
     skipAnimation: Boolean = false,
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    onAvatarClick: () -> Unit = {},
+    isRoot: Boolean = entry.route in ALL_TOP_LEVEL_ROUTES,
+    showDivider: Boolean = true,
+    profileAvatar: String? = null
 ) {
-    val routeKey = entry.route
     val config = requireNotNull(entry.config)
     fun bindAvatar(actions: List<Action>) = actions.map { action ->
-        if (action is Action.Avatar && action.key == "avatar") action.copy(name = profileName) else action
+        if (action is Action.Avatar && action.key == "avatar") action.copy(name = profileName, url = profileAvatar, contentDescription = "打开个人面板", onClick = action.onClick ?: onAvatarClick) else action
     }
-    val isRoot = routeKey in ALL_TOP_LEVEL_ROUTES
     val search = entry.search
     val searchProgress = search?.transition?.value ?: 0f
     val navigationProgress = if (skipAnimation) 1f else entry.navigationVisibility.value
@@ -77,7 +79,7 @@ internal fun RythmeHeader(
                     highlight = null,
                     shadow = null,
                     innerShadow = null,
-                    onDrawSurface = { drawHeaderBackdropSurface(surfaceColor) }
+                    onDrawSurface = { drawHeaderBackdropSurface(surfaceColor, showDivider) }
                 )
         )
         CompositionLocalProvider(LocalBackdrop provides buttonBackdrop) {

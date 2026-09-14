@@ -9,7 +9,7 @@ import com.aria.rythme.core.music.data.settings.ScanSettings
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-data class SettingsState(val name: String = "ARiA", val scan: ScanSettings = ScanSettings(), val progress: ScanProgress = ScanProgress.Idle)
+data class SettingsState(val name: String = "未设置昵称", val scan: ScanSettings = ScanSettings(), val progress: ScanProgress = ScanProgress.Idle)
 
 class SettingsViewModel(private val repository: AppSettingsRepository, private val indexer: MusicIndexer) : ViewModel() {
     val state = combine(repository.displayName, repository.settings, indexer.scanProgress, ::SettingsState)

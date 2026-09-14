@@ -74,4 +74,8 @@
     <string name="song_menu_play_later">随后播放</string>
     <string name="song_menu_go_to_album">前往专辑</string>
     <string name="song_menu_info">歌曲信息</string>
+    <string name="pitch_reanalyze">重新解析</string>
+    <string name="pitch_remove_analysis">移除解析记录</string>
+    <string name="pitch_cancel_analysis">取消解析</string>
+    <string name="pitch_retry_analysis">重试解析</string>
 </resources>

@@ -92,6 +92,8 @@ dependencies {
     // Debug 工具
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
+
     implementation(libs.backdrop)
     implementation(libs.capsule)
     implementation(libs.haze)

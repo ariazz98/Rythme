@@ -46,14 +46,53 @@ private val Context.scanSettingsDataStore: DataStore<Preferences> by preferences
  * @param context 应用上下文
  */
 class AppSettingsRepository(private val context: Context) {
+    private val avatarPathKey = stringPreferencesKey("local_avatar_path")
+    val avatarPath: Flow<String?> = context.scanSettingsDataStore.data
+        .catch { error -> if (error is java.io.IOException) emit(emptyPreferences()) else throw error }
+        .map { it[avatarPathKey] }
+
     private val displayNameKey = stringPreferencesKey("local_display_name")
     val displayName: Flow<String> = context.scanSettingsDataStore.data
         .catch { error -> if (error is java.io.IOException) emit(emptyPreferences()) else throw error }
-        .map { it[displayNameKey] ?: "ARiA" }
+        .map { it[displayNameKey] ?: "未设置昵称" }
 
     suspend fun updateDisplayName(name: String) {
         require(name.trim().isNotEmpty() && name.trim().length <= 30)
         context.scanSettingsDataStore.edit { it[displayNameKey] = name.trim() }
+    }
+
+    /** 图片缩至头像需要的尺寸后保存到私有目录，配置成功后再删除旧文件。 */
+    suspend fun updateProfile(name: String, avatar: String?) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        require(name.trim().isNotEmpty() && name.trim().length <= 30)
+        val oldPath = context.scanSettingsDataStore.data.first()[avatarPathKey]
+        var newFile: java.io.File? = null
+        try {
+            val savedPath = if (avatar == null || avatar == oldPath) avatar else {
+                val uri = android.net.Uri.parse(avatar)
+                val bitmap = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
+                    val scale = minOf(1f, 512f / maxOf(info.size.width, info.size.height))
+                    decoder.setTargetSize(maxOf(1, (info.size.width * scale).toInt()), maxOf(1, (info.size.height * scale).toInt()))
+                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+                val directory = java.io.File(context.filesDir, "profile").apply { mkdirs() }
+                val target = java.io.File(directory, "avatar-${java.util.UUID.randomUUID()}.png")
+                newFile = target
+                try { target.outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) } }
+                finally { bitmap.recycle() }
+                target.absolutePath
+            }
+            context.scanSettingsDataStore.edit {
+                it[displayNameKey] = name.trim()
+                if (savedPath == null) it.remove(avatarPathKey) else it[avatarPathKey] = savedPath
+            }
+            if (oldPath != savedPath) oldPath?.let { path ->
+                val old = java.io.File(path)
+                runCatching { if (old.parentFile?.canonicalFile == java.io.File(context.filesDir, "profile").canonicalFile) old.delete() }
+            }
+        } catch (error: Exception) {
+            newFile?.delete()
+            throw error
+        }
     }
 
     /**

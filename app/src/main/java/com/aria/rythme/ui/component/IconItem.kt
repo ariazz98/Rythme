@@ -45,6 +45,8 @@ fun PlayPauseIcon(
     pauseIconRes: Int = R.drawable.ic_pause,
     interactionSource: MutableInteractionSource? = null,
     animationSpec: FiniteAnimationSpec<Float> = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow),
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val springSpec = animationSpec
@@ -68,8 +70,8 @@ fun PlayPauseIcon(
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .clickable(interactionSource = interactionSource, indication = null) {
+        modifier = modifier
+            .clickable(enabled = enabled, interactionSource = interactionSource, indication = null) {
                 onClick()
             }
     ) {
@@ -198,6 +200,7 @@ fun PreviousIcon(
     height: Dp,
     tint: Color = Color.Black,
     interactionSource: MutableInteractionSource? = null,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val animProgress = remember { Animatable(0f) }
@@ -207,7 +210,7 @@ fun PreviousIcon(
     val p = animProgress.value
 
     Row(
-        modifier = if (enable) {
+        modifier = modifier.then(if (enable) {
             Modifier.clickable(interactionSource = interactionSource, indication = null) {
                 onClick()
                 scope.launch {
@@ -218,7 +221,8 @@ fun PreviousIcon(
             }
         } else {
             Modifier
-        },
+        }),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (p > 0f) {

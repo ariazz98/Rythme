@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -79,7 +81,8 @@ internal fun TopBarTitle(text: String, referenceScale: Float = 1f, modifier: Mod
 @Composable
 internal fun HeaderAvatarContent(action: Action.Avatar, referenceScale: Float, modifier: Modifier = Modifier) {
     Box(
-        modifier.size((TopBarComponentMetrics.avatarSize * referenceScale).dp).clip(CircleShape),
+        modifier.size((TopBarComponentMetrics.avatarSize * referenceScale).dp).clip(CircleShape)
+            .semantics { contentDescription = action.contentDescription.ifEmpty { "头像" } },
         contentAlignment = Alignment.Center
     ) {
         if (!action.url.isNullOrEmpty()) {
@@ -91,7 +94,7 @@ internal fun HeaderAvatarContent(action: Action.Avatar, referenceScale: Float, m
             )
         } else {
             Text(
-                text = action.name?.takeIf(String::isNotEmpty)?.take(2) ?: "R",
+                text = action.name?.takeIf { it.isNotEmpty() && it != "未设置昵称" }?.take(2) ?: "R",
                 color = Color.White,
                 fontSize = (17.5f * referenceScale).sp,
                 fontWeight = FontWeight.ExtraBold,

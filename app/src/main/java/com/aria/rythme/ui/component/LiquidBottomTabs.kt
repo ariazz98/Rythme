@@ -91,14 +91,6 @@ import kotlin.math.sign
 // 整片黑色着色、触点补光仍关闭，原参数留在调用处。
 private const val TAB_DROPLET_TINT_AND_SPOTLIGHT_ENABLED = false
 
-// 仅给外层液滴补一圈柔和内阴影；独立于暗边、内部明暗和背景折射。
-private val TabDropletInnerShadow = Shadow(
-    radius = 8.dp,
-    color = Color.Black.copy(alpha = 0.10f),
-    offset = DpOffset.Zero,
-    spread = 0.dp
-)
-
 /**
  * 展开态 BottomBar：四个普通 Tab 共用一个外层胶囊。
  *
@@ -313,18 +305,8 @@ fun LiquidBottomTabs(
             contentAlignment = Alignment.CenterStart
         ) {
             if (!separateSearch) {
-                GlassBackdropSurface(
-                    backdrop = backdrop,
-                    shape = { ContinuousCapsule },
-                    effects = {
-                        vibrancy()
-                        blur(2.dp.toPx())
-                        glassLens(24.dp.toPx(), 32.dp.toPx())
-                    },
-                    layerBlock = expandedLayer,
-                    pressProgress = { dragAnimation.pressProgress },
-                    onDrawSurface = { drawRect(containerColor) }
-                )
+                LiquidTabContainerSurface(backdrop, containerColor,
+                    pressProgress = { dragAnimation.pressProgress }, layerBlock = expandedLayer)
             }
             // 首个收起帧即切成两枚独立胶囊，不经过液桥或粘连轮廓。
             if (separateSearch) {
@@ -474,44 +456,10 @@ fun LiquidBottomTabs(
                 .width(tabWidth)
                 .height(BottomBarMetrics.ExpandedSelectorHeight.dp)
         ) {
-            GlassBackdropSurface(
-                backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
-                shape = { ContinuousCapsule },
-                effects = {
-                    val progress = dragAnimation.pressProgress
-                    glassLens(
-                        size.height * BottomBarMetrics.SelectorRefractionHeightRatio * progress,
-                        size.height * BottomBarMetrics.SelectorRefractionAmountRatio * progress,
-                        chromaticAberration = true
-                    )
-                },
-                // 恢复原 2% 内部明暗；采样底稿已经提亮，外层不再叠加一次白色。
-                lightingAlpha = { dragAnimation.pressProgress },
-                shadow = null,
-                bodyReflectionEnabled = true,
-                layerBlock = {
-                    scaleX = dropletScaleX
-                    scaleY = dropletScaleY
-                },
-                onDrawSurface = {
-                    val progress = dragAnimation.pressProgress
-                    // 静止选中背景仍保留；按住成为液滴后照常退到完全透明。
-                    drawRect(selectedColor, alpha = 1f - progress)
-                    if (TAB_DROPLET_TINT_AND_SPOTLIGHT_ENABLED) {
-                        drawRect(Color.Black.copy(alpha = 0.03f * progress))
-                    }
-                }
-            )
-            // 与液滴共用每帧形变，阴影不写回隐藏层、不参与折射采样。
-            // 阴影样式固定，只改变图层透明度，避免按压时反复生成模糊遮罩。
-            Box(
-                Modifier.matchParentSize()
-                    .graphicsLayer {
-                        scaleX = dropletScaleX
-                        scaleY = dropletScaleY
-                        alpha = dragAnimation.pressProgress.coerceIn(0f, 1f)
-                    }
-                    .innerShadow(ContinuousCapsule, TabDropletInnerShadow)
+            LiquidTabSelectionSurface(
+                backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop), selectedColor = selectedColor,
+                pressProgress = { dragAnimation.pressProgress },
+                scaleX = { dropletScaleX }, scaleY = { dropletScaleY }
             )
         }
 
