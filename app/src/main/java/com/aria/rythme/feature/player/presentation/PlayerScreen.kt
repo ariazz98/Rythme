@@ -185,12 +185,13 @@ fun PlayerScreen(
         onBack()
     }
     // 在共享元素首次测量展开目标之前重置，不能等 LaunchedEffect 的下一阶段。
-    remember(playerVisible) {
+    var previousPlayerVisible by remember { mutableStateOf(false) }
+    if (previousPlayerVisible != playerVisible) {
+        previousPlayerVisible = playerVisible
         if (playerVisible) {
             dragOffsetY = 0f
             dismissMotionState.value = PlayerDismissMotion()
         }
-        Unit
     }
 
     var activePanel by remember { mutableStateOf(PlayerPanel.NONE) }
