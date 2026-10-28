@@ -1,5 +1,5 @@
 [versions]
-agp = "9.4.1"
+agp = "9.5.0"
 backdrop = "2.0.1"
 capsule = "2.1.3"
 haze = "2.0.1"
